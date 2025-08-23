@@ -5,7 +5,60 @@ import subprocess
 import sys
 
 from git_autosquash import __version__
+from git_autosquash.blame_analyzer import BlameAnalyzer
 from git_autosquash.git_ops import GitOps
+from git_autosquash.hunk_parser import HunkParser
+from git_autosquash.tui.app import AutoSquashApp
+
+
+def _simple_approval_fallback(mappings, blame_analyzer):
+    """Simple text-based approval fallback when TUI fails.
+
+    Args:
+        mappings: List of hunk target mappings
+        blame_analyzer: BlameAnalyzer instance for getting commit summaries
+
+    Returns:
+        List of approved mappings
+    """
+    from git_autosquash.blame_analyzer import HunkTargetMapping
+    from typing import List
+
+    print("\nReview hunk → commit mappings:")
+    print("=" * 60)
+
+    approved_mappings: List[HunkTargetMapping] = []
+
+    for i, mapping in enumerate(mappings, 1):
+        commit_summary = blame_analyzer.get_commit_summary(mapping.target_commit)
+        hunk = mapping.hunk
+
+        print(f"\n[{i}/{len(mappings)}] {hunk.file_path}")
+        print(f"  Lines: {hunk.new_start}-{hunk.new_start + hunk.new_count - 1}")
+        print(f"  Target: {commit_summary}")
+        print(f"  Confidence: {mapping.confidence}")
+
+        # Show a few lines of the diff
+        diff_lines = hunk.lines[1:4]  # Skip @@ header, show first 3 lines
+        for line in diff_lines:
+            print(f"  {line}")
+        if len(hunk.lines) > 4:
+            print(f"  ... ({len(hunk.lines) - 1} total lines)")
+
+        while True:
+            choice = input("\nApprove this mapping? [y/n/q]: ").lower().strip()
+            if choice == "y":
+                approved_mappings.append(mapping)
+                break
+            elif choice == "n":
+                break
+            elif choice == "q":
+                print("Operation cancelled")
+                return []
+            else:
+                print("Please enter y, n, or q")
+
+    return approved_mappings
 
 
 def main() -> None:
@@ -25,7 +78,7 @@ def main() -> None:
         version=f"%(prog)s {__version__}",
     )
 
-    _args = parser.parse_args()  # TODO: Use args for --line-by-line in Phase 2
+    args = parser.parse_args()
 
     try:
         git_ops = GitOps()
@@ -86,8 +139,92 @@ def main() -> None:
         else:
             print("Processing unstaged changes")
 
-        # TODO: Continue with remaining phases
-        print("Implementation in progress...")
+        # Phase 2: Parse hunks and analyze blame
+        print("\nAnalyzing changes and finding target commits...")
+
+        hunk_parser = HunkParser(git_ops)
+        hunks = hunk_parser.get_diff_hunks(line_by_line=args.line_by_line)
+
+        if not hunks:
+            print("No changes found to process", file=sys.stderr)
+            sys.exit(1)
+
+        print(f"Found {len(hunks)} hunks to process")
+
+        # Analyze hunks with blame to find target commits
+        blame_analyzer = BlameAnalyzer(git_ops, merge_base)
+        mappings = blame_analyzer.analyze_hunks(hunks)
+
+        # Filter out mappings without target commits
+        valid_mappings = [m for m in mappings if m.target_commit is not None]
+
+        if not valid_mappings:
+            print("No valid target commits found for any hunks", file=sys.stderr)
+            print(
+                "This may happen if all changes are in new files or outside branch scope"
+            )
+            sys.exit(1)
+
+        print(f"Found target commits for {len(valid_mappings)} hunks")
+
+        # Phase 3: Show TUI for user approval
+        print("\nLaunching interactive approval interface...")
+
+        try:
+            app = AutoSquashApp(valid_mappings)
+            approved = app.run()
+
+            if approved and app.approved_mappings:
+                approved_mappings = app.approved_mappings
+                print(f"\nUser approved {len(approved_mappings)} hunks for squashing")
+
+                # TODO: Phase 4 - Execute the interactive rebase
+                print("Phase 4 (rebase execution) not yet implemented")
+                print("\nApproved mappings:")
+                for mapping in approved_mappings:
+                    try:
+                        if mapping.target_commit:
+                            commit_summary = blame_analyzer.get_commit_summary(
+                                mapping.target_commit
+                            )
+                            print(f"  {mapping.hunk.file_path} → {commit_summary}")
+                        else:
+                            print(f"  {mapping.hunk.file_path} → No target commit")
+                    except Exception as e:
+                        print(
+                            f"  {mapping.hunk.file_path} → {mapping.target_commit} (summary failed: {e})"
+                        )
+
+            else:
+                print("\nOperation cancelled by user or no hunks approved")
+
+        except ImportError as e:
+            print(f"\nTextual TUI not available: {e}")
+            print("Falling back to simple text-based approval...")
+            approved_mappings = _simple_approval_fallback(
+                valid_mappings, blame_analyzer
+            )
+
+            if approved_mappings:
+                print(f"\nApproved {len(approved_mappings)} hunks for squashing")
+                # TODO: Phase 4 - Execute the interactive rebase
+                print("Phase 4 (rebase execution) not yet implemented")
+            else:
+                print("\nOperation cancelled")
+
+        except Exception as e:
+            print(f"\nTUI encountered an error: {e}")
+            print("Falling back to simple text-based approval...")
+            approved_mappings = _simple_approval_fallback(
+                valid_mappings, blame_analyzer
+            )
+
+            if approved_mappings:
+                print(f"\nApproved {len(approved_mappings)} hunks for squashing")
+                # TODO: Phase 4 - Execute the interactive rebase
+                print("Phase 4 (rebase execution) not yet implemented")
+            else:
+                print("\nOperation cancelled")
 
     except (subprocess.SubprocessError, FileNotFoundError) as e:
         print(f"Git operation failed: {e}", file=sys.stderr)
