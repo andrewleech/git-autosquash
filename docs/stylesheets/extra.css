@@ -1,0 +1,173 @@
+/* Custom styles for git-autosquash documentation */
+
+/* Code block enhancements */
+.highlight .hll {
+  background-color: #ffffcc;
+  padding: 2px 4px;
+  border-radius: 2px;
+}
+
+/* Mermaid diagram styling */
+.mermaid {
+  text-align: center;
+  margin: 1em 0;
+}
+
+/* Custom admonition for git commands */
+.md-typeset .admonition.git,
+.md-typeset details.git {
+  border-color: #f37f20;
+}
+
+.md-typeset .git > .admonition-title,
+.md-typeset .git > summary {
+  background-color: #f3702020;
+  border-color: #f37f20;
+}
+
+.md-typeset .git > .admonition-title::before,
+.md-typeset .git > summary::before {
+  background-color: #f37f20;
+  mask-image: var(--md-admonition-icon--note);
+}
+
+/* Terminal window styling */
+.terminal {
+  background: #1e1e1e;
+  color: #d4d4d4;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  overflow-x: auto;
+}
+
+.terminal .prompt {
+  color: #4ec9b0;
+  font-weight: bold;
+}
+
+.terminal .path {
+  color: #569cd6;
+}
+
+.terminal .output {
+  color: #d4d4d4;
+  margin: 0.2rem 0;
+}
+
+.terminal .error {
+  color: #f44747;
+}
+
+.terminal .success {
+  color: #4ec9b0;
+}
+
+/* Keyboard shortcut styling */
+.keys {
+  display: inline-block;
+  padding: 0.1rem 0.3rem;
+  background: var(--md-code-bg-color);
+  border: 1px solid var(--md-default-fg-color--lighter);
+  border-radius: 0.2rem;
+  font-family: var(--md-code-font-family);
+  font-size: 0.85rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Progress bar styling */
+.progress-bar {
+  width: 100%;
+  height: 20px;
+  background-color: var(--md-default-bg-color);
+  border-radius: 10px;
+  overflow: hidden;
+  margin: 1rem 0;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--md-primary-fg-color), var(--md-accent-fg-color));
+  border-radius: 10px;
+  transition: width 0.3s ease;
+}
+
+/* Custom table styling for CLI reference */
+.cli-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+
+.cli-table th,
+.cli-table td {
+  padding: 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--md-default-fg-color--lightest);
+}
+
+.cli-table th {
+  background-color: var(--md-default-bg-color--light);
+  font-weight: 600;
+}
+
+.cli-table code {
+  background-color: var(--md-code-bg-color);
+  padding: 0.1rem 0.3rem;
+  border-radius: 0.2rem;
+  font-family: var(--md-code-font-family);
+}
+
+/* Highlight boxes for important information */
+.highlight-box {
+  background: linear-gradient(135deg, var(--md-primary-fg-color--light), var(--md-accent-fg-color--light));
+  padding: 1rem;
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+  border-left: 4px solid var(--md-primary-fg-color);
+}
+
+.highlight-box h4 {
+  margin-top: 0;
+  color: var(--md-primary-fg-color);
+}
+
+/* Version badge styling */
+.version-badge {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  background: var(--md-accent-fg-color);
+  color: white;
+  border-radius: 1rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+/* Responsive adjustments */
+@media screen and (max-width: 76.1875em) {
+  .terminal {
+    font-size: 0.8rem;
+    padding: 0.75rem;
+  }
+  
+  .mermaid {
+    font-size: 0.9rem;
+  }
+}
+
+/* Dark theme specific adjustments */
+[data-md-color-scheme="slate"] {
+  .terminal {
+    background: #0d1117;
+    border: 1px solid #30363d;
+  }
+  
+  .highlight-box {
+    background: linear-gradient(135deg, var(--md-primary-fg-color--dark), var(--md-accent-fg-color--dark));
+    border-left-color: var(--md-accent-fg-color);
+  }
+}
