@@ -40,28 +40,35 @@ git-autosquash
 
 ### How do I install git-autosquash?
 
-The recommended installation method is using pipx:
+The recommended installation method is using uv:
 
 ```bash
-pipx install git-autosquash
+uv tool install git-autosquash
 ```
 
 For other installation methods, see the [Getting Started Guide](../user-guide/getting-started.md).
 
-### Can I use git-autosquash without pipx?
+### Can I use git-autosquash without uv?
 
-Yes, you can install with regular pip:
+Yes, you can install with pipx or pip:
 
 ```bash
+# With pipx (isolated environment)
+pipx install git-autosquash
+
+# With pip (basic installation)
 pip install git-autosquash
 ```
 
-However, pipx is recommended because it isolates git-autosquash in its own environment, preventing conflicts with other Python packages.
+However, uv is recommended because it's the fastest Python package manager with built-in tool isolation, preventing conflicts with other Python packages.
 
 ### How do I update git-autosquash?
 
 ```bash
-# With pipx (recommended)
+# With uv (recommended)
+uv tool upgrade git-autosquash
+
+# With pipx
 pipx upgrade git-autosquash
 
 # With pip

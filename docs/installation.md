@@ -10,9 +10,24 @@ git-autosquash is distributed as a Python package and can be installed using sev
 
 ## Installation Methods
 
-### pipx (Recommended)
+### uv (Recommended)
 
-[pipx](https://pypa.github.io/pipx/) is the recommended way to install Python CLI tools. It creates isolated environments for each tool, avoiding dependency conflicts.
+[uv](https://github.com/astral-sh/uv) is a fast, modern Python package manager with excellent tool installation support:
+
+```bash
+uv tool install git-autosquash
+```
+
+!!! tip "Why uv?"
+    - Fastest Python package manager available
+    - Built-in tool isolation like pipx
+    - Excellent dependency resolution
+    - Cross-platform compatibility
+    - Easy to upgrade: `uv tool upgrade git-autosquash`
+
+### pipx
+
+[pipx](https://pypa.github.io/pipx/) creates isolated environments for each tool, avoiding dependency conflicts:
 
 ```bash
 pipx install git-autosquash
@@ -39,14 +54,6 @@ pip install git-autosquash
     source git-autosquash-env/bin/activate  # On Windows: git-autosquash-env\Scripts\activate
     pip install git-autosquash
     ```
-
-### uv
-
-[uv](https://github.com/astral-sh/uv) is a fast Python package manager with tool installation support:
-
-```bash
-uv tool install git-autosquash
-```
 
 ### From Source
 

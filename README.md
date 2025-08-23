@@ -25,7 +25,10 @@ git-autosquash is a powerful tool that analyzes your working directory changes a
 ### Installation
 
 ```bash
-# Recommended: Install with pipx for isolated environment
+# Recommended: Install with uv (fastest, modern Python package manager)
+uv tool install git-autosquash
+
+# Or with pipx for isolated environment
 pipx install git-autosquash
 
 # Or with pip

@@ -26,7 +26,13 @@ git-autosquash is a powerful tool that analyzes your working directory changes a
 
 ### Installation
 
-=== "pipx (Recommended)"
+=== "uv (Recommended)"
+
+    ```bash
+    uv tool install git-autosquash
+    ```
+
+=== "pipx"
 
     ```bash
     pipx install git-autosquash
@@ -36,12 +42,6 @@ git-autosquash is a powerful tool that analyzes your working directory changes a
 
     ```bash
     pip install git-autosquash
-    ```
-
-=== "uv"
-
-    ```bash
-    uv tool install git-autosquash
     ```
 
 ### Basic Usage
