@@ -84,11 +84,11 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
-  # Link checker for pull requests and main branch (temporarily disabled)
+  # Link checker for pull requests and main branch
   link-check:
     runs-on: ubuntu-latest
     needs: build
-    if: false  # Temporarily disabled until artifact extraction is fixed
+    if: always() && needs.build.result == 'success'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -111,16 +111,26 @@ jobs:
       - name: Extract site archive
         run: |
           cd site-archive
-          # GitHub Pages artifact is already extracted by download-artifact action
-          # Just find the site directory and move it
+          ls -la
+          # GitHub Pages artifact is a tar file, but may be compressed differently
           if [ -f artifact.tar ]; then
+            # Try different extraction methods
+            tar -tf artifact.tar | head -5
             tar -xf artifact.tar
+            ls -la
+            # Move the extracted contents
+            if [ -d "site" ]; then
+              mv site ../site
+            else
+              # If no site directory, assume all files are the site content
+              mkdir -p ../site
+              mv * ../site/ 2>/dev/null || true
+            fi
+          else
+            # Files are already extracted by download-artifact
+            mkdir -p ../site
+            mv * ../site/ 2>/dev/null || true
           fi
-          # Find the site directory and move it to parent
-          find . -name "*.html" -type f | head -1 | xargs dirname | xargs -I {} mv {} ../site 2>/dev/null || \
-          find . -type d -name "*" | head -2 | tail -1 | xargs -I {} mv {} ../site 2>/dev/null || \
-          mv * ../site/ 2>/dev/null || \
-          echo "Site files are already in place"
 
       - name: Check internal links
         run: |
