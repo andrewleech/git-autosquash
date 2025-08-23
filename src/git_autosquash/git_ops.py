@@ -121,3 +121,41 @@ class GitOps:
             return count > 0
         except ValueError:
             return False
+
+    def run_git_command(
+        self, args: list[str], env: dict[str, str] | None = None
+    ) -> subprocess.CompletedProcess[str]:
+        """Run a git command and return the complete result.
+
+        Args:
+            args: Git command arguments (without 'git')
+            env: Optional environment variables
+
+        Returns:
+            CompletedProcess with stdout, stderr, and return code
+        """
+        cmd = ["git"] + args
+        try:
+            result = subprocess.run(
+                cmd,
+                cwd=self.repo_path,
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=300,  # 5 minute timeout
+            )
+            return result
+        except subprocess.TimeoutExpired as e:
+            return subprocess.CompletedProcess(
+                args=cmd,
+                returncode=124,  # timeout exit code
+                stdout=e.stdout.decode() if e.stdout else "",
+                stderr=f"Command timed out after 300 seconds: {e}",
+            )
+        except Exception as e:
+            return subprocess.CompletedProcess(
+                args=cmd,
+                returncode=1,
+                stdout="",
+                stderr=str(e),
+            )

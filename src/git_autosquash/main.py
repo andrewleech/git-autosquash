@@ -8,6 +8,7 @@ from git_autosquash import __version__
 from git_autosquash.blame_analyzer import BlameAnalyzer
 from git_autosquash.git_ops import GitOps
 from git_autosquash.hunk_parser import HunkParser
+from git_autosquash.rebase_manager import RebaseConflictError, RebaseManager
 from git_autosquash.tui.app import AutoSquashApp
 
 
@@ -59,6 +60,87 @@ def _simple_approval_fallback(mappings, blame_analyzer):
                 print("Please enter y, n, or q")
 
     return approved_mappings
+
+
+def _execute_rebase(approved_mappings, git_ops, merge_base, blame_analyzer) -> bool:
+    """Execute the interactive rebase to apply approved mappings.
+
+    Args:
+        approved_mappings: List of approved hunk to commit mappings
+        git_ops: GitOps instance
+        merge_base: Merge base commit hash
+        blame_analyzer: BlameAnalyzer for getting commit summaries
+
+    Returns:
+        True if successful, False if aborted or failed
+    """
+    try:
+        # Initialize rebase manager
+        rebase_manager = RebaseManager(git_ops, merge_base)
+
+        # Show what we're about to do
+        print(f"Distributing {len(approved_mappings)} hunks to their target commits:")
+        commit_counts = {}
+        for mapping in approved_mappings:
+            if mapping.target_commit:
+                if mapping.target_commit not in commit_counts:
+                    commit_counts[mapping.target_commit] = 0
+                commit_counts[mapping.target_commit] += 1
+
+        for commit_hash, count in commit_counts.items():
+            try:
+                commit_summary = blame_analyzer.get_commit_summary(commit_hash)
+                print(f"  {count} hunk{'s' if count > 1 else ''} → {commit_summary}")
+            except Exception:
+                print(f"  {count} hunk{'s' if count > 1 else ''} → {commit_hash}")
+
+        print("\nStarting rebase operation...")
+
+        # Execute the squash operation
+        success = rebase_manager.execute_squash(approved_mappings)
+
+        if success:
+            return True
+        else:
+            print("Rebase operation was cancelled by user")
+            return False
+
+    except RebaseConflictError as e:
+        print("\n⚠️ Rebase conflicts detected:")
+        for file_path in e.conflicted_files:
+            print(f"  {file_path}")
+
+        print("\nTo resolve conflicts:")
+        print("1. Edit the conflicted files to resolve conflicts")
+        print("2. Stage the resolved files: git add <files>")
+        print("3. Continue the rebase: git rebase --continue")
+        print("4. Or abort the rebase: git rebase --abort")
+
+        return False
+
+    except KeyboardInterrupt:
+        print("\n\nRebase operation interrupted by user")
+        try:
+            rebase_manager.abort_operation()
+            print("Rebase aborted, repository restored to original state")
+        except Exception as cleanup_error:
+            print(f"Warning: Cleanup failed: {cleanup_error}")
+            print("You may need to manually abort the rebase: git rebase --abort")
+
+        return False
+
+    except Exception as e:
+        print(f"\n✗ Rebase execution failed: {e}")
+
+        # Try to clean up
+        try:
+            rebase_manager.abort_operation()
+            print("Repository restored to original state")
+        except Exception as cleanup_error:
+            print(f"Warning: Cleanup failed: {cleanup_error}")
+            print("You may need to manually abort the rebase: git rebase --abort")
+
+        return False
 
 
 def main() -> None:
@@ -178,22 +260,17 @@ def main() -> None:
                 approved_mappings = app.approved_mappings
                 print(f"\nUser approved {len(approved_mappings)} hunks for squashing")
 
-                # TODO: Phase 4 - Execute the interactive rebase
-                print("Phase 4 (rebase execution) not yet implemented")
-                print("\nApproved mappings:")
-                for mapping in approved_mappings:
-                    try:
-                        if mapping.target_commit:
-                            commit_summary = blame_analyzer.get_commit_summary(
-                                mapping.target_commit
-                            )
-                            print(f"  {mapping.hunk.file_path} → {commit_summary}")
-                        else:
-                            print(f"  {mapping.hunk.file_path} → No target commit")
-                    except Exception as e:
-                        print(
-                            f"  {mapping.hunk.file_path} → {mapping.target_commit} (summary failed: {e})"
-                        )
+                # Phase 4 - Execute the interactive rebase
+                print("\nExecuting interactive rebase...")
+                success = _execute_rebase(
+                    approved_mappings, git_ops, merge_base, blame_analyzer
+                )
+
+                if success:
+                    print("✓ Squash operation completed successfully!")
+                    print("Your changes have been distributed to their target commits.")
+                else:
+                    print("✗ Squash operation was aborted or failed.")
 
             else:
                 print("\nOperation cancelled by user or no hunks approved")
@@ -207,8 +284,17 @@ def main() -> None:
 
             if approved_mappings:
                 print(f"\nApproved {len(approved_mappings)} hunks for squashing")
-                # TODO: Phase 4 - Execute the interactive rebase
-                print("Phase 4 (rebase execution) not yet implemented")
+                # Phase 4 - Execute the interactive rebase
+                print("\nExecuting interactive rebase...")
+                success = _execute_rebase(
+                    approved_mappings, git_ops, merge_base, blame_analyzer
+                )
+
+                if success:
+                    print("✓ Squash operation completed successfully!")
+                    print("Your changes have been distributed to their target commits.")
+                else:
+                    print("✗ Squash operation was aborted or failed.")
             else:
                 print("\nOperation cancelled")
 
@@ -221,8 +307,17 @@ def main() -> None:
 
             if approved_mappings:
                 print(f"\nApproved {len(approved_mappings)} hunks for squashing")
-                # TODO: Phase 4 - Execute the interactive rebase
-                print("Phase 4 (rebase execution) not yet implemented")
+                # Phase 4 - Execute the interactive rebase
+                print("\nExecuting interactive rebase...")
+                success = _execute_rebase(
+                    approved_mappings, git_ops, merge_base, blame_analyzer
+                )
+
+                if success:
+                    print("✓ Squash operation completed successfully!")
+                    print("Your changes have been distributed to their target commits.")
+                else:
+                    print("✗ Squash operation was aborted or failed.")
             else:
                 print("\nOperation cancelled")
 
