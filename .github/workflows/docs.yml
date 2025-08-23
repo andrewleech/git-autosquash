@@ -155,13 +155,24 @@ jobs:
                   for link in soup.find_all('a', href=True):
                       href = link['href']
                       
-                      # Skip external links and fragments
-                      if href.startswith(('http', 'mailto:', '#')):
+                      # Skip external links, fragments, and JavaScript links
+                      if href.startswith(('http', 'mailto:', '#', 'javascript:')):
+                          continue
+                      
+                      # Skip empty or invalid links
+                      if not href or href in ['', '.', './', '/git-autosquash/.']:
                           continue
                       
                       # Resolve relative paths
                       if href.startswith('/'):
-                          target_path = site_path / href.lstrip('/')
+                          # Remove site base path if present
+                          cleaned_href = href.lstrip('/')
+                          if cleaned_href.startswith('git-autosquash/'):
+                              cleaned_href = cleaned_href[len('git-autosquash/'):]
+                          # Skip if cleaned path is empty or just a dot
+                          if not cleaned_href or cleaned_href in ['.', './']:
+                              continue
+                          target_path = site_path / cleaned_href
                       else:
                           target_path = html_file.parent / href
                       
