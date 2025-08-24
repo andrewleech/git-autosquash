@@ -184,3 +184,38 @@ The final tool should be installable as a git subcommand via PATH or git config.
 ### Never Use
 - `git commit --no-verify` - This bypasses quality checks and is strictly forbidden
 - Always fix pre-commit issues rather than bypassing them
+
+## Documentation Structure
+
+The project uses MkDocs Material for documentation, hosted on GitHub Pages with automated deployment.
+
+### Site Architecture
+```
+docs/
+├── index.md                 # Project overview and quick start
+├── installation.md          # Installation methods and requirements
+├── user-guide/
+│   ├── getting-started.md   # First-time usage tutorial
+│   ├── basic-workflow.md    # Standard usage patterns
+│   ├── advanced-usage.md    # Power user features and options
+│   └── troubleshooting.md   # Common issues and solutions
+├── technical/
+│   ├── architecture.md      # System design and component overview
+│   ├── api-reference.md     # Code API documentation
+│   ├── development.md       # Contributing and development setup
+│   └── testing.md          # Test suite and quality assurance
+├── examples/
+│   ├── basic-scenarios.md   # Common use cases with examples
+│   ├── complex-workflows.md # Advanced scenarios and edge cases
+│   └── integration.md       # CI/CD and automation examples
+└── reference/
+    ├── cli-options.md       # Command-line reference
+    ├── configuration.md     # Settings and customization
+    └── faq.md              # Frequently asked questions
+```
+
+### Documentation Development
+- Use `mkdocs serve` for local development and live reload
+- Auto-generated API documentation from docstrings
+- Mermaid diagrams for workflow visualization
+- Code examples extracted from test cases for accuracy

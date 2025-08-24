@@ -1,6 +1,6 @@
 """Screen implementations for git-autosquash TUI."""
 
-from typing import List, Union
+from typing import Dict, List, Union
 
 from textual import on
 from textual.app import ComposeResult
@@ -10,6 +10,7 @@ from textual.screen import Screen
 from textual.widgets import Button, Checkbox, Footer, Header, Static
 
 from git_autosquash.blame_analyzer import HunkTargetMapping
+from git_autosquash.tui.state_controller import UIStateController
 from git_autosquash.tui.widgets import DiffViewer, HunkMappingWidget, ProgressIndicator
 
 
@@ -20,6 +21,8 @@ class ApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
         Binding("enter", "approve_all", "Approve & Continue", priority=True),
         Binding("escape", "cancel", "Cancel", priority=True),
         Binding("a", "approve_all_toggle", "Toggle All", priority=False),
+        Binding("i", "ignore_all_toggle", "Toggle All Ignore", priority=False),
+        Binding("space", "toggle_current", "Toggle Current", priority=False),
         Binding("j", "next_hunk", "Next Hunk", show=False),
         Binding("k", "prev_hunk", "Prev Hunk", show=False),
         Binding("down", "next_hunk", "Next Hunk", show=False),
@@ -38,6 +41,13 @@ class ApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
         self.hunk_widgets: List[HunkMappingWidget] = []
         self._selected_widget: HunkMappingWidget | None = None
         self._diff_viewer: DiffViewer | None = None
+
+        # Centralized state management
+        self.state_controller = UIStateController(mappings)
+
+        # O(1) lookup cache for widget selection performance
+        self._mapping_to_widget: Dict[HunkTargetMapping, HunkMappingWidget] = {}
+        self._mapping_to_index: Dict[HunkTargetMapping, int] = {}
 
     def compose(self) -> ComposeResult:
         """Compose the screen layout."""
@@ -61,9 +71,12 @@ class ApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
                 with Vertical(id="hunk-list-panel"):
                     yield Static("Hunks", id="hunk-list-title")
                     with VerticalScroll(id="hunk-list"):
-                        for mapping in self.mappings:
+                        for i, mapping in enumerate(self.mappings):
                             hunk_widget = HunkMappingWidget(mapping)
                             self.hunk_widgets.append(hunk_widget)
+                            # Build O(1) lookup caches
+                            self._mapping_to_widget[mapping] = hunk_widget
+                            self._mapping_to_index[mapping] = i
                             yield hunk_widget
 
                 # Right panel: Diff viewer
@@ -95,21 +108,23 @@ class ApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
 
     @on(HunkMappingWidget.Selected)
     def on_hunk_selected(self, message: HunkMappingWidget.Selected) -> None:
-        """Handle hunk selection."""
-        # Find the clicked widget (optimized: avoid full iteration when possible)
-        target_widget = None
-        for i, widget in enumerate(self.hunk_widgets):
-            if widget.mapping == message.mapping:
-                target_widget = widget
-                self.current_hunk_index = i
-                break
-
+        """Handle hunk selection using O(1) lookup."""
+        # Use cached lookups for O(1) performance instead of O(n) iteration
+        target_widget = self._mapping_to_widget.get(message.mapping)
         if target_widget:
+            self.current_hunk_index = self._mapping_to_index[message.mapping]
             self._select_widget(target_widget)
 
     @on(HunkMappingWidget.ApprovalChanged)
     def on_approval_changed(self, message: HunkMappingWidget.ApprovalChanged) -> None:
         """Handle approval status changes."""
+        self.state_controller.set_approved(message.mapping, message.approved)
+        self._update_progress()
+
+    @on(HunkMappingWidget.IgnoreChanged)
+    def on_ignore_changed(self, message: HunkMappingWidget.IgnoreChanged) -> None:
+        """Handle ignore status changes."""
+        self.state_controller.set_ignored(message.mapping, message.ignored)
         self._update_progress()
 
     @on(Button.Pressed)
@@ -124,36 +139,33 @@ class ApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
 
     def action_approve_all(self) -> None:
         """Approve all hunks and continue."""
-        for widget in self.hunk_widgets:
-            widget.approved = True
-            checkbox = widget.query_one("#approval", Checkbox)
-            checkbox.value = True
-
+        self.state_controller.approve_all()
+        self._sync_widgets_with_state()
         self._update_progress()
-        approved_mappings = self.get_approved_mappings()
-        self.dismiss(approved_mappings)
+
+        result = {
+            "approved": self.state_controller.get_approved_mappings(),
+            "ignored": self.state_controller.get_ignored_mappings(),
+        }
+        self.dismiss(result)
 
     def action_approve_all_toggle(self) -> None:
         """Toggle approval status of all hunks."""
-        # Check if all are currently approved
-        all_approved = all(widget.approved for widget in self.hunk_widgets)
-        new_state = not all_approved
-
-        for widget in self.hunk_widgets:
-            widget.approved = new_state
-            checkbox = widget.query_one("#approval", Checkbox)
-            checkbox.value = new_state
-
+        self.state_controller.approve_all_toggle()
+        self._sync_widgets_with_state()
         self._update_progress()
 
     def action_continue(self) -> None:
         """Continue with currently selected hunks."""
-        approved_mappings = self.get_approved_mappings()
-        if not approved_mappings:
-            # No hunks approved, cannot continue
+        if not self.state_controller.has_selections():
+            # No hunks selected at all, cannot continue
             return
 
-        self.dismiss(approved_mappings)
+        result = {
+            "approved": self.state_controller.get_approved_mappings(),
+            "ignored": self.state_controller.get_ignored_mappings(),
+        }
+        self.dismiss(result)
 
     def action_cancel(self) -> None:
         """Cancel the approval process."""
@@ -170,6 +182,24 @@ class ApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
         if self.current_hunk_index > 0:
             self.current_hunk_index -= 1
             self._select_hunk_by_index(self.current_hunk_index)
+
+    def action_ignore_all_toggle(self) -> None:
+        """Toggle ignore status of all hunks."""
+        self.state_controller.ignore_all_toggle()
+        self._sync_widgets_with_state()
+        self._update_progress()
+
+    def action_toggle_current(self) -> None:
+        """Toggle the approval state of the currently selected hunk (with checkbox model, just toggle approve)."""
+        if not self.hunk_widgets or self.current_hunk_index >= len(self.hunk_widgets):
+            return
+
+        mapping = self.mappings[self.current_hunk_index]
+        self.state_controller.toggle_approved(mapping)
+        self._sync_widget_with_state(
+            self.hunk_widgets[self.current_hunk_index], mapping
+        )
+        self._update_progress()
 
     def _select_widget(self, widget: HunkMappingWidget) -> None:
         """Select a specific widget, optimized to avoid O(n) operations.
@@ -200,14 +230,34 @@ class ApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
 
     def _update_progress(self) -> None:
         """Update the progress indicator."""
-        approved_count = sum(1 for widget in self.hunk_widgets if widget.approved)
+        stats = self.state_controller.get_progress_stats()
         progress = self.query_one("#progress", ProgressIndicator)
-        progress.update_progress(approved_count)
+        progress.update_progress(stats["approved"], stats["ignored"])
 
-    def get_approved_mappings(self) -> List[HunkTargetMapping]:
-        """Get list of approved mappings.
+    def _sync_widgets_with_state(self) -> None:
+        """Synchronize all widgets with the centralized state."""
+        for widget in self.hunk_widgets:
+            self._sync_widget_with_state(widget, widget.mapping)
 
-        Returns:
-            List of mappings that user approved
+    def _sync_widget_with_state(
+        self, widget: HunkMappingWidget, mapping: HunkTargetMapping
+    ) -> None:
+        """Synchronize a single widget with the centralized state.
+
+        Args:
+            widget: The widget to synchronize
+            mapping: The mapping associated with the widget
         """
-        return [widget.mapping for widget in self.hunk_widgets if widget.approved]
+        # Update widget reactive properties
+        widget.approved = self.state_controller.is_approved(mapping)
+        widget.ignored = self.state_controller.is_ignored(mapping)
+
+        # Update checkboxes to reflect new state
+        try:
+            approve_checkbox = widget.query_one("#approve-checkbox", Checkbox)
+            ignore_checkbox = widget.query_one("#ignore-checkbox", Checkbox)
+            approve_checkbox.value = widget.approved
+            ignore_checkbox.value = widget.ignored
+        except (AttributeError, ValueError):
+            # Checkboxes might not be available during initial setup or widget composition
+            pass

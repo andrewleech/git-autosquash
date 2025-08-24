@@ -108,6 +108,7 @@ The TUI will show you exactly which changes can go back to which commits, with c
 - **Code cleanup**: Move formatting and style changes to appropriate historical points
 - **Feature development**: Separate bug fixes from new features during development
 - **Commit message fixes**: Clean up commit history by moving changes to better locations
+- **Selective uncommit**: Extract accidentally committed code back to working tree while preserving clean history
 
 ## 🛡️ Safety Features
 

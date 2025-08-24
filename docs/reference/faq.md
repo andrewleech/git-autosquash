@@ -6,6 +6,8 @@
 
 git-autosquash is a tool that automatically organizes your uncommitted changes by squashing them back into the historical commits where those code sections were last modified. Instead of creating messy "fix typo" or "address review feedback" commits, it integrates improvements directly into the commits they logically belong to.
 
+Additionally, git-autosquash provides an "ignore" feature that lets you selectively extract changes from commits back to your working tree - useful for uncommitting accidentally committed changes.
+
 ### How is this different from `git rebase --autosquash`?
 
 `git rebase --autosquash` requires you to manually create fixup/squash commits first, then run the rebase. git-autosquash analyzes your working directory changes and automatically determines which historical commits they should be squashed into using git blame analysis.
@@ -134,6 +136,31 @@ Confidence indicates how certain git-autosquash is about the target:
 - **Low (Red)**: Mixed blame results - might be incorrect, review carefully
 
 Low confidence often means changes affect code from multiple commits and might be better as a new commit.
+
+### What is the "ignore" feature and when should I use it?
+
+The ignore feature allows you to selectively extract changes from commits back to your working tree. When you mark a hunk as "ignore", it gets removed from the commit history and restored to your working directory after the rebase completes.
+
+**Use ignore when:**
+- You accidentally committed code that shouldn't be committed (debug prints, temporary changes)
+- You want to extract part of a commit to work on it further before recommitting
+- You need to separate concerns within a commit
+
+**In the TUI:**
+- Use radio buttons to select **"Ignore (keep in working tree)"** for each hunk
+- Use `i` key to toggle all hunks to ignore mode
+- Use `Space` key to cycle through states for the current hunk
+
+The workflow becomes: **Squash** → commits, **Skip** → leave unchanged, **Ignore** → extract to working tree.
+
+### Can I mix squash and ignore operations?
+
+Yes! You can squash some hunks into commits while ignoring others. git-autosquash will:
+
+1. First perform the interactive rebase to squash approved hunks into their target commits
+2. Then restore ignored hunks back to your working tree
+
+This gives you complete control over organizing both your commit history and working directory state.
 
 ## Technical Questions
 

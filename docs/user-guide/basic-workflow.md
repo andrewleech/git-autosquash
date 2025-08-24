@@ -111,8 +111,9 @@ git-autosquash
 | Action | Key | Description |
 |--------|-----|-------------|
 | Navigate | ↑↓ or jk | Move between hunk mappings |
-| Toggle approval | Space | Approve/reject current mapping |
-| Toggle all | a | Approve or reject all mappings |
+| Cycle states | Space | Cycle current hunk: skip → squash → ignore → skip |
+| Toggle squash all | a | Toggle all hunks between squash and skip |
+| Toggle ignore all | i | Toggle all hunks between ignore and skip |
 | Execute | Enter | Start rebase with approved changes |
 | Cancel | Escape or q | Abort operation |
 | Help | ? | Show help (if implemented) |
@@ -174,6 +175,35 @@ git-autosquash
 2. Resolve conflicts (remove `<<<<<<<`, `=======`, `>>>>>>>` markers)
 3. Stage resolved files: `git add src/auth/login.py`
 4. Continue: `git rebase --continue`
+
+### Scenario: Extracting Accidentally Committed Changes
+
+**Scenario**: You committed debug code or temporary changes that should be removed from history but kept in your working tree for further development.
+
+```bash
+# You have commits with mixed changes
+git log --oneline -3
+# abc1234 Add user dashboard feature  
+# def5678 Fix authentication bug
+# ghi9012 Add admin panel
+
+# Some of these commits contain debug prints or temporary code
+# that you want to extract back to working directory
+
+git-autosquash
+```
+
+**In the TUI**:
+1. For each hunk containing debug/temporary code: Select **"Ignore (keep in working tree)"**
+2. For legitimate changes: Select **"Skip"** (leave in commits) or **"Squash"** (organize better)
+3. Execute the operation
+
+**Result**: 
+- Debug code gets extracted to your working directory
+- Clean commits remain in history
+- You can now properly commit or discard the extracted code
+
+This is essentially a selective "uncommit" operation - much more precise than `git reset`.
 
 ## Branch Management
 

@@ -4,6 +4,8 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
+from git_autosquash.exceptions import handle_unexpected_error
+
 
 class GitOps:
     """Handles git operations for repository analysis and validation."""
@@ -29,6 +31,34 @@ class GitOps:
             result = subprocess.run(
                 ["git", *args],
                 cwd=self.repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            return (
+                result.returncode == 0,
+                result.stdout.strip() or result.stderr.strip(),
+            )
+        except (subprocess.SubprocessError, FileNotFoundError) as e:
+            return False, f"Git command failed: {e}"
+
+    def _run_git_command_with_input(
+        self, *args: str, input_text: str
+    ) -> tuple[bool, str]:
+        """Run a git command with input text and return success status and output.
+
+        Args:
+            *args: Git command arguments
+            input_text: Text to provide as stdin to the command
+
+        Returns:
+            Tuple of (success, output/error_message)
+        """
+        try:
+            result = subprocess.run(
+                ["git", *args],
+                cwd=self.repo_path,
+                input=input_text,
                 capture_output=True,
                 text=True,
                 check=False,
@@ -152,10 +182,20 @@ class GitOps:
                 stdout=e.stdout.decode() if e.stdout else "",
                 stderr=f"Command timed out after 300 seconds: {e}",
             )
-        except Exception as e:
+        except (OSError, PermissionError, FileNotFoundError) as e:
+            # File system or permission errors
             return subprocess.CompletedProcess(
                 args=cmd,
                 returncode=1,
                 stdout="",
-                stderr=str(e),
+                stderr=f"System error: {e}",
+            )
+        except Exception as e:
+            # Unexpected errors - wrap for better reporting
+            wrapped = handle_unexpected_error(e, f"git command: {' '.join(cmd)}")
+            return subprocess.CompletedProcess(
+                args=cmd,
+                returncode=1,
+                stdout="",
+                stderr=str(wrapped),
             )

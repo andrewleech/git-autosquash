@@ -32,6 +32,7 @@ class AutoSquashApp(App[bool]):
         super().__init__()
         self.mappings = mappings
         self.approved_mappings: List[HunkTargetMapping] = []
+        self.ignored_mappings: List[HunkTargetMapping] = []
 
     def compose(self) -> ComposeResult:
         """Compose the application layout."""
@@ -49,18 +50,24 @@ class AutoSquashApp(App[bool]):
         self.push_screen(ApprovalScreen(self.mappings), self._handle_approval_result)
 
     def _handle_approval_result(
-        self, result: bool | List[HunkTargetMapping] | None
+        self, result: bool | dict | List[HunkTargetMapping] | None
     ) -> None:
         """Handle result from approval screen.
 
         Args:
-            result: True if user approved with mappings passed separately,
-                   List of approved mappings if user approved,
-                   False if cancelled
+            result: Dict with 'approved' and 'ignored' keys containing mappings,
+                   List of approved mappings (legacy format),
+                   Boolean True/False for success/cancel
         """
-        if isinstance(result, list):
-            # Result contains the approved mappings directly
+        if isinstance(result, dict):
+            # New format with both approved and ignored mappings
+            self.approved_mappings = result.get("approved", [])
+            self.ignored_mappings = result.get("ignored", [])
+            self.exit(True)
+        elif isinstance(result, list):
+            # Legacy format - just approved mappings
             self.approved_mappings = result
+            self.ignored_mappings = []
             self.exit(True)
         elif result:
             # Boolean True (should not happen with new implementation)

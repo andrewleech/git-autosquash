@@ -6,6 +6,13 @@ import sys
 
 from git_autosquash import __version__
 from git_autosquash.blame_analyzer import BlameAnalyzer
+from git_autosquash.exceptions import (
+    ErrorReporter,
+    GitAutoSquashError,
+    RepositoryStateError,
+    UserCancelledError,
+    handle_unexpected_error,
+)
 from git_autosquash.git_ops import GitOps
 from git_autosquash.hunk_parser import HunkParser
 from git_autosquash.rebase_manager import RebaseConflictError, RebaseManager
@@ -47,9 +54,20 @@ def _simple_approval_fallback(mappings, blame_analyzer):
             print(f"  ... ({len(hunk.lines) - 1} total lines)")
 
         while True:
-            choice = input("\nApprove this mapping? [y/n/q]: ").lower().strip()
-            if choice == "y":
+            choice = (
+                input("\nChoose action [s/i/n/q] (squash/ignore/skip/quit): ")
+                .lower()
+                .strip()
+            )
+            if choice == "s":
                 approved_mappings.append(mapping)
+                break
+            elif choice == "i":
+                # For simple fallback, we'll just collect approved mappings
+                # and not implement ignore functionality in the fallback
+                print(
+                    "Note: Ignore functionality not available in simple mode. Skipping instead."
+                )
                 break
             elif choice == "n":
                 break
@@ -57,9 +75,170 @@ def _simple_approval_fallback(mappings, blame_analyzer):
                 print("Operation cancelled")
                 return []
             else:
-                print("Please enter y, n, or q")
+                print("Please enter s (squash), i (ignore), n (skip), or q (quit)")
 
     return approved_mappings
+
+
+def _apply_ignored_hunks_legacy(ignored_mappings, git_ops) -> bool:
+    """Apply ignored hunks back to the working tree with best-effort recovery.
+
+    Creates a backup and attempts to restore on failure, but cannot guarantee
+    atomicity across multiple git operations.
+
+    Args:
+        ignored_mappings: List of ignored hunk to commit mappings
+        git_ops: GitOps instance
+
+    Returns:
+        True if successful, False if any hunks could not be applied
+    """
+    if not ignored_mappings:
+        return True
+
+    from pathlib import Path
+
+    # Enhanced path validation to prevent path traversal attacks
+    try:
+        repo_root = Path(git_ops.repo_path).resolve()
+        for mapping in ignored_mappings:
+            file_path = Path(mapping.hunk.file_path)
+            # Reject absolute paths
+            if file_path.is_absolute():
+                print(
+                    f"Error: Absolute file path not allowed - {mapping.hunk.file_path}"
+                )
+                return False
+
+            # Check for path traversal by resolving against repo root
+            resolved_path = (repo_root / file_path).resolve()
+            try:
+                resolved_path.relative_to(repo_root)
+            except ValueError:
+                print(f"Error: Path traversal detected - {mapping.hunk.file_path}")
+                return False
+    except Exception as e:
+        print(f"Error: Path validation failed - {e}")
+        return False
+
+    # Create backup stash
+    success, stash_ref = git_ops._run_git_command(
+        "stash", "create", "autosquash-backup"
+    )
+    if not success:
+        print("Error: Failed to create backup stash")
+        return False
+
+    # Track files that will be modified for targeted rollback
+    modified_files = list(set(mapping.hunk.file_path for mapping in ignored_mappings))
+    stash_ref = stash_ref.strip()
+
+    try:
+        # Batch all hunks into single patch for efficiency
+        all_hunks_patch = _create_combined_patch(ignored_mappings)
+        success, error_msg = git_ops._run_git_command_with_input(
+            "apply", input_text=all_hunks_patch
+        )
+
+        if not success:
+            print(f"Error: Failed to apply patches - {error_msg}")
+            # Attempt targeted rollback of only the files we were modifying
+            for file_path in modified_files:
+                git_ops._run_git_command("checkout", stash_ref, "--", file_path)
+            return False
+
+        return True
+
+    except Exception as e:
+        print(f"Error: Patch application failed - {e}")
+        # Attempt targeted rollback
+        for file_path in modified_files:
+            git_ops._run_git_command("checkout", stash_ref, "--", file_path)
+        return False
+    finally:
+        # Clean up the stash reference we created
+        if stash_ref and stash_ref != "":
+            git_ops._run_git_command("stash", "drop", stash_ref)
+
+
+def _create_combined_patch(ignored_mappings) -> str:
+    """Create a single combined patch for all ignored hunks.
+
+    Batches hunks by file for efficient single-operation application.
+
+    Args:
+        ignored_mappings: List of ignored hunk to commit mappings
+
+    Returns:
+        Combined patch content for all hunks
+    """
+    # Group hunks by file path
+    files_with_hunks = {}
+    for mapping in ignored_mappings:
+        file_path = mapping.hunk.file_path
+        if file_path not in files_with_hunks:
+            files_with_hunks[file_path] = []
+        files_with_hunks[file_path].append(mapping.hunk)
+
+    patch_lines = []
+
+    # Create patch section for each file
+    for file_path, hunks in files_with_hunks.items():
+        # Add diff header for this file
+        patch_lines.append(f"diff --git a/{file_path} b/{file_path}")
+        patch_lines.append("index 0000000..1111111 100644")
+        patch_lines.append(f"--- a/{file_path}")
+        patch_lines.append(f"+++ b/{file_path}")
+
+        # Add all hunks for this file
+        for hunk in hunks:
+            patch_lines.extend(hunk.lines)
+
+    return "\n".join(patch_lines) + "\n"
+
+
+def _apply_ignored_hunks(ignored_mappings, git_ops) -> bool:
+    """Apply ignored hunks back to the working tree using complete git-native solution.
+
+    Uses the complete git-native handler with intelligent strategy selection:
+    1. Git worktree (best isolation, requires Git 2.5+)
+    2. Git index manipulation (good isolation, compatible)
+    3. Automatic fallback between strategies
+
+    Args:
+        ignored_mappings: List of ignored hunk to commit mappings
+        git_ops: GitOps instance
+
+    Returns:
+        True if successful, False if any hunks could not be applied
+    """
+    from git_autosquash.git_native_complete_handler import create_git_native_handler
+
+    handler = create_git_native_handler(git_ops)
+    return handler.apply_ignored_hunks(ignored_mappings)
+
+
+def _create_patch_for_hunk(hunk) -> str:
+    """Create a patch string for a single hunk.
+
+    Args:
+        hunk: Hunk to create patch for
+
+    Returns:
+        Formatted patch content
+    """
+    patch_lines = []
+
+    # Add proper diff header
+    patch_lines.append(f"diff --git a/{hunk.file_path} b/{hunk.file_path}")
+    patch_lines.append("index 0000000..1111111 100644")
+    patch_lines.append(f"--- a/{hunk.file_path}")
+    patch_lines.append(f"+++ b/{hunk.file_path}")
+
+    # Add hunk content
+    patch_lines.extend(hunk.lines)
+
+    return "\n".join(patch_lines) + "\n"
 
 
 def _execute_rebase(approved_mappings, git_ops, merge_base, blame_analyzer) -> bool:
@@ -160,32 +339,59 @@ def main() -> None:
         version=f"%(prog)s {__version__}",
     )
 
+    # Add strategy management subcommands
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+
+    # Import here to avoid circular imports
+    from git_autosquash.cli_strategy import add_strategy_subcommands
+
+    add_strategy_subcommands(subparsers)
+
     args = parser.parse_args()
+
+    # Handle strategy subcommands
+    if hasattr(args, "func"):
+        sys.exit(args.func(args))
 
     try:
         git_ops = GitOps()
 
         # Phase 1: Validate git repository
         if not git_ops.is_git_repo():
-            print("Error: Not in a git repository", file=sys.stderr)
+            error = RepositoryStateError(
+                "Not in a git repository",
+                recovery_suggestion="Run this command from within a git repository",
+            )
+            ErrorReporter.report_error(error)
             sys.exit(1)
 
         current_branch = git_ops.get_current_branch()
         if not current_branch:
-            print("Error: Not on a branch (detached HEAD)", file=sys.stderr)
+            error = RepositoryStateError(
+                "Not on a branch (detached HEAD)",
+                recovery_suggestion="Switch to a branch with 'git checkout <branch-name>'",
+            )
+            ErrorReporter.report_error(error)
             sys.exit(1)
 
         merge_base = git_ops.get_merge_base_with_main(current_branch)
         if not merge_base:
-            print("Error: Could not find merge base with main/master", file=sys.stderr)
+            error = RepositoryStateError(
+                "Could not find merge base with main/master",
+                current_state=f"on branch {current_branch}",
+                recovery_suggestion="Ensure your branch is based on main/master",
+            )
+            ErrorReporter.report_error(error)
             sys.exit(1)
 
         # Check if there are commits to work with
         if not git_ops.has_commits_since_merge_base(merge_base):
-            print(
-                "Error: No commits found on current branch since merge base",
-                file=sys.stderr,
+            error = RepositoryStateError(
+                "No commits found on current branch since merge base",
+                current_state=f"merge base: {merge_base}",
+                recovery_suggestion="Make some commits on your branch before running git-autosquash",
             )
+            ErrorReporter.report_error(error)
             sys.exit(1)
 
         # Analyze working tree status
@@ -256,24 +462,59 @@ def main() -> None:
             app = AutoSquashApp(valid_mappings)
             approved = app.run()
 
-            if approved and app.approved_mappings:
+            if approved and (app.approved_mappings or app.ignored_mappings):
                 approved_mappings = app.approved_mappings
-                print(f"\nUser approved {len(approved_mappings)} hunks for squashing")
+                ignored_mappings = app.ignored_mappings
 
-                # Phase 4 - Execute the interactive rebase
-                print("\nExecuting interactive rebase...")
-                success = _execute_rebase(
-                    approved_mappings, git_ops, merge_base, blame_analyzer
-                )
+                print(f"\nUser selected {len(approved_mappings)} hunks for squashing")
+                if ignored_mappings:
+                    print(
+                        f"User selected {len(ignored_mappings)} hunks to ignore (keep in working tree)"
+                    )
+
+                # Phase 4 - Execute the interactive rebase for approved hunks
+                if approved_mappings:
+                    print("\nExecuting interactive rebase for approved hunks...")
+                    success = _execute_rebase(
+                        approved_mappings, git_ops, merge_base, blame_analyzer
+                    )
+
+                    if not success:
+                        print("✗ Squash operation was aborted or failed.")
+                        return
+                else:
+                    success = True  # No rebase needed, just apply ignored hunks
+
+                # Phase 5 - Apply ignored hunks back to working tree
+                if success and ignored_mappings:
+                    print(
+                        f"\nApplying {len(ignored_mappings)} ignored hunks back to working tree..."
+                    )
+                    ignore_success = _apply_ignored_hunks(ignored_mappings, git_ops)
+                    if ignore_success:
+                        print("✓ Ignored hunks have been restored to working tree")
+                    else:
+                        print(
+                            "⚠️  Some ignored hunks could not be restored - check working tree status"
+                        )
 
                 if success:
-                    print("✓ Squash operation completed successfully!")
-                    print("Your changes have been distributed to their target commits.")
+                    if approved_mappings and ignored_mappings:
+                        print(
+                            "✓ Operation completed! Changes squashed to commits and ignored hunks restored to working tree."
+                        )
+                    elif approved_mappings:
+                        print("✓ Squash operation completed successfully!")
+                        print(
+                            "Your changes have been distributed to their target commits."
+                        )
+                    elif ignored_mappings:
+                        print("✓ Ignored hunks have been restored to working tree.")
                 else:
-                    print("✗ Squash operation was aborted or failed.")
+                    print("✗ Operation failed.")
 
             else:
-                print("\nOperation cancelled by user or no hunks approved")
+                print("\nOperation cancelled by user or no hunks selected")
 
         except ImportError as e:
             print(f"\nTextual TUI not available: {e}")
@@ -321,12 +562,26 @@ def main() -> None:
             else:
                 print("\nOperation cancelled")
 
-    except (subprocess.SubprocessError, FileNotFoundError) as e:
-        print(f"Git operation failed: {e}", file=sys.stderr)
+    except GitAutoSquashError as e:
+        # Our custom exceptions with user-friendly messages
+        ErrorReporter.report_error(e)
         sys.exit(1)
     except KeyboardInterrupt:
-        print("\nOperation cancelled by user", file=sys.stderr)
+        error = UserCancelledError("git-autosquash operation")
+        ErrorReporter.report_error(error)
         sys.exit(130)
+    except (subprocess.SubprocessError, FileNotFoundError) as e:
+        # Git/system operation failures
+        wrapped = handle_unexpected_error(
+            e, "git operation", "Check git installation and repository state"
+        )
+        ErrorReporter.report_error(wrapped)
+        sys.exit(1)
+    except Exception as e:
+        # Catch-all for unexpected errors
+        wrapped = handle_unexpected_error(e, "git-autosquash execution")
+        ErrorReporter.report_error(wrapped)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

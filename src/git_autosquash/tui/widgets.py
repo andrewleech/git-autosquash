@@ -58,6 +58,7 @@ class HunkMappingWidget(Widget):
 
     selected = reactive(False)
     approved = reactive(False)  # Default to unapproved for safety
+    ignored = reactive(False)  # New state for ignoring hunks
 
     class Selected(Message):
         """Message sent when hunk is selected."""
@@ -72,6 +73,14 @@ class HunkMappingWidget(Widget):
         def __init__(self, mapping: HunkTargetMapping, approved: bool) -> None:
             self.mapping = mapping
             self.approved = approved
+            super().__init__()
+
+    class IgnoreChanged(Message):
+        """Message sent when ignore status changes."""
+
+        def __init__(self, mapping: HunkTargetMapping, ignored: bool) -> None:
+            self.mapping = mapping
+            self.ignored = ignored
             super().__init__()
 
     def __init__(self, mapping: HunkTargetMapping, **kwargs) -> None:
@@ -101,9 +110,16 @@ class HunkMappingWidget(Widget):
 
             yield Static(commit_info, classes=f"commit-info {confidence_class}")
 
-            # Approval checkbox
+            # Action selection with separate concerns
             with Horizontal():
-                yield Checkbox("Include in squash", value=self.approved, id="approval")
+                yield Checkbox(
+                    "Approve for squashing", value=self.approved, id="approve-checkbox"
+                )
+                yield Checkbox(
+                    "Ignore (keep in working tree)",
+                    value=self.ignored,
+                    id="ignore-checkbox",
+                )
 
     def _format_hunk_range(self) -> str:
         """Format hunk line range for display."""
@@ -117,8 +133,12 @@ class HunkMappingWidget(Widget):
 
     def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
         """Handle checkbox changes."""
-        self.approved = event.value
-        self.post_message(self.ApprovalChanged(self.mapping, event.value))
+        if event.checkbox.id == "approve-checkbox":
+            self.approved = event.value
+            self.post_message(self.ApprovalChanged(self.mapping, event.value))
+        elif event.checkbox.id == "ignore-checkbox":
+            self.ignored = event.value
+            self.post_message(self.IgnoreChanged(self.mapping, event.value))
 
     def watch_selected(self, selected: bool) -> None:
         """React to selection changes."""
@@ -170,8 +190,8 @@ class DiffViewer(Widget):
             # since we're showing diff output, not the original file
             syntax = Syntax(diff_text, "diff", theme="monokai", line_numbers=False)
             content: Union[Syntax, Text] = syntax
-        except Exception:
-            # Fallback to plain text if syntax highlighting fails
+        except (ImportError, ValueError, AttributeError):
+            # Fallback to plain text if syntax highlighting fails or is unavailable
             content = Text(diff_text)
 
         # Update the display
@@ -247,26 +267,39 @@ class ProgressIndicator(Widget):
         super().__init__(**kwargs)
         self.total_hunks = total_hunks
         self.approved_count = 0
+        self.ignored_count = 0
 
     def compose(self) -> ComposeResult:
         """Compose the widget layout."""
         yield Static(self._format_progress(), id="progress-text")
 
-    def update_progress(self, approved_count: int) -> None:
+    def update_progress(self, approved_count: int, ignored_count: int = 0) -> None:
         """Update the progress display.
 
         Args:
             approved_count: Number of hunks approved so far
+            ignored_count: Number of hunks ignored so far
         """
         self.approved_count = approved_count
+        self.ignored_count = ignored_count
         progress_widget = self.query_one("#progress-text", Static)
         progress_widget.update(self._format_progress())
 
     def _format_progress(self) -> str:
         """Format progress text."""
+        total_processed = self.approved_count + self.ignored_count
         percentage = (
-            (self.approved_count / self.total_hunks * 100)
-            if self.total_hunks > 0
-            else 0
+            (total_processed / self.total_hunks * 100) if self.total_hunks > 0 else 0
         )
-        return f"Progress: {self.approved_count}/{self.total_hunks} approved ({percentage:.0f}%)"
+        status_parts = []
+        if self.approved_count > 0:
+            status_parts.append(f"{self.approved_count} squash")
+        if self.ignored_count > 0:
+            status_parts.append(f"{self.ignored_count} ignore")
+
+        if status_parts:
+            status = f"({', '.join(status_parts)})"
+        else:
+            status = ""
+
+        return f"Progress: {total_processed}/{self.total_hunks} selected {status} ({percentage:.0f}%)"

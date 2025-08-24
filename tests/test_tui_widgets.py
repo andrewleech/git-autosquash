@@ -30,6 +30,7 @@ class TestHunkMappingWidget:
         assert widget.mapping is mapping
         assert widget.selected is False
         assert widget.approved is False  # Default to unapproved for safety
+        assert widget.ignored is False  # Default to not ignored
 
     def test_format_hunk_range(self) -> None:
         """Test hunk range formatting."""
@@ -72,6 +73,40 @@ class TestHunkMappingWidget:
 
         widget = HunkMappingWidget(mapping)
         assert widget.mapping.target_commit is None
+
+    def test_ignore_state(self) -> None:
+        """Test widget ignore state functionality."""
+        hunk = DiffHunk(
+            file_path="test.py",
+            old_start=5,
+            old_count=2,
+            new_start=5,
+            new_count=3,
+            lines=["@@ -5,2 +5,3 @@", " line 1", "+added line", " line 2"],
+            context_before=[],
+            context_after=[],
+        )
+
+        mapping = HunkTargetMapping(
+            hunk=hunk, target_commit="abc123", confidence="high", blame_info=[]
+        )
+
+        widget = HunkMappingWidget(mapping)
+
+        # Test initial state
+        assert widget.approved is False
+        assert widget.ignored is False
+
+        # Test setting ignore state
+        widget.ignored = True
+        assert widget.ignored is True
+        assert widget.approved is False  # Should remain False
+
+        # Test setting approved state (should clear ignore)
+        widget.approved = True
+        widget.ignored = False  # This would be handled by the radio button logic
+        assert widget.approved is True
+        assert widget.ignored is False
 
 
 class TestDiffViewer:
@@ -139,13 +174,14 @@ class TestProgressIndicator:
 
         assert indicator.total_hunks == 10
         assert indicator.approved_count == 0
+        assert indicator.ignored_count == 0
 
     def test_format_progress_initial(self) -> None:
         """Test initial progress formatting."""
         indicator = ProgressIndicator(5)
         result = indicator._format_progress()
 
-        assert result == "Progress: 0/5 approved (0%)"
+        assert result == "Progress: 0/5 selected  (0%)"
 
     def test_format_progress_partial(self) -> None:
         """Test partial progress formatting."""
@@ -153,7 +189,7 @@ class TestProgressIndicator:
         indicator.approved_count = 3
         result = indicator._format_progress()
 
-        assert result == "Progress: 3/8 approved (38%)"
+        assert result == "Progress: 3/8 selected (3 squash) (38%)"
 
     def test_format_progress_complete(self) -> None:
         """Test complete progress formatting."""
@@ -161,14 +197,32 @@ class TestProgressIndicator:
         indicator.approved_count = 4
         result = indicator._format_progress()
 
-        assert result == "Progress: 4/4 approved (100%)"
+        assert result == "Progress: 4/4 selected (4 squash) (100%)"
 
     def test_format_progress_zero_total(self) -> None:
         """Test progress formatting with zero total."""
         indicator = ProgressIndicator(0)
         result = indicator._format_progress()
 
-        assert result == "Progress: 0/0 approved (0%)"
+        assert result == "Progress: 0/0 selected  (0%)"
+
+    def test_format_progress_with_ignored(self) -> None:
+        """Test progress formatting with ignored hunks."""
+        indicator = ProgressIndicator(10)
+        indicator.approved_count = 3
+        indicator.ignored_count = 2
+        result = indicator._format_progress()
+
+        assert result == "Progress: 5/10 selected (3 squash, 2 ignore) (50%)"
+
+    def test_format_progress_only_ignored(self) -> None:
+        """Test progress formatting with only ignored hunks."""
+        indicator = ProgressIndicator(5)
+        indicator.approved_count = 0
+        indicator.ignored_count = 2
+        result = indicator._format_progress()
+
+        assert result == "Progress: 2/5 selected (2 ignore) (40%)"
 
     def test_update_progress(self) -> None:
         """Test updating progress."""
@@ -188,4 +242,4 @@ class TestProgressIndicator:
         result = indicator._format_progress()
 
         # 2/7 = 28.57..., should round to 29%
-        assert result == "Progress: 2/7 approved (29%)"
+        assert result == "Progress: 2/7 selected (2 squash) (29%)"
