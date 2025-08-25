@@ -9,7 +9,7 @@ from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Button, Checkbox, Footer, Header, Static
 
-from git_autosquash.blame_analyzer import HunkTargetMapping
+from git_autosquash.hunk_target_resolver import HunkTargetMapping
 from git_autosquash.tui.state_controller import UIStateController
 from git_autosquash.tui.widgets import DiffViewer, HunkMappingWidget, ProgressIndicator
 

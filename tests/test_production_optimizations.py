@@ -101,7 +101,7 @@ class TestResultPattern:
 
     def test_ok_result(self) -> None:
         """Test Ok result operations."""
-        result: Ok[int] = Ok(42)
+        result = Ok(42)
 
         assert result.is_ok()
         assert not result.is_err()
@@ -119,7 +119,7 @@ class TestResultPattern:
     def test_err_result(self) -> None:
         """Test Err result operations."""
         error = GitOperationError("test_op", "test error")
-        result: Err[GitOperationError] = Err(error)
+        result = Err(error)
 
         assert not result.is_ok()
         assert result.is_err()
@@ -390,7 +390,7 @@ class TestPerformanceOptimizations:
             underlying_error=original_error,
         )
 
-        result: Err[StrategyExecutionError] = Err(strategy_error)
+        result = Err(strategy_error)
 
         # Chain error transformations
         chained_result = result.map_err(

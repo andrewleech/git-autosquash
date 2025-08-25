@@ -8,7 +8,7 @@ from textual.containers import Container, Horizontal
 from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, Static
 
-from git_autosquash.blame_analyzer import HunkTargetMapping
+from git_autosquash.hunk_target_resolver import HunkTargetMapping
 from git_autosquash.tui.screens import ApprovalScreen
 
 

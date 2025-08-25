@@ -3,9 +3,19 @@
 import re
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set
+from enum import Enum
 
 from git_autosquash.git_ops import GitOps
 from git_autosquash.hunk_parser import DiffHunk
+from git_autosquash.batch_git_ops import BatchGitOperations
+
+
+class TargetingMethod(Enum):
+    """Enum for different targeting methods used to resolve a hunk."""
+    BLAME_MATCH = "blame_match"
+    FALLBACK_NEW_FILE = "fallback_new_file"
+    FALLBACK_EXISTING_FILE = "fallback_existing_file"
+    FALLBACK_CONSISTENCY = "fallback_consistency"  # Same target as previous hunk from file
 
 
 @dataclass
@@ -27,6 +37,9 @@ class HunkTargetMapping:
     target_commit: Optional[str]
     confidence: str  # 'high', 'medium', 'low'
     blame_info: List[BlameInfo]
+    targeting_method: TargetingMethod = TargetingMethod.BLAME_MATCH
+    fallback_candidates: Optional[List[str]] = None  # List of commit hashes for fallback scenarios
+    needs_user_selection: bool = False  # True if user needs to choose from candidates
 
 
 class BlameAnalyzer:
@@ -41,8 +54,11 @@ class BlameAnalyzer:
         """
         self.git_ops = git_ops
         self.merge_base = merge_base
+        self.batch_ops = BatchGitOperations(git_ops, merge_base)
         self._branch_commits_cache: Optional[Set[str]] = None
         self._commit_timestamp_cache: Dict[str, int] = {}
+        self._file_target_cache: Dict[str, str] = {}  # Track previous targets by file
+        self._new_files_cache: Optional[Set[str]] = None
 
     def analyze_hunks(self, hunks: List[DiffHunk]) -> List[HunkTargetMapping]:
         """Analyze hunks and determine target commits for each.
@@ -70,8 +86,23 @@ class BlameAnalyzer:
         Returns:
             HunkTargetMapping with target commit information
         """
-        # For additions, we need to look at surrounding context
-        # For deletions/modifications, we look at the deleted lines
+        # Check if this is a new file
+        if self._is_new_file(hunk.file_path):
+            return self._create_fallback_mapping(hunk, TargetingMethod.FALLBACK_NEW_FILE)
+        
+        # Check for previous target from same file (consistency)
+        if hunk.file_path in self._file_target_cache:
+            previous_target = self._file_target_cache[hunk.file_path]
+            return HunkTargetMapping(
+                hunk=hunk,
+                target_commit=previous_target,
+                confidence="medium",
+                blame_info=[],
+                targeting_method=TargetingMethod.FALLBACK_CONSISTENCY,
+                needs_user_selection=False
+            )
+
+        # Try blame-based analysis
         if hunk.has_deletions:
             # Get blame for the old lines being modified/deleted
             blame_info = self._get_blame_for_old_lines(hunk)
@@ -80,9 +111,7 @@ class BlameAnalyzer:
             blame_info = self._get_blame_for_context(hunk)
 
         if not blame_info:
-            return HunkTargetMapping(
-                hunk=hunk, target_commit=None, confidence="low", blame_info=[]
-            )
+            return self._create_fallback_mapping(hunk, TargetingMethod.FALLBACK_EXISTING_FILE)
 
         # Filter commits to only those within our branch scope
         branch_commits = self._get_branch_commits()
@@ -91,9 +120,7 @@ class BlameAnalyzer:
         ]
 
         if not relevant_blame:
-            return HunkTargetMapping(
-                hunk=hunk, target_commit=None, confidence="low", blame_info=blame_info
-            )
+            return self._create_fallback_mapping(hunk, TargetingMethod.FALLBACK_EXISTING_FILE, blame_info)
 
         # Group by commit and count occurrences
         commit_counts: Dict[str, int] = {}
@@ -116,11 +143,16 @@ class BlameAnalyzer:
         else:
             confidence = "low"
 
+        # Store successful target for file consistency
+        self._file_target_cache[hunk.file_path] = most_frequent_commit
+
         return HunkTargetMapping(
             hunk=hunk,
             target_commit=most_frequent_commit,
             confidence=confidence,
             blame_info=relevant_blame,
+            targeting_method=TargetingMethod.BLAME_MATCH,
+            needs_user_selection=False
         )
 
     def _get_blame_for_old_lines(self, hunk: DiffHunk) -> List[BlameInfo]:
@@ -217,17 +249,8 @@ class BlameAnalyzer:
         if self._branch_commits_cache is not None:
             return self._branch_commits_cache
 
-        success, output = self.git_ops._run_git_command(
-            "rev-list", f"{self.merge_base}..HEAD"
-        )
-
-        if not success:
-            self._branch_commits_cache = set()
-        else:
-            self._branch_commits_cache = (
-                set(output.strip().split("\n")) if output.strip() else set()
-            )
-
+        branch_commits = self.batch_ops.get_branch_commits()
+        self._branch_commits_cache = set(branch_commits)
         return self._branch_commits_cache
 
     def _get_commit_timestamp(self, commit_hash: str) -> int:
@@ -239,23 +262,11 @@ class BlameAnalyzer:
         Returns:
             Unix timestamp of the commit
         """
-        # Use cache for performance
-        if commit_hash in self._commit_timestamp_cache:
-            return self._commit_timestamp_cache[commit_hash]
-
-        success, output = self.git_ops._run_git_command(
-            "show", "-s", "--format=%ct", commit_hash
-        )
-
-        timestamp = 0
-        if success:
-            try:
-                timestamp = int(output.strip())
-            except ValueError:
-                timestamp = 0
-
-        self._commit_timestamp_cache[commit_hash] = timestamp
-        return timestamp
+        # Use batch operations for better performance
+        commit_info = self.batch_ops.batch_load_commit_info([commit_hash])
+        if commit_hash in commit_info:
+            return commit_info[commit_hash].timestamp
+        return 0
 
     def get_commit_summary(self, commit_hash: str) -> str:
         """Get a short summary of a commit for display.
@@ -266,11 +277,129 @@ class BlameAnalyzer:
         Returns:
             Short commit summary (hash + subject)
         """
-        success, output = self.git_ops._run_git_command(
-            "show", "-s", "--format=%h %s", commit_hash
+        commit_info = self.batch_ops.batch_load_commit_info([commit_hash])
+        if commit_hash in commit_info:
+            info = commit_info[commit_hash]
+            return f"{info.short_hash} {info.subject}"
+        return commit_hash[:8]
+
+    def _is_new_file(self, file_path: str) -> bool:
+        """Check if a file is new (didn't exist at merge-base).
+
+        Args:
+            file_path: Path to check
+
+        Returns:
+            True if file is new, False if it existed at merge-base
+        """
+        if self._new_files_cache is None:
+            self._new_files_cache = self.batch_ops.get_new_files()
+        
+        return file_path in self._new_files_cache
+
+    def _create_fallback_mapping(
+        self, 
+        hunk: DiffHunk, 
+        method: TargetingMethod,
+        blame_info: List[BlameInfo] = None
+    ) -> HunkTargetMapping:
+        """Create a fallback mapping that needs user selection.
+
+        Args:
+            hunk: DiffHunk to create mapping for
+            method: Fallback method used
+            blame_info: Optional blame info if available
+
+        Returns:
+            HunkTargetMapping with fallback candidates
+        """
+        candidates = self._get_fallback_candidates(hunk.file_path, method)
+        
+        return HunkTargetMapping(
+            hunk=hunk,
+            target_commit=None,
+            confidence="low",
+            blame_info=blame_info or [],
+            targeting_method=method,
+            fallback_candidates=candidates,
+            needs_user_selection=True
         )
 
-        if not success:
-            return commit_hash[:8]
+    def _get_fallback_candidates(self, file_path: str, method: TargetingMethod) -> List[str]:
+        """Get prioritized list of candidate commits for fallback scenarios.
 
-        return output.strip()
+        Args:
+            file_path: Path of the file being processed
+            method: Fallback method to determine candidate ordering
+
+        Returns:
+            List of commit hashes ordered by priority
+        """
+        branch_commits = self._get_ordered_branch_commits()
+        
+        if method == TargetingMethod.FALLBACK_NEW_FILE:
+            # For new files, just return recent commits first, merges last
+            return branch_commits
+        
+        elif method == TargetingMethod.FALLBACK_EXISTING_FILE:
+            # For existing files, prioritize commits that touched this file
+            file_commits = self._get_commits_touching_file(file_path)
+            other_commits = [c for c in branch_commits if c not in file_commits]
+            return file_commits + other_commits
+        
+        return branch_commits
+
+    def _get_ordered_branch_commits(self) -> List[str]:
+        """Get branch commits ordered by recency, with merge commits last.
+
+        Returns:
+            List of commit hashes ordered by priority
+        """
+        branch_commits = list(self._get_branch_commits())
+        if not branch_commits:
+            return []
+        
+        # Use batch operations to get ordered commits
+        ordered_commits = self.batch_ops.get_ordered_commits_by_recency(branch_commits)
+        return [commit.commit_hash for commit in ordered_commits]
+
+    def _get_commits_touching_file(self, file_path: str) -> List[str]:
+        """Get commits that modified a specific file, ordered by recency.
+
+        Args:
+            file_path: Path to check for modifications
+
+        Returns:
+            List of commit hashes that touched the file
+        """
+        return self.batch_ops.get_commits_touching_file(file_path)
+
+    def _is_merge_commit(self, commit_hash: str) -> bool:
+        """Check if a commit is a merge commit.
+
+        Args:
+            commit_hash: Commit to check
+
+        Returns:
+            True if commit is a merge commit
+        """
+        commit_info = self.batch_ops.batch_load_commit_info([commit_hash])
+        if commit_hash in commit_info:
+            return commit_info[commit_hash].is_merge
+        return False
+
+    def set_target_for_file(self, file_path: str, target_commit: str) -> None:
+        """Set target commit for a file to ensure consistency.
+
+        Args:
+            file_path: File path
+            target_commit: Commit hash to use as target
+        """
+        self._file_target_cache[file_path] = target_commit
+
+    def clear_file_cache(self) -> None:
+        """Clear the file target cache for a fresh analysis."""
+        self._file_target_cache.clear()
+        self.batch_ops.clear_caches()
+        self._branch_commits_cache = None
+        self._new_files_cache = None

@@ -4,7 +4,7 @@ import logging
 import os
 from typing import List, Optional, Literal, Dict, Any
 
-from git_autosquash.blame_analyzer import HunkTargetMapping
+from git_autosquash.hunk_target_resolver import HunkTargetMapping
 from git_autosquash.git_ops import GitOps
 from git_autosquash.git_native_handler import GitNativeIgnoreHandler
 from git_autosquash.git_worktree_handler import GitWorktreeIgnoreHandler

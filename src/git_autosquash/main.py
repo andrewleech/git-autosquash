@@ -5,7 +5,7 @@ import subprocess
 import sys
 
 from git_autosquash import __version__
-from git_autosquash.blame_analyzer import BlameAnalyzer
+from git_autosquash.hunk_target_resolver import HunkTargetResolver
 from git_autosquash.exceptions import (
     ErrorReporter,
     GitAutoSquashError,
@@ -19,65 +19,100 @@ from git_autosquash.rebase_manager import RebaseConflictError, RebaseManager
 from git_autosquash.tui.app import AutoSquashApp
 
 
-def _simple_approval_fallback(mappings, blame_analyzer):
+def _simple_approval_fallback(mappings, resolver, commit_analyzer=None):
     """Simple text-based approval fallback when TUI fails.
 
     Args:
         mappings: List of hunk target mappings
-        blame_analyzer: BlameAnalyzer instance for getting commit summaries
+        resolver: HunkTargetResolver instance for getting commit summaries
+        commit_analyzer: Optional CommitHistoryAnalyzer for fallback scenarios
 
     Returns:
-        List of approved mappings
+        Dict with approved and ignored mappings
     """
-    from git_autosquash.blame_analyzer import HunkTargetMapping
+    from git_autosquash.hunk_target_resolver import HunkTargetMapping, TargetingMethod
     from typing import List
 
     print("\nReview hunk → commit mappings:")
     print("=" * 60)
 
     approved_mappings: List[HunkTargetMapping] = []
+    ignored_mappings: List[HunkTargetMapping] = []
 
     for i, mapping in enumerate(mappings, 1):
-        commit_summary = blame_analyzer.get_commit_summary(mapping.target_commit)
         hunk = mapping.hunk
 
         print(f"\n[{i}/{len(mappings)}] {hunk.file_path}")
         print(f"  Lines: {hunk.new_start}-{hunk.new_start + hunk.new_count - 1}")
-        print(f"  Target: {commit_summary}")
-        print(f"  Confidence: {mapping.confidence}")
 
-        # Show a few lines of the diff
-        diff_lines = hunk.lines[1:4]  # Skip @@ header, show first 3 lines
-        for line in diff_lines:
-            print(f"  {line}")
-        if len(hunk.lines) > 4:
-            print(f"  ... ({len(hunk.lines) - 1} total lines)")
-
-        while True:
-            choice = (
-                input("\nChoose action [s/i/n/q] (squash/ignore/skip/quit): ")
-                .lower()
-                .strip()
-            )
-            if choice == "s":
-                approved_mappings.append(mapping)
-                break
-            elif choice == "i":
-                # For simple fallback, we'll just collect approved mappings
-                # and not implement ignore functionality in the fallback
-                print(
-                    "Note: Ignore functionality not available in simple mode. Skipping instead."
-                )
-                break
-            elif choice == "n":
-                break
-            elif choice == "q":
-                print("Operation cancelled")
-                return []
+        # Handle different mapping types
+        if mapping.needs_user_selection:
+            print(f"  Status: Manual selection required ({mapping.targeting_method.value})")
+            
+            if commit_analyzer and mapping.fallback_candidates:
+                print("  Available targets:")
+                for j, commit_hash in enumerate(mapping.fallback_candidates[:5], 1):
+                    commit_display = commit_analyzer.get_commit_display_info(commit_hash)
+                    print(f"    {j}. {commit_display}")
+                
+                while True:
+                    choice = input(f"\nChoose target [1-{min(5, len(mapping.fallback_candidates))}/i/q] or ignore/quit: ").lower().strip()
+                    if choice == "i":
+                        ignored_mappings.append(mapping)
+                        break
+                    elif choice == "q":
+                        print("Operation cancelled")
+                        return {"approved": [], "ignored": []}
+                    else:
+                        try:
+                            target_idx = int(choice) - 1
+                            if 0 <= target_idx < len(mapping.fallback_candidates):
+                                mapping.target_commit = mapping.fallback_candidates[target_idx]
+                                mapping.needs_user_selection = False
+                                mapping.confidence = "medium"
+                                approved_mappings.append(mapping)
+                                break
+                            else:
+                                print("Invalid target number")
+                        except ValueError:
+                            print("Please enter a valid number, 'i' (ignore), or 'q' (quit)")
             else:
-                print("Please enter s (squash), i (ignore), n (skip), or q (quit)")
+                print("  No fallback targets available")
+                ignored_mappings.append(mapping)
+        else:
+            # Regular blame match
+            commit_summary = resolver.get_commit_summary(mapping.target_commit)
+            print(f"  Target: {commit_summary}")
+            print(f"  Confidence: {mapping.confidence}")
 
-    return approved_mappings
+            # Show a few lines of the diff
+            diff_lines = hunk.lines[1:4]  # Skip @@ header, show first 3 lines
+            for line in diff_lines:
+                print(f"  {line}")
+            if len(hunk.lines) > 4:
+                print(f"  ... ({len(hunk.lines) - 1} total lines)")
+
+            while True:
+                choice = (
+                    input("\nChoose action [s/i/n/q] (squash/ignore/skip/quit): ")
+                    .lower()
+                    .strip()
+                )
+                if choice == "s":
+                    approved_mappings.append(mapping)
+                    break
+                elif choice == "i":
+                    ignored_mappings.append(mapping)
+                    break
+                elif choice == "n":
+                    break
+                elif choice == "q":
+                    print("Operation cancelled")
+                    return {"approved": [], "ignored": []}
+                else:
+                    print("Please enter s (squash), i (ignore), n (skip), or q (quit)")
+
+    return {"approved": approved_mappings, "ignored": ignored_mappings}
 
 
 def _apply_ignored_hunks_legacy(ignored_mappings, git_ops) -> bool:
@@ -110,6 +145,14 @@ def _apply_ignored_hunks_legacy(ignored_mappings, git_ops) -> bool:
                 )
                 return False
 
+            # Check for symlinks in path components (security)
+            current_path = repo_root
+            for part in file_path.parts:
+                current_path = current_path / part
+                if current_path.is_symlink():
+                    print(f"Error: Symlinks not allowed in file paths - {mapping.hunk.file_path}")
+                    return False
+            
             # Check for path traversal by resolving against repo root
             resolved_path = (repo_root / file_path).resolve()
             try:
@@ -241,14 +284,14 @@ def _create_patch_for_hunk(hunk) -> str:
     return "\n".join(patch_lines) + "\n"
 
 
-def _execute_rebase(approved_mappings, git_ops, merge_base, blame_analyzer) -> bool:
+def _execute_rebase(approved_mappings, git_ops, merge_base, resolver) -> bool:
     """Execute the interactive rebase to apply approved mappings.
 
     Args:
         approved_mappings: List of approved hunk to commit mappings
         git_ops: GitOps instance
         merge_base: Merge base commit hash
-        blame_analyzer: BlameAnalyzer for getting commit summaries
+        resolver: HunkTargetResolver for getting commit summaries
 
     Returns:
         True if successful, False if aborted or failed
@@ -268,7 +311,7 @@ def _execute_rebase(approved_mappings, git_ops, merge_base, blame_analyzer) -> b
 
         for commit_hash, count in commit_counts.items():
             try:
-                commit_summary = blame_analyzer.get_commit_summary(commit_hash)
+                commit_summary = resolver.get_commit_summary(commit_hash)
                 print(f"  {count} hunk{'s' if count > 1 else ''} → {commit_summary}")
             except Exception:
                 print(f"  {count} hunk{'s' if count > 1 else ''} → {commit_hash}")
@@ -439,27 +482,39 @@ def main() -> None:
 
         print(f"Found {len(hunks)} hunks to process")
 
-        # Analyze hunks with blame to find target commits
-        blame_analyzer = BlameAnalyzer(git_ops, merge_base)
-        mappings = blame_analyzer.analyze_hunks(hunks)
+        # Analyze hunks with enhanced blame and fallback analysis
+        resolver = HunkTargetResolver(git_ops, merge_base)
+        mappings = resolver.resolve_targets(hunks)
 
-        # Filter out mappings without target commits
-        valid_mappings = [m for m in mappings if m.target_commit is not None]
+        # Categorize mappings into automatic and fallback
+        automatic_mappings = [m for m in mappings if not m.needs_user_selection]
+        fallback_mappings = [m for m in mappings if m.needs_user_selection]
 
-        if not valid_mappings:
-            print("No valid target commits found for any hunks", file=sys.stderr)
-            print(
-                "This may happen if all changes are in new files or outside branch scope"
-            )
+        print(f"Found target commits for {len(automatic_mappings)} hunks")
+        if fallback_mappings:
+            print(f"Found {len(fallback_mappings)} hunks requiring manual target selection")
+        
+        # If we have no automatic targets and no fallbacks, something is wrong
+        if not mappings:
+            print("No hunks found to process", file=sys.stderr)
             sys.exit(1)
 
-        print(f"Found target commits for {len(valid_mappings)} hunks")
-
-        # Phase 3: Show TUI for user approval
-        print("\nLaunching interactive approval interface...")
+        # Phase 3: Show enhanced TUI for user approval (with fallback support)
+        print("\nLaunching enhanced interactive approval interface...")
 
         try:
-            app = AutoSquashApp(valid_mappings)
+            # Create commit history analyzer for fallback suggestions
+            from git_autosquash.commit_history_analyzer import CommitHistoryAnalyzer
+            commit_analyzer = CommitHistoryAnalyzer(git_ops, merge_base)
+            
+            # Use enhanced app if we have fallbacks, otherwise use standard app
+            if fallback_mappings:
+                from git_autosquash.tui.enhanced_app import EnhancedAutoSquashApp
+                app = EnhancedAutoSquashApp(mappings, commit_analyzer)
+            else:
+                # Standard app for backward compatibility when no fallbacks
+                app = AutoSquashApp(mappings)
+            
             approved = app.run()
 
             if approved and (app.approved_mappings or app.ignored_mappings):
@@ -476,7 +531,7 @@ def main() -> None:
                 if approved_mappings:
                     print("\nExecuting interactive rebase for approved hunks...")
                     success = _execute_rebase(
-                        approved_mappings, git_ops, merge_base, blame_analyzer
+                        approved_mappings, git_ops, merge_base, resolver
                     )
 
                     if not success:
@@ -519,21 +574,36 @@ def main() -> None:
         except ImportError as e:
             print(f"\nTextual TUI not available: {e}")
             print("Falling back to simple text-based approval...")
-            approved_mappings = _simple_approval_fallback(
-                valid_mappings, blame_analyzer
+            result = _simple_approval_fallback(
+                mappings, resolver, commit_analyzer
             )
+            
+            approved_mappings = result["approved"]
+            ignored_mappings = result["ignored"]
 
             if approved_mappings:
                 print(f"\nApproved {len(approved_mappings)} hunks for squashing")
+                if ignored_mappings:
+                    print(f"Selected {len(ignored_mappings)} hunks to ignore (keep in working tree)")
+                
                 # Phase 4 - Execute the interactive rebase
                 print("\nExecuting interactive rebase...")
                 success = _execute_rebase(
-                    approved_mappings, git_ops, merge_base, blame_analyzer
+                    approved_mappings, git_ops, merge_base, resolver
                 )
 
                 if success:
                     print("✓ Squash operation completed successfully!")
                     print("Your changes have been distributed to their target commits.")
+                    
+                    # Apply ignored hunks back to working tree
+                    if ignored_mappings:
+                        print(f"\nApplying {len(ignored_mappings)} ignored hunks back to working tree...")
+                        ignore_success = _apply_ignored_hunks(ignored_mappings, git_ops)
+                        if ignore_success:
+                            print("✓ Ignored hunks have been restored to working tree")
+                        else:
+                            print("⚠️  Some ignored hunks could not be restored - check working tree status")
                 else:
                     print("✗ Squash operation was aborted or failed.")
             else:
@@ -542,21 +612,36 @@ def main() -> None:
         except Exception as e:
             print(f"\nTUI encountered an error: {e}")
             print("Falling back to simple text-based approval...")
-            approved_mappings = _simple_approval_fallback(
-                valid_mappings, blame_analyzer
+            result = _simple_approval_fallback(
+                mappings, resolver, commit_analyzer
             )
+            
+            approved_mappings = result["approved"]
+            ignored_mappings = result["ignored"]
 
             if approved_mappings:
                 print(f"\nApproved {len(approved_mappings)} hunks for squashing")
+                if ignored_mappings:
+                    print(f"Selected {len(ignored_mappings)} hunks to ignore (keep in working tree)")
+                
                 # Phase 4 - Execute the interactive rebase
                 print("\nExecuting interactive rebase...")
                 success = _execute_rebase(
-                    approved_mappings, git_ops, merge_base, blame_analyzer
+                    approved_mappings, git_ops, merge_base, resolver
                 )
 
                 if success:
                     print("✓ Squash operation completed successfully!")
                     print("Your changes have been distributed to their target commits.")
+                    
+                    # Apply ignored hunks back to working tree
+                    if ignored_mappings:
+                        print(f"\nApplying {len(ignored_mappings)} ignored hunks back to working tree...")
+                        ignore_success = _apply_ignored_hunks(ignored_mappings, git_ops)
+                        if ignore_success:
+                            print("✓ Ignored hunks have been restored to working tree")
+                        else:
+                            print("⚠️  Some ignored hunks could not be restored - check working tree status")
                 else:
                     print("✗ Squash operation was aborted or failed.")
             else:

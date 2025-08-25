@@ -12,7 +12,7 @@ from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import Checkbox, Static
 
-from git_autosquash.blame_analyzer import HunkTargetMapping
+from git_autosquash.hunk_target_resolver import HunkTargetMapping
 from git_autosquash.hunk_parser import DiffHunk
 
 

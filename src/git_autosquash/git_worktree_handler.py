@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path
 from typing import List, Optional
 
-from git_autosquash.blame_analyzer import HunkTargetMapping
+from git_autosquash.hunk_target_resolver import HunkTargetMapping
 from git_autosquash.git_ops import GitOps
 from git_autosquash.result import StrategyResult, StrategyExecutionError, Ok, Err
 from git_autosquash.resource_managers import git_state_context, worktree_context
@@ -78,7 +78,9 @@ class GitWorktreeIgnoreHandler:
                                     strategy="worktree_enhanced",
                                     operation="apply_hunks",
                                     message="Failed to apply hunks in worktree",
-                                    underlying_error=Exception(str(e)) if not isinstance(e, Exception) else e,
+                                    underlying_error=Exception(str(e))
+                                    if not isinstance(e, Exception)
+                                    else e,
                                 )
                             )
 
@@ -87,12 +89,16 @@ class GitWorktreeIgnoreHandler:
                         # Extract changes back to main repository
                         extract_result = self._extract_changes_enhanced(worktree_path)
                         if extract_result.is_err():
-                            return Err(StrategyExecutionError(
-                                strategy="worktree_enhanced",
-                                operation="extract_changes",
-                                message="Failed to extract changes from worktree",
-                                underlying_error=Exception(str(extract_result.unwrap_err())),
-                            ))
+                            return Err(
+                                StrategyExecutionError(
+                                    strategy="worktree_enhanced",
+                                    operation="extract_changes",
+                                    message="Failed to extract changes from worktree",
+                                    underlying_error=Exception(
+                                        str(extract_result.unwrap_err())
+                                    ),
+                                )
+                            )
 
                         self.logger.info(
                             f"✓ Successfully applied {applied_count} hunks using enhanced worktree strategy"
