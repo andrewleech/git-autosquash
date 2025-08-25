@@ -1,42 +1,31 @@
 """Enhanced Textual application with fallback target selection support."""
 
-from typing import List, Optional, Dict, Any
+from typing import List, Dict, Any
 
 from textual.app import App
 
 from git_autosquash.hunk_target_resolver import HunkTargetMapping
 from git_autosquash.commit_history_analyzer import CommitHistoryAnalyzer
-from git_autosquash.tui.enhanced_screens import EnhancedApprovalScreen
+from git_autosquash.tui.enhanced_screens import EnhancedApprovalScreen, BatchOperationsModal
+from git_autosquash.tui.styles import CONSOLIDATED_CSS
 
 
 class EnhancedAutoSquashApp(App[bool]):
     """Enhanced Textual application for git-autosquash with fallback support.
-    
+
     This application provides an interactive interface for reviewing and approving
     hunk-to-commit mappings, with support for fallback target selection when
     automatic blame analysis fails.
     """
-
-    CSS = """
-    .section-header {
-        background: $boost;
-        color: $text;
-        text-style: bold;
-        padding: 0 1;
-        margin: 1 0;
-    }
     
-    .section-header.fallback {
-        background: $warning;
-        color: $background;
-    }
-    """
+    TITLE = "Git Autosquash"
+    CSS = CONSOLIDATED_CSS
 
     def __init__(
-        self, 
+        self,
         mappings: List[HunkTargetMapping],
         commit_history_analyzer: CommitHistoryAnalyzer,
-        **kwargs
+        **kwargs,
     ) -> None:
         """Initialize the enhanced git-autosquash app.
 
@@ -58,7 +47,7 @@ class EnhancedAutoSquashApp(App[bool]):
 
     def _on_approval_complete(self, result: Any) -> None:
         """Handle completion of approval screen.
-        
+
         Args:
             result: Result from approval screen - either False (cancelled) or dict with selections
         """
@@ -75,7 +64,7 @@ class EnhancedAutoSquashApp(App[bool]):
 
     def get_approved_mappings(self) -> List[HunkTargetMapping]:
         """Get list of approved mappings.
-        
+
         Returns:
             List of approved HunkTargetMapping objects
         """
@@ -83,7 +72,7 @@ class EnhancedAutoSquashApp(App[bool]):
 
     def get_ignored_mappings(self) -> List[HunkTargetMapping]:
         """Get list of ignored mappings.
-        
+
         Returns:
             List of ignored HunkTargetMapping objects
         """
@@ -91,7 +80,7 @@ class EnhancedAutoSquashApp(App[bool]):
 
     def get_selection_summary(self) -> Dict[str, Any]:
         """Get summary of user selections.
-        
+
         Returns:
             Dictionary with selection statistics
         """
@@ -105,25 +94,27 @@ class EnhancedAutoSquashApp(App[bool]):
             "approved": approved_count,
             "ignored": ignored_count,
             "unprocessed": unprocessed_count,
-            "approval_rate": approved_count / total_mappings if total_mappings > 0 else 0,
+            "approval_rate": approved_count / total_mappings
+            if total_mappings > 0
+            else 0,
         }
 
     def validate_selections(self) -> bool:
         """Validate that user selections are consistent.
-        
+
         Returns:
             True if selections are valid
         """
         # Check for overlapping selections (shouldn't happen with proper UI)
         approved_set = set(id(m) for m in self.approved_mappings)
         ignored_set = set(id(m) for m in self.ignored_mappings)
-        
+
         if approved_set & ignored_set:
             return False  # Overlap detected
-        
+
         # Check that all approved mappings have valid targets
         for mapping in self.approved_mappings:
             if not mapping.target_commit:
                 return False
-        
+
         return True
