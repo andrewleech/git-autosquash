@@ -2,12 +2,12 @@
 
 import re
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set
 from enum import Enum
 
 from git_autosquash.git_ops import GitOps
 from git_autosquash.hunk_parser import DiffHunk
-from git_autosquash.batch_git_ops import BatchGitOperations
+from git_autosquash.batch_git_ops import BatchGitOperations, BlameInfo as BatchBlameInfo
 
 # Configuration constants for contextual blame scanning
 CONTEXTUAL_BLAME_LINES = 1  # Default ±1 line search for context
@@ -26,15 +26,8 @@ class TargetingMethod(Enum):
     )
 
 
-@dataclass
-class BlameInfo:
-    """Represents git blame information for a line."""
-
-    commit_hash: str
-    author: str
-    timestamp: str
-    line_number: int
-    line_content: str
+# Use BlameInfo from batch_git_ops
+BlameInfo = BatchBlameInfo
 
 
 @dataclass
