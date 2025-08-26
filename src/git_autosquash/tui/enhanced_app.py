@@ -6,7 +6,7 @@ from textual.app import App
 
 from git_autosquash.hunk_target_resolver import HunkTargetMapping
 from git_autosquash.commit_history_analyzer import CommitHistoryAnalyzer
-from git_autosquash.tui.enhanced_screens import EnhancedApprovalScreen, BatchOperationsModal
+from git_autosquash.tui.enhanced_screens import EnhancedApprovalScreen
 from git_autosquash.tui.styles import CONSOLIDATED_CSS
 
 
@@ -17,7 +17,7 @@ class EnhancedAutoSquashApp(App[bool]):
     hunk-to-commit mappings, with support for fallback target selection when
     automatic blame analysis fails.
     """
-    
+
     TITLE = "Git Autosquash"
     CSS = CONSOLIDATED_CSS
 

@@ -2,14 +2,10 @@
 
 from typing import List, Optional
 
-# Constants
-MAX_COMMIT_OPTIONS = 10
-COMMIT_SUBJECT_TRUNCATE_LENGTH = 50
-
 from rich.text import Text
 from textual import events, on
 from textual.app import ComposeResult
-from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.containers import Horizontal, Vertical
 from textual.message import Message
 from textual.reactive import reactive
 from textual.widget import Widget
@@ -18,10 +14,14 @@ from textual.widgets import Button, Checkbox, RadioButton, RadioSet, Static, Sel
 from git_autosquash.hunk_target_resolver import HunkTargetMapping, TargetingMethod
 from git_autosquash.commit_history_analyzer import CommitInfo
 
+# Constants
+MAX_COMMIT_OPTIONS = 10
+COMMIT_SUBJECT_TRUNCATE_LENGTH = 50
+
 
 class FallbackHunkMappingWidget(Widget):
     """Enhanced hunk mapping widget that supports fallback target selection."""
-    
+
     DEFAULT_CSS = """
     FallbackHunkMappingWidget {
         height: auto;
@@ -87,12 +87,14 @@ class FallbackHunkMappingWidget(Widget):
 
     class Selected(Message):
         """Message sent when hunk is selected."""
+
         def __init__(self, mapping: HunkTargetMapping) -> None:
             self.mapping = mapping
             super().__init__()
 
     class ApprovalChanged(Message):
         """Message sent when approval status changes."""
+
         def __init__(self, mapping: HunkTargetMapping, approved: bool) -> None:
             self.mapping = mapping
             self.approved = approved
@@ -100,6 +102,7 @@ class FallbackHunkMappingWidget(Widget):
 
     class IgnoreChanged(Message):
         """Message sent when ignore status changes."""
+
         def __init__(self, mapping: HunkTargetMapping, ignored: bool) -> None:
             self.mapping = mapping
             self.ignored = ignored
@@ -107,14 +110,20 @@ class FallbackHunkMappingWidget(Widget):
 
     class TargetSelected(Message):
         """Message sent when a fallback target is selected."""
+
         def __init__(self, mapping: HunkTargetMapping, target_commit: str) -> None:
             self.mapping = mapping
             self.target_commit = target_commit
             super().__init__()
 
-    def __init__(self, mapping: HunkTargetMapping, commit_infos: Optional[List[CommitInfo]] = None, **kwargs) -> None:
+    def __init__(
+        self,
+        mapping: HunkTargetMapping,
+        commit_infos: Optional[List[CommitInfo]] = None,
+        **kwargs,
+    ) -> None:
         """Initialize fallback hunk mapping widget.
-        
+
         Args:
             mapping: The hunk to commit mapping to display
             commit_infos: List of CommitInfo objects for fallback candidates
@@ -129,7 +138,7 @@ class FallbackHunkMappingWidget(Widget):
         with Vertical():
             # Header with file and hunk info
             hunk_info = f"{self.mapping.hunk.file_path} @@ {self._format_hunk_range()}"
-            
+
             if self.is_fallback:
                 yield Static(hunk_info, classes="fallback-header")
                 yield Static(self._get_fallback_description(), classes="fallback-note")
@@ -148,7 +157,9 @@ class FallbackHunkMappingWidget(Widget):
                     "Approve for squashing", value=self.approved, id="approve-checkbox"
                 )
                 yield Checkbox(
-                    "Ignore (keep in working tree)", value=self.ignored, id="ignore-checkbox"
+                    "Ignore (keep in working tree)",
+                    value=self.ignored,
+                    id="ignore-checkbox",
                 )
 
     def _format_hunk_range(self) -> str:
@@ -181,24 +192,30 @@ class FallbackHunkMappingWidget(Widget):
 
     def _create_target_selector(self) -> Widget:
         """Create target selection widget for fallback scenarios."""
-        
+
         class TargetSelectorWidget(Vertical):
             """Proper nested widget for target selection."""
-            
+
             def __init__(self, commit_infos: List[CommitInfo]):
                 super().__init__()
                 self.commit_infos = commit_infos
-            
+
             def compose(self) -> ComposeResult:
                 yield Static("Select target commit:", classes="commit-info")
-                
+
                 with RadioSet(id="target-selector"):
-                    yield RadioButton("Ignore (keep in working tree)", id="ignore-target")
-                    
-                    for i, commit_info in enumerate(self.commit_infos[:MAX_COMMIT_OPTIONS]):
+                    yield RadioButton(
+                        "Ignore (keep in working tree)", id="ignore-target"
+                    )
+
+                    for i, commit_info in enumerate(
+                        self.commit_infos[:MAX_COMMIT_OPTIONS]
+                    ):
                         label = self._format_commit_option(commit_info)
-                        yield RadioButton(label, id=f"commit-{i}", value=commit_info.commit_hash)
-            
+                        yield RadioButton(
+                            label, id=f"commit-{i}", value=commit_info.commit_hash
+                        )
+
             def _format_commit_option(self, commit_info: CommitInfo) -> str:
                 """Format commit info for display in selection."""
                 merge_marker = " (merge)" if commit_info.is_merge else ""
@@ -206,9 +223,8 @@ class FallbackHunkMappingWidget(Widget):
                 if len(subject) > COMMIT_SUBJECT_TRUNCATE_LENGTH:
                     subject = subject[:COMMIT_SUBJECT_TRUNCATE_LENGTH] + "..."
                 return f"{commit_info.short_hash}: {subject}{merge_marker}"
-        
-        return TargetSelectorWidget(self.commit_infos)
 
+        return TargetSelectorWidget(self.commit_infos)
 
     def on_click(self, event: events.Click) -> None:
         """Handle click events."""
@@ -229,7 +245,7 @@ class FallbackHunkMappingWidget(Widget):
         """Handle target commit selection changes."""
         if not event.pressed:
             return
-            
+
         if event.pressed.id == "ignore-target":
             self.ignored = True
             self.approved = False
@@ -256,7 +272,7 @@ class FallbackHunkMappingWidget(Widget):
 
 class BatchSelectionWidget(Widget):
     """Widget for batch selection operations across multiple hunks."""
-    
+
     DEFAULT_CSS = """
     BatchSelectionWidget {
         height: auto;
@@ -275,6 +291,7 @@ class BatchSelectionWidget(Widget):
 
     class BatchTargetSelected(Message):
         """Message sent when a batch target is selected."""
+
         def __init__(self, target_commit: str, apply_to_all: bool = False) -> None:
             self.target_commit = target_commit
             self.apply_to_all = apply_to_all
@@ -282,7 +299,7 @@ class BatchSelectionWidget(Widget):
 
     def __init__(self, commit_infos: List[CommitInfo], **kwargs) -> None:
         """Initialize batch selection widget.
-        
+
         Args:
             commit_infos: List of available commit options
         """
@@ -292,10 +309,12 @@ class BatchSelectionWidget(Widget):
     def compose(self) -> ComposeResult:
         """Compose the widget layout."""
         yield Static("Batch Actions", classes="batch-title")
-        
+
         with Horizontal():
-            yield Button("Ignore All Fallbacks", variant="default", id="ignore-all-fallbacks")
-            
+            yield Button(
+                "Ignore All Fallbacks", variant="default", id="ignore-all-fallbacks"
+            )
+
         with Horizontal():
             yield Static("Assign all to: ", shrink=True)
             # Create select widget with commit options
@@ -305,7 +324,7 @@ class BatchSelectionWidget(Widget):
                 if commit_info.is_merge:
                     label += " (merge)"
                 options.append((label, commit_info.commit_hash))
-            
+
             yield Select(options, value="", id="batch-target-select")
             yield Button("Apply to All", variant="primary", id="apply-to-all")
 
@@ -317,12 +336,14 @@ class BatchSelectionWidget(Widget):
         elif event.button.id == "apply-to-all":
             select_widget = self.query_one("#batch-target-select", Select)
             if select_widget.value and select_widget.value != "":
-                self.post_message(self.BatchTargetSelected(select_widget.value, apply_to_all=True))
+                self.post_message(
+                    self.BatchTargetSelected(select_widget.value, apply_to_all=True)
+                )
 
 
 class FallbackSectionSeparator(Widget):
     """Visual separator between blame matches and fallback scenarios."""
-    
+
     DEFAULT_CSS = """
     FallbackSectionSeparator {
         height: 3;
@@ -340,13 +361,16 @@ class FallbackSectionSeparator(Widget):
     def compose(self) -> ComposeResult:
         """Compose the separator."""
         yield Static("", classes="separator-line")
-        yield Static("── Fallback Scenarios (Manual Selection Required) ──", classes="separator-line")
+        yield Static(
+            "── Fallback Scenarios (Manual Selection Required) ──",
+            classes="separator-line",
+        )
         yield Static("", classes="separator-line")
 
 
 class EnhancedProgressIndicator(Widget):
     """Enhanced progress indicator showing blame matches vs fallbacks."""
-    
+
     DEFAULT_CSS = """
     EnhancedProgressIndicator {
         height: 3;
@@ -367,9 +391,11 @@ class EnhancedProgressIndicator(Widget):
     }
     """
 
-    def __init__(self, total_hunks: int, blame_matches: int, fallback_count: int, **kwargs) -> None:
+    def __init__(
+        self, total_hunks: int, blame_matches: int, fallback_count: int, **kwargs
+    ) -> None:
         """Initialize enhanced progress indicator.
-        
+
         Args:
             total_hunks: Total number of hunks
             blame_matches: Number of hunks with blame matches
@@ -385,9 +411,11 @@ class EnhancedProgressIndicator(Widget):
         blame_text = Text(f"{self.blame_matches} blame matches", style="green")
         fallback_text = Text(f"{self.fallback_count} need selection", style="yellow")
         total_text = Text(f"of {self.total_hunks} total")
-        
-        progress_text = Text.assemble(blame_text, " • ", fallback_text, " • ", total_text)
-        
+
+        progress_text = Text.assemble(
+            blame_text, " • ", fallback_text, " • ", total_text
+        )
+
         yield Static("Progress Summary", classes="progress-line")
         yield Static(progress_text, classes="progress-line")
         yield Static("", classes="progress-line")

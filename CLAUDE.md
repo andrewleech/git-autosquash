@@ -1,221 +1,145 @@
-# Development Guide for git-autosquash
+# CLAUDE.md
 
-## Project Structure
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Core Architecture
+
+### Component Hierarchy
+The application follows a layered architecture with three main execution strategies:
+
+1. **GitNativeHandler** (src/git_autosquash/git_native_handler.py) - Simple in-place git operations
+2. **GitNativeCompleteHandler** (src/git_autosquash/git_native_complete_handler.py) - Full rebase completion with reflog safety
+3. **GitWorktreeHandler** (src/git_autosquash/git_worktree_handler.py) - Isolated worktree operations for complex scenarios
+
+Each strategy extends **CliStrategy** base class and implements the execution flow differently based on complexity and safety requirements.
+
+### Key Component Interactions
+
 ```
-git-autosquash/
-├── src/
-│   ├── __init__.py
-│   ├── main.py              # CLI entry point and argument parsing
-│   ├── git_ops.py           # Git operations (status, blame, rebase)
-│   ├── hunk_parser.py       # Diff parsing and hunk splitting
-│   ├── blame_analyzer.py    # Git blame analysis and target resolution
-│   ├── tui/
-│   │   ├── __init__.py
-│   │   ├── app.py          # Main Textual application
-│   │   ├── screens.py      # Approval screen with diff display
-│   │   └── widgets.py      # Custom widgets for hunk/commit display
-│   └── rebase_manager.py   # Interactive rebase execution
-├── tests/
-├── .github/
-│   └── workflows/
-│       ├── ci.yml          # Build, test, lint
-│       └── release.yml     # PyPI deployment on tags
-├── .pre-commit-config.yaml # Pre-commit hooks configuration
-├── pyproject.toml          # Project config (uv managed)
-├── uv.lock                 # Dependency lock file
-└── README.md
+main.py (entry point)
+  ├── GitOps (git command wrapper)
+  ├── HunkParser (diff parsing)
+  ├── HunkTargetResolver (blame + fallback analysis)
+  │   ├── BlameAnalysisEngine
+  │   ├── FallbackTargetProvider
+  │   └── FileConsistencyTracker
+  ├── TUI Components (Textual interface)
+  │   ├── EnhancedApp (fallback scenarios)
+  │   └── AutoSquashApp (standard flow)
+  └── Strategy Execution (rebase management)
 ```
 
-## Development Priorities
+### Performance & Security Infrastructure
 
-### Phase 1: Foundation
-1. **Git repository detection and validation**
-   - Ensure we're in a git repo
-   - Find current branch name
-   - Locate master/main branch and calculate merge-base
-   - Validate branch has commits to work with
-
-2. **Working tree analysis**
-   - Detect clean/staged/unstaged states
-   - Implement mixed-state user prompts
-   - Handle edge cases (empty repo, detached HEAD)
-
-### Phase 2: Diff Processing
-3. **Hunk extraction and parsing**
-   - Parse `git diff` output into structured hunks
-   - Implement both default and `--line-by-line` modes
-   - Store file path, line numbers, and content for each hunk
-
-4. **Git blame integration**
-   - Run blame on specific line ranges per hunk
-   - Parse blame output to extract commit information
-   - Filter commits within branch scope (merge-base to HEAD)
-
-### Phase 3: User Experience (Textual TUI)
-5. **Rich terminal interface**
-   - Create Textual app with approval screen
-   - Display hunk → commit mappings in structured layout
-   - Show diff content with syntax highlighting
-   - Interactive widgets for approval/rejection per hunk
-   - Progress indicators and status displays
-
-### Phase 4: Execution
-6. **Interactive rebase automation**
-   - Generate appropriate rebase todo lists
-   - Execute rebase with hunk applications
-   - Handle conflicts gracefully (pause/resume/abort)
-   - Manage stash/unstash for staged-only workflows
-
-### Phase 5: CLI & Integration
-7. **Command-line interface**
-   - Argument parsing (`--line-by-line`, `--help`)
-   - Git integration (install as git subcommand)
-   - Error handling and user guidance
-
-### Phase 6: CI/CD & Packaging
-8. **GitHub Actions setup**
-   - CI workflow (test, lint, type-check on multiple Python versions)
-   - Release workflow (build and deploy to PyPI on git tags)
-   - Badge integration for build status
-
-9. **Package configuration**
-   - pyproject.toml with setuptools-scm version management
-   - Entry points for git subcommand integration
-   - Proper dependency specification
-
-## Key Implementation Notes
-
-### Git Command Strategy
-- Use `subprocess` for git commands rather than gitpython for complex operations
-- Always check return codes and handle failures gracefully
-- Capture both stdout and stderr for error reporting
-
-### Error Handling
-- Validate git repo state before any operations
-- Provide clear error messages for common failure modes
-- Always offer abort/rollback options during rebase conflicts
-- Handle edge cases: empty diffs, no target commits found, rebase failures
-
-### User Interface
-- Use `argparse` for CLI argument parsing
-- **Textual** for rich terminal interface:
-  - Syntax-highlighted diff display
-  - Interactive hunk approval widgets
-  - Split-pane layout (hunks list + diff viewer)
-  - Progress bars and status indicators
-  - Keyboard shortcuts for efficient navigation
-- Fallback to simple CLI prompts if Textual unavailable
-- Support standard git-style help and error patterns
-
-### Testing Strategy
-- Unit tests for each module (hunk parsing, blame analysis)
-- Integration tests with actual git repositories
-- Test edge cases: merge conflicts, empty repos, invalid states
-- Mock git commands for reliable testing
-
-## Project Management
-
-### Package Management
-- **uv** for dependency management and project setup
-- **setuptools-scm** for dynamic version generation from git tags
-- **pyproject.toml** configuration (no setup.py needed)
-- **pre-commit** for automated code quality enforcement
-
-### Repository
-- GitHub: https://github.com/andrewleech/git-autosquash
-- GitHub Actions for CI/CD pipeline
+- **BatchGitOperations** (batch_git_ops.py): Eliminates O(n) subprocess calls through batch loading
+- **BoundedCache** (bounded_cache.py): Thread-safe LRU caches with configurable size limits
+- **Path Security**: Symlink detection and path traversal protection in main.py
 
 ## Development Commands
 
 ```bash
-# Initialize project with uv
-uv init --package git-autosquash
-
-# Add dependencies
-uv add textual gitpython
-uv add --dev pytest ruff mypy pre-commit
-
-# Install in development mode
+# Install development environment
 uv pip install -e .
-
-# Setup pre-commit hooks (run once after clone)
-uv run pre-commit install
+uv sync --dev
 
 # Run tests
-uv run pytest tests/
+uv run pytest tests/                    # All tests
+uv run pytest tests/test_main.py -v    # Single test file
+uv run pytest -k "test_function_name"   # Specific test
 
-# Lint and format code (pre-commit does this automatically)
-uv run ruff check src/
-uv run ruff format src/
+# Linting and formatting (pre-commit runs these automatically)
+uv run ruff check src/                  # Linting
+uv run ruff format src/                 # Format code
+uv run mypy src/                        # Type checking
 
-# Type checking
-uv run mypy src/
+# Pre-commit hooks
+uv run pre-commit install               # Setup hooks (once after clone)
+uv run pre-commit run --all-files      # Manual run
 
-# Run all pre-commit hooks manually
-uv run pre-commit run --all-files
+# Build and release
+uv build                                # Build package
+uv run twine check dist/*              # Validate package
 
-# Test Textual UI in development
-uv run textual console
-
-# Build for distribution
-uv build
+# Documentation
+uv run mkdocs serve                     # Local docs server
+uv run mkdocs build                     # Build docs
 ```
 
-## Git Integration
-The final tool should be installable as a git subcommand via PATH or git config.
+## Test Execution Patterns
 
-## Commit Guidelines
+```bash
+# Performance benchmarks
+uv run pytest tests/test_performance_benchmarks.py -v
 
-**CRITICAL**: Always use pre-commit hooks for all commits. Never bypass with `--no-verify`.
+# Security edge cases
+uv run pytest tests/test_security_edge_cases.py
 
-### Commit Process
-1. Stage your changes: `git add <files>`
-2. Commit normally: `git commit -m "message"`
-3. Pre-commit automatically runs: ruff check, ruff format, mypy
-4. If pre-commit fails: fix issues and commit again
-5. If pre-commit modifies files: review changes and `git add` them, then commit again
+# Integration tests with real git repos
+uv run pytest tests/test_main_integration.py
 
-### Pre-commit Hook Configuration
-- **ruff check**: Linting and code quality checks
-- **ruff format**: Code formatting (replaces black)
+# TUI component tests
+uv run pytest tests/test_tui_widgets.py
+```
+
+## Critical Implementation Details
+
+### Fallback Target Resolution
+When blame analysis fails to find valid targets, the system provides fallback methods:
+- **FALLBACK_NEW_FILE**: For new files, offers recent commits or ignore option
+- **FALLBACK_EXISTING_FILE**: For existing files without blame matches, offers commits that touched the file
+- **FALLBACK_CONSISTENCY**: Subsequent hunks from same file use same target as previous hunks
+
+### Rebase Safety Mechanisms
+1. **Reflog tracking**: All operations tracked with descriptive messages
+2. **Atomic operations**: State checks before any modifications
+3. **Rollback support**: Clear abort paths at every stage
+4. **Conflict handling**: Pause/resume/abort with user guidance
+
+### TUI State Management
+- **UIStateController**: Centralized state for approval/ignore status
+- **Message passing**: Widgets communicate via Textual messages
+- **O(1) lookups**: Hashable HunkTargetMapping for efficient widget mapping
+
+### Git Command Execution
+- Always use GitOps wrapper, never raw subprocess calls
+- Capture both stdout and stderr for proper error handling
+- Check return codes and handle failures gracefully
+- Use batch operations when processing multiple items
+
+## Common Development Tasks
+
+### Adding a New Execution Strategy
+1. Extend `CliStrategy` base class
+2. Implement `execute()` method with strategy-specific logic
+3. Add to strategy selection in `main.py`
+4. Create corresponding tests in `tests/`
+
+### Modifying TUI Components
+1. Enhanced UI components are in `tui/enhanced_*` files for fallback scenarios
+2. Standard UI components are in `tui/app.py`, `tui/screens.py`, `tui/widgets.py`
+3. Use proper Textual CSS variables ($warning, $success, etc.), not hardcoded colors
+4. Follow widget composition patterns, avoid manual widget construction
+
+### Working with Git Operations
+1. Use `BatchGitOperations` for multiple git commands to avoid O(n) subprocess overhead
+2. Implement proper caching with `BoundedCache` classes to prevent memory growth
+3. Always validate paths for symlinks and traversal attacks
+4. Handle both staged and unstaged changes appropriately
+
+## Pre-commit Requirements
+
+**CRITICAL**: Never use `git commit --no-verify`. All commits must pass:
+- **ruff check**: Linting and code quality
+- **ruff format**: Code formatting
 - **mypy**: Static type checking
-- All hooks must pass before commit is allowed
 
-### Never Use
-- `git commit --no-verify` - This bypasses quality checks and is strictly forbidden
-- Always fix pre-commit issues rather than bypassing them
+If pre-commit fails, fix the issues rather than bypassing. Pre-commit may modify files - review and stage these changes before committing again.
 
-## Documentation Structure
+## Project Repository
 
-The project uses MkDocs Material for documentation, hosted on GitHub Pages with automated deployment.
+GitHub: https://github.com/andrewleech/git-autosquash
 
-### Site Architecture
-```
-docs/
-├── index.md                 # Project overview and quick start
-├── installation.md          # Installation methods and requirements
-├── user-guide/
-│   ├── getting-started.md   # First-time usage tutorial
-│   ├── basic-workflow.md    # Standard usage patterns
-│   ├── advanced-usage.md    # Power user features and options
-│   └── troubleshooting.md   # Common issues and solutions
-├── technical/
-│   ├── architecture.md      # System design and component overview
-│   ├── api-reference.md     # Code API documentation
-│   ├── development.md       # Contributing and development setup
-│   └── testing.md          # Test suite and quality assurance
-├── examples/
-│   ├── basic-scenarios.md   # Common use cases with examples
-│   ├── complex-workflows.md # Advanced scenarios and edge cases
-│   └── integration.md       # CI/CD and automation examples
-└── reference/
-    ├── cli-options.md       # Command-line reference
-    ├── configuration.md     # Settings and customization
-    └── faq.md              # Frequently asked questions
-```
-
-### Documentation Development
-- Use `mkdocs serve` for local development and live reload
-- Auto-generated API documentation from docstrings
-- Mermaid diagrams for workflow visualization
-- Code examples extracted from test cases for accuracy
+CI/CD workflows:
+- `.github/workflows/ci.yml`: Tests, linting, type checking
+- `.github/workflows/release.yml`: PyPI deployment on tags
+- `.github/workflows/docs.yml`: Documentation deployment

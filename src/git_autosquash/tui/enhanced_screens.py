@@ -21,14 +21,17 @@ from git_autosquash.tui.fallback_widgets import (
     FallbackHunkMappingWidget,
     BatchSelectionWidget,
     FallbackSectionSeparator,
-    EnhancedProgressIndicator,
 )
 
 # Configuration constants - centralized for easy adjustment
-MAX_COMMIT_SUGGESTIONS = 10  # Maximum commits to show in suggestion lists (UI performance)
+MAX_COMMIT_SUGGESTIONS = (
+    10  # Maximum commits to show in suggestion lists (UI performance)
+)
 COMMIT_SUBJECT_TRUNCATE_LENGTH = 50  # Maximum length for commit subjects in UI
 SAFE_PATH_MAX_LENGTH = 100  # Maximum length for sanitized paths in logs
-SEPARATOR_FALLBACK_WIDTH = 80  # Fallback width for separator when terminal size unavailable
+SEPARATOR_FALLBACK_WIDTH = (
+    80  # Fallback width for separator when terminal size unavailable
+)
 
 
 class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
@@ -101,8 +104,14 @@ class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
 
                 # Horizontal rule separator - adapts to terminal width
                 try:
-                    terminal_width = self.app.console.width if hasattr(self.app, 'console') else SEPARATOR_FALLBACK_WIDTH
-                    separator_width = min(terminal_width - 4, SEPARATOR_FALLBACK_WIDTH)  # Leave margin
+                    terminal_width = (
+                        self.app.console.width
+                        if hasattr(self.app, "console")
+                        else SEPARATOR_FALLBACK_WIDTH
+                    )
+                    separator_width = min(
+                        terminal_width - 4, SEPARATOR_FALLBACK_WIDTH
+                    )  # Leave margin
                 except Exception:
                     separator_width = SEPARATOR_FALLBACK_WIDTH
                 yield Static("─" * separator_width, id="separator")
@@ -137,8 +146,8 @@ class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
 
                                 start_index = len(self.blame_matches)
                                 for i, mapping in enumerate(self.fallback_mappings):
-                                    commit_suggestions = self._get_suggestions_for_mapping(
-                                        mapping
+                                    commit_suggestions = (
+                                        self._get_suggestions_for_mapping(mapping)
                                     )
                                     hunk_widget = self._create_hunk_widget(
                                         mapping, start_index + i, commit_suggestions
@@ -221,17 +230,19 @@ class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
 
     def _safe_file_path(self, mapping: HunkTargetMapping) -> str:
         """Safely extract file path for logging, preventing path traversal issues.
-        
+
         Args:
             mapping: The hunk mapping to extract path from
-            
+
         Returns:
             Sanitized file path string
         """
         try:
             path = mapping.hunk.file_path
             # Basic sanitization - remove any path traversal attempts
-            safe_path = str(path).replace('..', '_').replace('\x00', '_')[:SAFE_PATH_MAX_LENGTH]
+            safe_path = (
+                str(path).replace("..", "_").replace("\x00", "_")[:SAFE_PATH_MAX_LENGTH]
+            )
             return safe_path
         except Exception:
             return "<unknown_file>"
@@ -257,9 +268,13 @@ class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
                     self.current_hunk_index = index
                     self._select_widget(target_widget)
                 else:
-                    self.log.warning(f"No index found for mapping: {self._safe_file_path(message.mapping)}")
+                    self.log.warning(
+                        f"No index found for mapping: {self._safe_file_path(message.mapping)}"
+                    )
             else:
-                self.log.warning(f"No widget found for mapping: {self._safe_file_path(message.mapping)}")
+                self.log.warning(
+                    f"No widget found for mapping: {self._safe_file_path(message.mapping)}"
+                )
         except Exception as e:
             self.log.error(f"Error handling hunk selection: {e}")
             # Continue gracefully without crashing the UI
@@ -273,7 +288,9 @@ class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
             self.state_controller.set_approved(message.mapping, message.approved)
             self._update_progress()
         except Exception as e:
-            self.log.error(f"Error handling approval change for {self._safe_file_path(message.mapping)}: {e}")
+            self.log.error(
+                f"Error handling approval change for {self._safe_file_path(message.mapping)}: {e}"
+            )
             # Continue gracefully without crashing the UI
 
     @on(FallbackHunkMappingWidget.IgnoreChanged)
@@ -285,7 +302,9 @@ class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
             self.state_controller.set_ignored(message.mapping, message.ignored)
             self._update_progress()
         except Exception as e:
-            self.log.error(f"Error handling ignore change for {self._safe_file_path(message.mapping)}: {e}")
+            self.log.error(
+                f"Error handling ignore change for {self._safe_file_path(message.mapping)}: {e}"
+            )
             # Continue gracefully without crashing the UI
 
     @on(FallbackHunkMappingWidget.TargetSelected)
@@ -297,7 +316,9 @@ class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
             # Update the mapping with the selected target
             message.mapping.target_commit = message.target_commit
             message.mapping.needs_user_selection = False
-            message.mapping.confidence = "medium"  # User-selected gets medium confidence
+            message.mapping.confidence = (
+                "medium"  # User-selected gets medium confidence
+            )
 
             # Store the target for file consistency
             self.commit_history_analyzer.git_ops  # Access through analyzer for consistency
@@ -305,7 +326,9 @@ class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
 
             self._update_progress()
         except Exception as e:
-            self.log.error(f"Error handling target selection for {self._safe_file_path(message.mapping)}: {e}")
+            self.log.error(
+                f"Error handling target selection for {self._safe_file_path(message.mapping)}: {e}"
+            )
             # Continue gracefully without crashing the UI
 
     @on(BatchSelectionWidget.BatchTargetSelected)
@@ -462,39 +485,40 @@ class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
 
     def _sync_widgets_with_state(self) -> None:
         """Sync widget states with controller state - optimized to avoid O(n) when unnecessary."""
-        if not hasattr(self, '_last_sync_state'):
-            self._last_sync_state = {}
-        
+        if not hasattr(self, "_last_sync_state"):
+            self._last_sync_state: Dict[HunkTargetMapping, Dict[str, bool]] = {}
+
         try:
             # Track which mappings actually changed to avoid unnecessary widget updates
             changed_mappings = []
-            
+
             for mapping, widget in self._mapping_to_widget.items():
                 current_approved = self.state_controller.is_approved(mapping)
                 current_ignored = self.state_controller.is_ignored(mapping)
                 last_state = self._last_sync_state.get(mapping, {})
-                
-                if (last_state.get('approved') != current_approved or 
-                    last_state.get('ignored') != current_ignored):
-                    
+
+                if (
+                    last_state.get("approved") != current_approved
+                    or last_state.get("ignored") != current_ignored
+                ):
                     widget.approved = current_approved
                     widget.ignored = current_ignored
                     changed_mappings.append(mapping)
-                    
+
                     # Update tracking
                     self._last_sync_state[mapping] = {
-                        'approved': current_approved,
-                        'ignored': current_ignored
+                        "approved": current_approved,
+                        "ignored": current_ignored,
                     }
-            
+
             if changed_mappings:
                 self.log.debug(f"Synced {len(changed_mappings)} widget states")
-                
+
         except Exception as e:
             self.log.error(f"Error syncing widget states: {e}")
             # Fallback to simple sync
             self._simple_sync_widgets()
-    
+
     def _simple_sync_widgets(self) -> None:
         """Simple fallback widget sync without optimization."""
         try:
@@ -512,24 +536,24 @@ class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
 
     def _handle_batch_selection(self, result: Optional[str]) -> None:
         """Handle batch selection from modal with proper validation and error handling.
-        
+
         Args:
             result: Selected target commit hash or "ignore", or None if cancelled
         """
         if result is None:
             return  # User cancelled
-        
+
         try:
             if result == "ignore":
                 self._apply_batch_ignore()
             else:
                 self._apply_batch_target_selection(result)
-            
+
             self._update_progress()
         except Exception as e:
             self.log.error(f"Failed to apply batch selection: {e}")
             # Could show user notification here
-    
+
     def _apply_batch_ignore(self) -> None:
         """Apply ignore status to all fallback mappings."""
         updated_count = 0
@@ -542,26 +566,31 @@ class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
                         widget.ignored = True
                     updated_count += 1
                 except Exception as e:
-                    self.log.error(f"Failed to ignore mapping for {mapping.hunk.file_path}: {e}")
-        
+                    self.log.error(
+                        f"Failed to ignore mapping for {mapping.hunk.file_path}: {e}"
+                    )
+
         self.log.info(f"Applied ignore status to {updated_count} mappings")
-    
+
     def _apply_batch_target_selection(self, target_commit: str) -> None:
         """Apply target commit selection to all fallback mappings with validation.
-        
+
         Args:
             target_commit: The commit hash to apply
-        
+
         Raises:
             ValueError: If target_commit is invalid format
         """
         if not target_commit or not isinstance(target_commit, str):
             raise ValueError("Invalid target commit: must be non-empty string")
-        
+
         # Basic commit hash validation (7-40 hex characters)
-        if not (7 <= len(target_commit) <= 40 and all(c in '0123456789abcdef' for c in target_commit.lower())):
+        if not (
+            7 <= len(target_commit) <= 40
+            and all(c in "0123456789abcdef" for c in target_commit.lower())
+        ):
             raise ValueError(f"Invalid commit hash format: {target_commit}")
-        
+
         updated_count = 0
         for mapping in self.fallback_mappings:
             if mapping.needs_user_selection:
@@ -576,9 +605,13 @@ class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
                         widget.ignored = False
                     updated_count += 1
                 except Exception as e:
-                    self.log.error(f"Failed to set target for mapping {mapping.hunk.file_path}: {e}")
-        
-        self.log.info(f"Applied target commit {target_commit} to {updated_count} mappings")
+                    self.log.error(
+                        f"Failed to set target for mapping {mapping.hunk.file_path}: {e}"
+                    )
+
+        self.log.info(
+            f"Applied target commit {target_commit} to {updated_count} mappings"
+        )
 
     def on_unmount(self) -> None:
         """Handle screen unmounting with proper cleanup."""
@@ -590,22 +623,22 @@ class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
         try:
             # Clear widget references
             for widget in self._mapping_to_widget.values():
-                if hasattr(widget, 'cleanup'):
+                if hasattr(widget, "cleanup"):
                     widget.cleanup()
-            
+
             self._mapping_to_widget.clear()
             self._mapping_to_index.clear()
             self.hunk_widgets.clear()
-            
+
             # Clear references to prevent circular dependencies
             self._selected_widget = None
             self._diff_viewer = None
             self._batch_widget = None
-            
+
             # Clear state tracking
-            if hasattr(self, '_last_sync_state'):
+            if hasattr(self, "_last_sync_state"):
                 self._last_sync_state.clear()
-            
+
             self._cleanup_required = False
             self.log.debug("Enhanced approval screen cleanup completed")
         except Exception as e:
@@ -613,7 +646,7 @@ class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
 
     def __del__(self) -> None:
         """Ensure cleanup happens even if unmount isn't called."""
-        if hasattr(self, '_cleanup_required') and self._cleanup_required:
+        if hasattr(self, "_cleanup_required") and self._cleanup_required:
             self._cleanup_resources()
 
 
@@ -630,7 +663,7 @@ class BatchOperationsModal(ModalScreen[Optional[str]]):
 
     def __init__(self, commit_infos: List[CommitInfo], **kwargs) -> None:
         """Initialize batch operations modal.
-        
+
         Args:
             commit_infos: List of available commits for batch selection
         """
@@ -643,13 +676,18 @@ class BatchOperationsModal(ModalScreen[Optional[str]]):
         """Compose the modal layout."""
         with Container(id="modal-container"):
             yield Static("Batch Operations", id="modal-title")
-            yield Static("Apply the same action to all items requiring manual selection:", id="modal-description")
-            
+            yield Static(
+                "Apply the same action to all items requiring manual selection:",
+                id="modal-description",
+            )
+
             with Container(id="modal-content"):
-                batch_widget = BatchSelectionWidget(self.commit_infos, id="batch-widget")
+                batch_widget = BatchSelectionWidget(
+                    self.commit_infos, id="batch-widget"
+                )
                 self._batch_widget = batch_widget
                 yield batch_widget
-            
+
             with Horizontal(id="modal-buttons"):
                 yield Button("Cancel", variant="default", id="modal-cancel")
 
@@ -674,7 +712,9 @@ class BatchOperationsModal(ModalScreen[Optional[str]]):
             self.log.error(f"Error during modal cleanup: {e}")
 
     @on(BatchSelectionWidget.BatchTargetSelected)
-    def on_batch_target_selected(self, message: BatchSelectionWidget.BatchTargetSelected) -> None:
+    def on_batch_target_selected(
+        self, message: BatchSelectionWidget.BatchTargetSelected
+    ) -> None:
         """Handle batch target selection."""
         self.dismiss(message.target_commit)
 
@@ -691,7 +731,9 @@ class BatchOperationsModal(ModalScreen[Optional[str]]):
     def action_confirm_selection(self) -> None:
         """Confirm current selection in the batch widget."""
         try:
-            if self._batch_widget and hasattr(self._batch_widget, 'get_current_selection'):
+            if self._batch_widget and hasattr(
+                self._batch_widget, "get_current_selection"
+            ):
                 selection = self._batch_widget.get_current_selection()
                 if selection:
                     self.dismiss(selection)
