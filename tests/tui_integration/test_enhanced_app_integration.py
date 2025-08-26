@@ -57,19 +57,21 @@ class TestEnhancedAppLayout:
             await TextualAssertions.assert_button_at_bottom(pilot, "Cancel")
 
     @pytest.mark.asyncio
-    async def test_hunk_list_and_diff_panels(
+    async def test_hunk_scroll_pane_layout(
         self, blame_matched_mappings, mock_commit_history_analyzer
     ):
-        """Test that hunk list and diff viewer panels are properly sized."""
+        """Test that hunk scroll pane is properly sized and contains hunk widgets."""
         app = EnhancedAutoSquashApp(
             blame_matched_mappings, mock_commit_history_analyzer
         )
 
         async with app.run_test() as pilot:
-            # Check that both panels are visible
-            await TextualAssertions.assert_widget_visible(pilot, "hunk-list-panel")
-            await TextualAssertions.assert_widget_visible(pilot, "diff-panel")
-            await TextualAssertions.assert_widget_visible(pilot, "diff-viewer")
+            # Check that the single-pane scrollable layout is visible
+            await TextualAssertions.assert_widget_visible(pilot, "hunk-scroll-pane")
+            
+            # Check that hunk widgets exist within the scroll pane
+            hunk_widgets = pilot.app.screen.query("FallbackHunkMappingWidget")
+            assert len(hunk_widgets) > 0, "No hunk widgets found in scroll pane"
 
     @pytest.mark.asyncio
     async def test_section_separator_with_mixed_mappings(
@@ -97,8 +99,9 @@ class TestEnhancedAppLayout:
 
         async with app.run_test(size=(width, height)) as pilot:
             # Basic layout should work at any reasonable size
-            await TextualAssertions.assert_widget_visible(pilot, "hunk-list")
-            await TextualAssertions.assert_widget_visible(pilot, "diff-viewer")
+            await TextualAssertions.assert_widget_visible(pilot, "hunk-scroll-pane")
+            hunk_widgets = pilot.app.screen.query("FallbackHunkMappingWidget")
+            assert len(hunk_widgets) > 0, "No hunk widgets found at this terminal size"
             await TextualAssertions.assert_button_at_bottom(pilot, "Continue")
 
 
@@ -304,10 +307,10 @@ class TestUserInteractions:
             # Note: In real test, we'd verify the app closes, but that's complex to test
 
     @pytest.mark.asyncio
-    async def test_hunk_navigation_updates_diff_viewer(
+    async def test_hunk_navigation_updates_selection(
         self, mixed_mappings, mock_commit_history_analyzer
     ):
-        """Test that navigating between hunks updates the diff viewer."""
+        """Test that navigating between hunks updates the selection state."""
         app = EnhancedAutoSquashApp(mixed_mappings, mock_commit_history_analyzer)
 
         async with app.run_test() as pilot:
@@ -315,8 +318,9 @@ class TestUserInteractions:
             await pilot.press("j")
             await pilot.pause(0.1)
 
-            # Diff viewer should still be visible and updated
-            await TextualAssertions.assert_widget_visible(pilot, "diff-viewer")
+            # Hunk widgets should still be visible (diff is embedded in widgets)
+            hunk_widgets = pilot.app.screen.query("FallbackHunkMappingWidget")
+            assert len(hunk_widgets) > 0, "No hunk widgets found after navigation"
 
 
 class TestStateManagement:
@@ -376,7 +380,7 @@ class TestStateManagement:
 
         async with app.run_test() as pilot:
             # Basic test that app loads with consistent file mappings
-            await TextualAssertions.assert_widget_visible(pilot, "hunk-list")
+            await TextualAssertions.assert_widget_visible(pilot, "hunk-scroll-pane")
 
 
 class TestCompleteWorkflows:
@@ -393,7 +397,7 @@ class TestCompleteWorkflows:
 
         workflow = [
             {"type": "wait", "duration": 0.1},
-            {"type": "assert_visible", "widget_id": "hunk-list"},
+            {"type": "assert_visible", "widget_id": "hunk-scroll-pane"},
             {"type": "key", "key": "a"},  # Toggle all approved
             {"type": "wait", "duration": 0.1},
             {"type": "key", "key": "Enter"},  # Approve and continue

@@ -47,6 +47,11 @@ class FallbackHunkMappingWidget(Widget):
         border: thick $warning;
     }
     
+    FallbackHunkMappingWidget > Vertical {
+        height: auto;
+        padding: 0;
+    }
+    
     FallbackHunkMappingWidget .hunk-header {
         background: $boost;
         color: $primary;
@@ -67,7 +72,7 @@ class FallbackHunkMappingWidget(Widget):
         background: $surface;
         color: $text;
         padding: 0 1;
-        height: auto;
+        height: 1;
     }
     
     FallbackHunkMappingWidget .fallback-note {
@@ -90,7 +95,7 @@ class FallbackHunkMappingWidget(Widget):
         padding: 0 1;
         margin: 0;
         height: auto;
-        max-height: 10;
+        max-height: 8;
         overflow: auto;
     }
     
@@ -112,6 +117,12 @@ class FallbackHunkMappingWidget(Widget):
         height: auto;
         margin: 0;
         padding: 0;
+    }
+    
+    FallbackHunkMappingWidget Checkbox {
+        height: 1;
+        margin: 0;
+        padding: 0 1;
     }
     
     FallbackHunkMappingWidget .confidence-high {

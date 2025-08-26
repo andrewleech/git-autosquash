@@ -68,7 +68,7 @@ class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
         self.current_hunk_index = 0
         self.hunk_widgets: List[FallbackHunkMappingWidget] = []
         self._selected_widget: FallbackHunkMappingWidget | None = None
-        self._diff_viewer: DiffViewer | None = None
+        self._diff_viewer = None  # No separate diff viewer in new single-pane layout
         self._batch_widget: BatchSelectionWidget | None = None
 
         # Categorize mappings
