@@ -17,9 +17,12 @@ LAYOUT_CSS = """
     layout: vertical;
 }
 
-#content-area {
+/* Single scrollable pane for all hunks */
+#hunk-scroll-pane {
     height: 1fr;
+    width: 100%;
     overflow: auto;
+    padding: 0 1;
 }
 
 /* Screen headers and descriptions */
@@ -238,41 +241,31 @@ BatchOperationsModal {
 }
 """
 
-# Panel layout styles
-PANEL_CSS = """
-/* Hunk list panel */
-#hunk-list-panel {
-    width: 1fr;
-    border-right: solid $primary;
-    padding-right: 1;
-}
-
-#hunk-list-title {
-    text-align: center;
-    text-style: bold;
-    color: $primary;
-    margin-bottom: 1;
-}
-
-#hunk-list {
+# Single-pane layout styles (replaces two-column panel layout)
+SINGLE_PANE_CSS = """
+/* Single scrollable pane for all hunks */
+#hunk-scroll-pane {
     height: 1fr;
+    width: 100%;
+    overflow: auto;
+    padding: 0 1;
 }
 
-/* Diff panel */
-#diff-panel {
-    width: 1fr;
-    padding-left: 1;
+/* Hunk widgets in vertical arrangement */
+FallbackHunkMappingWidget {
+    width: 100%;
+    margin: 0 0 2 0;
+    border: round $primary;
 }
 
-#diff-title {
-    text-align: center;
-    text-style: bold;
-    color: $primary;
-    margin-bottom: 1;
-}
-
-#diff-viewer {
-    height: 1fr;
+FallbackHunkMappingWidget .diff-content {
+    background: $surface;
+    border: solid $primary;
+    padding: 1;
+    margin: 1;
+    height: auto;
+    max-height: 20;
+    overflow: auto;
 }
 """
 
@@ -285,5 +278,5 @@ CONSOLIDATED_CSS = f"""
 {BATCH_CSS}
 {SEPARATOR_CSS}
 {MODAL_CSS}
-{PANEL_CSS}
+{SINGLE_PANE_CSS}
 """

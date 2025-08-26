@@ -72,13 +72,16 @@ class HunkTargetMapping:
 class BlameAnalysisEngine:
     """Core engine for analyzing git blame information."""
 
-    def __init__(self, git_ops: GitOps):
+    def __init__(self, git_ops: GitOps, merge_base: str):
         """Initialize blame analysis engine.
 
         Args:
             git_ops: GitOps instance for running git commands
+            merge_base: Merge base commit hash to limit scope
         """
         self.git_ops = git_ops
+        self.merge_base = merge_base
+        self.batch_ops = BatchGitOperations(git_ops, merge_base)
 
     def get_blame_for_old_lines(self, hunk: DiffHunk) -> List[BlameInfo]:
         """Get blame information for lines being deleted/modified.
@@ -164,6 +167,67 @@ class BlameAnalysisEngine:
                 blame_infos.append(blame_info)
 
         return blame_infos
+
+    def get_contextual_blame(self, hunk: DiffHunk, branch_commits: set) -> List[BlameInfo]:
+        """Get contextual blame information when primary blame fails.
+        
+        Uses ±1 lines around the hunk to find blame information from branch commits.
+        
+        Args:
+            hunk: DiffHunk to get contextual blame for
+            branch_commits: Set of commit hashes within branch scope
+            
+        Returns:
+            List of BlameInfo objects from contextual lines within branch scope
+        """
+        # Use old coordinates for git blame HEAD compatibility  
+        if hunk.has_deletions or hunk.old_count > 0:
+            base_start = hunk.old_start
+            base_count = hunk.old_count
+        else:
+            base_start = hunk.old_start
+            base_count = 0
+        
+        # Calculate context range (±1 line)
+        context_lines = 1
+        if base_count > 0:
+            # For modifications/deletions: search around existing lines
+            start_line = max(1, base_start - context_lines)
+            end_line = base_start + base_count + context_lines - 1
+        else:
+            # For pure additions: search around insertion point
+            start_line = max(1, base_start - context_lines)  
+            end_line = base_start + context_lines
+        
+        # Get blame for the context range
+        success, blame_output = self.git_ops._run_git_command(
+            "blame", f"-L{start_line},{end_line}", "HEAD", "--", hunk.file_path
+        )
+        
+        if not success:
+            return []
+        
+        # Parse blame output and expand short hashes
+        raw_blame_infos = self._parse_blame_output(blame_output)
+        
+        # Collect short hashes and expand them using batch operations
+        short_hashes = [info.commit_hash for info in raw_blame_infos if len(info.commit_hash) < 40]
+        expanded_hashes = self.batch_ops.batch_expand_hashes(short_hashes) if short_hashes else {}
+        
+        # Update blame infos with expanded hashes and filter to branch commits
+        contextual_blame = []
+        for info in raw_blame_infos:
+            full_hash = expanded_hashes.get(info.commit_hash, info.commit_hash)
+            if full_hash in branch_commits:
+                contextual_blame.append(BlameInfo(
+                    commit_hash=full_hash,
+                    author=info.author,
+                    timestamp=info.timestamp,
+                    line_number=info.line_number,
+                    line_content=info.line_content,
+                ))
+        
+        return contextual_blame
 
 
 class FallbackTargetProvider:
@@ -257,7 +321,7 @@ class HunkTargetResolver:
         self.git_ops = git_ops
         self.merge_base = merge_base
         self.batch_ops = BatchGitOperations(git_ops, merge_base)
-        self.blame_engine = BlameAnalysisEngine(git_ops)
+        self.blame_engine = BlameAnalysisEngine(git_ops, merge_base)
         self.fallback_provider = FallbackTargetProvider(self.batch_ops)
         self.consistency_tracker = FileConsistencyTracker()
 
@@ -307,22 +371,23 @@ class HunkTargetResolver:
                 needs_user_selection=False,
             )
 
-        # Try blame-based analysis
+        # Try blame-based analysis with contextual fallback
         if hunk.has_deletions:
             blame_info = self.blame_engine.get_blame_for_old_lines(hunk)
         else:
             blame_info = self.blame_engine.get_blame_for_context(hunk)
 
-        if not blame_info:
-            return self._create_fallback_mapping(
-                hunk, TargetingMethod.FALLBACK_EXISTING_FILE
-            )
-
-        # Filter commits to only those within our branch scope
+        # Filter commits to only those within our branch scope  
         branch_commits = set(self.batch_ops.get_branch_commits())
         relevant_blame = [
             info for info in blame_info if info.commit_hash in branch_commits
         ]
+
+        # If no relevant blame found, try contextual blame as fallback
+        if not relevant_blame:
+            contextual_blame = self.blame_engine.get_contextual_blame(hunk, branch_commits)
+            if contextual_blame:
+                relevant_blame = contextual_blame
 
         if not relevant_blame:
             return self._create_fallback_mapping(
@@ -335,12 +400,15 @@ class HunkTargetResolver:
         # Store successful target for file consistency
         self.consistency_tracker.set_target_for_file(hunk.file_path, target_commit)
 
+        # Determine targeting method based on whether contextual blame was used
+        targeting_method = TargetingMethod.CONTEXTUAL_BLAME_MATCH if not blame_info or not [info for info in blame_info if info.commit_hash in branch_commits] else TargetingMethod.BLAME_MATCH
+
         return HunkTargetMapping(
             hunk=hunk,
             target_commit=target_commit,
             confidence=confidence,
             blame_info=relevant_blame,
-            targeting_method=TargetingMethod.BLAME_MATCH,
+            targeting_method=targeting_method,
             needs_user_selection=False,
         )
 

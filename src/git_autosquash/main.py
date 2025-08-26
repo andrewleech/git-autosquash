@@ -16,7 +16,6 @@ from git_autosquash.exceptions import (
 from git_autosquash.git_ops import GitOps
 from git_autosquash.hunk_parser import HunkParser
 from git_autosquash.rebase_manager import RebaseConflictError, RebaseManager
-from git_autosquash.tui.app import AutoSquashApp
 
 
 def _simple_approval_fallback(mappings, resolver, commit_analyzer=None):

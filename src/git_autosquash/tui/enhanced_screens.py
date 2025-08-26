@@ -16,7 +16,7 @@ from git_autosquash.commit_history_analyzer import (
     CommitSelectionStrategy,
 )
 from git_autosquash.tui.state_controller import UIStateController
-from git_autosquash.tui.widgets import DiffViewer
+# DiffViewer no longer needed - diff is embedded in hunk widgets
 from git_autosquash.tui.fallback_widgets import (
     FallbackHunkMappingWidget,
     BatchSelectionWidget,
@@ -116,54 +116,48 @@ class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
                     separator_width = SEPARATOR_FALLBACK_WIDTH
                 yield Static("─" * separator_width, id="separator")
 
-                # Main content area
-                with Horizontal(id="content-area"):
-                    # Left panel: Hunk list with sections
-                    with Vertical(id="hunk-list-panel"):
-                        yield Static("Hunks", id="hunk-list-title")
-                        with VerticalScroll(id="hunk-list"):
-                            # First section: Blame matches
-                            if self.blame_matches:
-                                yield Static(
-                                    "✓ Automatic Targets (Blame Analysis)",
-                                    classes="section-header",
-                                )
-                                for i, mapping in enumerate(self.blame_matches):
-                                    commit_suggestions = (
-                                        self._get_suggestions_for_mapping(mapping)
-                                    )
-                                    hunk_widget = self._create_hunk_widget(
-                                        mapping, i, commit_suggestions
-                                    )
-                                    self.hunk_widgets.append(hunk_widget)
-                                    yield hunk_widget
+                # Main content area - single scrollable pane
+                with VerticalScroll(id="hunk-scroll-pane"):
+                    # First section: Blame matches
+                    if self.blame_matches:
+                        yield Static(
+                            "✓ Automatic Targets (Blame Analysis)",
+                            classes="section-header",
+                        )
+                        for i, mapping in enumerate(self.blame_matches):
+                            commit_suggestions = (
+                                self._get_suggestions_for_mapping(mapping)
+                            )
+                            
+                            # Target commit info is logged in FallbackHunkMappingWidget if needed
+                            
+                            hunk_widget = self._create_hunk_widget(
+                                mapping, i, commit_suggestions
+                            )
+                            self.hunk_widgets.append(hunk_widget)
+                            yield hunk_widget
 
-                            # Separator if we have both types
-                            if self.blame_matches and self.fallback_mappings:
-                                yield FallbackSectionSeparator()
+                    # Separator if we have both types
+                    if self.blame_matches and self.fallback_mappings:
+                        yield FallbackSectionSeparator()
 
-                            # Second section: Fallback scenarios
-                            if self.fallback_mappings:
-                                yield Static(
-                                    "⚠ Manual Selection Required (Press 'b' for batch operations)",
-                                    classes="section-header fallback",
-                                )
+                    # Second section: Fallback scenarios
+                    if self.fallback_mappings:
+                        yield Static(
+                            "⚠ Manual Selection Required (Press 'b' for batch operations)",
+                            classes="section-header fallback",
+                        )
 
-                                start_index = len(self.blame_matches)
-                                for i, mapping in enumerate(self.fallback_mappings):
-                                    commit_suggestions = (
-                                        self._get_suggestions_for_mapping(mapping)
-                                    )
-                                    hunk_widget = self._create_hunk_widget(
-                                        mapping, start_index + i, commit_suggestions
-                                    )
-                                    self.hunk_widgets.append(hunk_widget)
-                                    yield hunk_widget
-
-                    # Right panel: Diff viewer
-                    with Vertical(id="diff-panel"):
-                        yield Static("Diff Preview", id="diff-title")
-                        yield DiffViewer(id="diff-viewer")
+                        start_index = len(self.blame_matches)
+                        for i, mapping in enumerate(self.fallback_mappings):
+                            commit_suggestions = (
+                                self._get_suggestions_for_mapping(mapping)
+                            )
+                            hunk_widget = self._create_hunk_widget(
+                                mapping, start_index + i, commit_suggestions
+                            )
+                            self.hunk_widgets.append(hunk_widget)
+                            yield hunk_widget
 
             # Action buttons - now outside content-wrapper so they dock to bottom
             with Horizontal(id="action-buttons"):
@@ -177,8 +171,8 @@ class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
 
     def on_mount(self) -> None:
         """Handle screen mounting."""
-        # Cache diff viewer reference
-        self._diff_viewer = self.query_one("#diff-viewer", DiffViewer)
+        # No separate diff viewer in new layout - diff is embedded in each hunk
+        self._diff_viewer = None
 
         # Select first hunk if available
         if self.hunk_widgets:
@@ -203,7 +197,7 @@ class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
         Returns:
             Configured FallbackHunkMappingWidget
         """
-        hunk_widget = FallbackHunkMappingWidget(mapping, commit_suggestions)
+        hunk_widget = FallbackHunkMappingWidget(mapping, commit_suggestions, self.commit_history_analyzer)
 
         # Build O(1) lookup caches
         self._mapping_to_widget[mapping] = hunk_widget
@@ -237,16 +231,17 @@ class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
             target_in_suggestions = any(
                 commit.commit_hash == mapping.target_commit for commit in suggestions
             )
-            
+
             if not target_in_suggestions:
-                # Add the target commit to the beginning of the list
+                # Add the target commit in its natural chronological position
                 try:
                     target_commit_info = self.commit_history_analyzer.git_ops.batch_ops.batch_load_commit_info(
                         [mapping.target_commit]
                     ).get(mapping.target_commit)
-                    
+
                     if target_commit_info:
                         from git_autosquash.commit_history_analyzer import CommitInfo
+
                         target_info = CommitInfo(
                             commit_hash=target_commit_info.commit_hash,
                             short_hash=target_commit_info.short_hash,
@@ -254,9 +249,19 @@ class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
                             author=target_commit_info.author,
                             timestamp=target_commit_info.timestamp,
                             is_merge=target_commit_info.is_merge,
-                            files_touched=None
+                            files_touched=None,
                         )
-                        suggestions.insert(0, target_info)
+                        # Insert in chronological order (most recent first)
+                        inserted = False
+                        for i, existing_commit in enumerate(suggestions):
+                            if target_info.timestamp > existing_commit.timestamp:
+                                suggestions.insert(i, target_info)
+                                inserted = True
+                                break
+                        
+                        # If not inserted (oldest commit), append to end
+                        if not inserted:
+                            suggestions.append(target_info)
                 except Exception as e:
                     self.log.warning(f"Failed to load target commit info: {e}")
 
@@ -412,7 +417,7 @@ class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
             self.action_cancel()
 
     def _select_widget(self, widget: FallbackHunkMappingWidget) -> None:
-        """Select a hunk widget and update diff display with error boundary."""
+        """Select a hunk widget with error boundary."""
         try:
             # Clear previous selection
             if self._selected_widget:
@@ -422,9 +427,7 @@ class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
             self._selected_widget = widget
             widget.selected = True
 
-            # Update diff viewer
-            if self._diff_viewer:
-                self._diff_viewer.show_hunk(widget.mapping.hunk)
+            # No separate diff viewer - diff is embedded in each widget
         except Exception as e:
             self.log.error(f"Error selecting widget: {e}")
             # Continue gracefully without crashing the UI
