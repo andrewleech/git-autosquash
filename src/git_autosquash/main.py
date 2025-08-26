@@ -526,14 +526,10 @@ def main() -> None:
 
             commit_analyzer = CommitHistoryAnalyzer(git_ops, merge_base)
 
-            # Use enhanced app if we have fallbacks, otherwise use standard app
-            if fallback_mappings:
-                from git_autosquash.tui.enhanced_app import EnhancedAutoSquashApp
+            # Always use enhanced app for better display of commit information
+            from git_autosquash.tui.enhanced_app import EnhancedAutoSquashApp
 
-                app = EnhancedAutoSquashApp(mappings, commit_analyzer)
-            else:
-                # Standard app for backward compatibility when no fallbacks
-                app = AutoSquashApp(mappings)
+            app = EnhancedAutoSquashApp(mappings, commit_analyzer)
 
             approved = app.run()
 

@@ -8,7 +8,7 @@ organized by component type for maintainability and consistency.
 LAYOUT_CSS = """
 /* Main container and layout */
 #main-container {
-    height: 100vh;
+    height: 1fr;
     layout: vertical;
 }
 
@@ -19,6 +19,7 @@ LAYOUT_CSS = """
 
 #content-area {
     height: 1fr;
+    overflow: auto;
 }
 
 /* Screen headers and descriptions */
@@ -46,14 +47,15 @@ LAYOUT_CSS = """
 
 # Action button styles
 BUTTON_CSS = """
-/* Action buttons */
+/* Action buttons - fixed at bottom with margin for Footer */
 #action-buttons {
-    height: auto;
-    padding: 1;
+    height: 3;
+    padding: 0;
+    margin-bottom: 1;
     background: $surface;
     border-top: solid $primary;
-    margin-bottom: 1;
     layout: horizontal;
+    align: center middle;
 }
 
 #action-buttons Button {

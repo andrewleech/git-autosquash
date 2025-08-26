@@ -129,7 +129,12 @@ class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
                                     classes="section-header",
                                 )
                                 for i, mapping in enumerate(self.blame_matches):
-                                    hunk_widget = self._create_hunk_widget(mapping, i)
+                                    commit_suggestions = (
+                                        self._get_suggestions_for_mapping(mapping)
+                                    )
+                                    hunk_widget = self._create_hunk_widget(
+                                        mapping, i, commit_suggestions
+                                    )
                                     self.hunk_widgets.append(hunk_widget)
                                     yield hunk_widget
 
@@ -225,6 +230,35 @@ class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
         suggestions = self.commit_history_analyzer.get_commit_suggestions(
             strategy, mapping.hunk.file_path
         )
+
+        # For blame matches, ensure the target commit is always included in suggestions
+        if mapping.target_commit and not mapping.needs_user_selection:
+            # Check if the target commit is already in the suggestions
+            target_in_suggestions = any(
+                commit.commit_hash == mapping.target_commit for commit in suggestions
+            )
+            
+            if not target_in_suggestions:
+                # Add the target commit to the beginning of the list
+                try:
+                    target_commit_info = self.commit_history_analyzer.git_ops.batch_ops.batch_load_commit_info(
+                        [mapping.target_commit]
+                    ).get(mapping.target_commit)
+                    
+                    if target_commit_info:
+                        from git_autosquash.commit_history_analyzer import CommitInfo
+                        target_info = CommitInfo(
+                            commit_hash=target_commit_info.commit_hash,
+                            short_hash=target_commit_info.short_hash,
+                            subject=target_commit_info.subject,
+                            author=target_commit_info.author,
+                            timestamp=target_commit_info.timestamp,
+                            is_merge=target_commit_info.is_merge,
+                            files_touched=None
+                        )
+                        suggestions.insert(0, target_info)
+                except Exception as e:
+                    self.log.warning(f"Failed to load target commit info: {e}")
 
         return suggestions[:MAX_COMMIT_SUGGESTIONS]  # Limit for UI performance
 
