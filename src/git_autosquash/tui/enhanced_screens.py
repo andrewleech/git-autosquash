@@ -160,8 +160,9 @@ class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
                             self.hunk_widgets.append(hunk_widget)
                             yield hunk_widget
 
-            # Action buttons - now outside content-wrapper so they dock to bottom
-            with Horizontal(id="action-buttons"):
+            # Action buttons - now outside content-wrapper so they dock to bottom  
+            with Horizontal(id="action-buttons") as action_container:
+                action_container.styles.height = "3"
                 yield Button(
                     "Approve All & Continue", variant="success", id="approve-all"
                 )
