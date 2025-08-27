@@ -7,48 +7,26 @@ shared configuration.
 """
 
 import tempfile
-import subprocess
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 import pytest
 
 from git_autosquash.git_ops import GitOps
+from tests.base_test_repository import (
+    BaseTestRepository,
+    PatchGenerationTestRepository,
+    temporary_test_repository,
+)
 
 
-class PatchGenerationTestRepo:
-    """Base class for creating test repositories with specific scenarios."""
-
-    def __init__(self, repo_path: Path):
-        self.repo_path = repo_path
-        self.git_ops = GitOps(repo_path)
-        self._initialize_git()
-
-    def _initialize_git(self):
-        """Initialize a git repository with test configuration."""
-        subprocess.run(
-            ["git", "init"], cwd=self.repo_path, check=True, capture_output=True
-        )
-        subprocess.run(
-            ["git", "config", "user.name", "Test User"], cwd=self.repo_path, check=True
-        )
-        subprocess.run(
-            ["git", "config", "user.email", "test@example.com"],
-            cwd=self.repo_path,
-            check=True,
-        )
+# Legacy class - deprecated, use PatchGenerationTestRepository instead
+class PatchGenerationTestRepo(PatchGenerationTestRepository):
+    """Legacy compatibility wrapper - use PatchGenerationTestRepository instead."""
 
     def _commit_changes(self, message: str) -> str:
-        """Stage all changes and create a commit, returning the commit hash."""
-        subprocess.run(["git", "add", "."], cwd=self.repo_path, check=True)
-        subprocess.run(["git", "commit", "-m", message], cwd=self.repo_path, check=True)
-        result = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=self.repo_path,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        return result.stdout.strip()
+        """Legacy method - use commit_changes instead."""
+        self.stage_all_changes()
+        return self.commit_changes(message)
 
 
 class MicroPythonTestData:
@@ -278,21 +256,15 @@ class PerformanceTestConfig:
 @pytest.fixture(scope="function")
 def temp_repo_base():
     """Create a basic temporary git repository."""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        repo_path = Path(temp_dir) / "test_repo"
-        repo_path.mkdir()
-        yield PatchGenerationTestRepo(repo_path)
+    with temporary_test_repository("test_repo") as repo:
+        yield repo
 
 
 @pytest.fixture(scope="function")
 def temp_repo():
     """Alias for temp_repo_base for backward compatibility."""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        repo_path = Path(temp_dir) / "test_repo"
-        repo_path.mkdir()
-        from tests.test_patch_generation_fix import PatchGenerationTestRepository
-
-        yield PatchGenerationTestRepository(repo_path)
+    with temporary_test_repository("test_repo") as repo:
+        yield PatchGenerationTestRepository(repo.repo_path)
 
 
 @pytest.fixture(scope="function")
@@ -422,47 +394,13 @@ def git_repo_builder():
         repo_path = Path(temp_dir) / "complex_test_repo"
         repo_path.mkdir()
 
-        class GitRepoBuilder:
+        class GitRepoBuilder(BaseTestRepository):
             def __init__(self, path: Path):
-                self.repo_path = path
-                self.git_ops = GitOps(path)
-                self._init_repo()
-
-            def _init_repo(self):
-                subprocess.run(
-                    ["git", "init"], cwd=self.repo_path, check=True, capture_output=True
-                )
-                subprocess.run(
-                    ["git", "config", "user.name", "Builder"],
-                    cwd=self.repo_path,
-                    check=True,
-                )
-                subprocess.run(
-                    ["git", "config", "user.email", "builder@test.com"],
-                    cwd=self.repo_path,
-                    check=True,
-                )
+                super().__init__(path)
 
             def add_commit(self, files_content: Dict[str, str], message: str) -> str:
                 """Add files and create commit, return commit hash."""
-                for filename, content in files_content.items():
-                    file_path = self.repo_path / filename
-                    file_path.parent.mkdir(parents=True, exist_ok=True)
-                    file_path.write_text(content)
-
-                subprocess.run(["git", "add", "."], cwd=self.repo_path, check=True)
-                subprocess.run(
-                    ["git", "commit", "-m", message], cwd=self.repo_path, check=True
-                )
-
-                result = subprocess.run(
-                    ["git", "rev-parse", "HEAD"],
-                    cwd=self.repo_path,
-                    capture_output=True,
-                    text=True,
-                    check=True,
-                )
-                return result.stdout.strip()
+                return super().add_commit(files_content, message)
 
         yield GitRepoBuilder(repo_path)
 

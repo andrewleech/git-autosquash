@@ -4,44 +4,27 @@ Simple tests for patch generation functionality.
 Tests the basic functionality of the context-aware patch generation fix.
 """
 
-import tempfile
-import subprocess
 from pathlib import Path
 from typing import Dict
 import pytest
 
-from git_autosquash.git_ops import GitOps
 from git_autosquash.hunk_parser import HunkParser, DiffHunk
 from git_autosquash.rebase_manager import RebaseManager
+from tests.base_test_repository import BaseTestRepository, temporary_test_repository
+from tests.error_handling_framework import safe_test_operation
 
 
-class SimplePatchTestRepo:
-    """Helper for creating simple test repositories."""
+class SimplePatchTestRepo(BaseTestRepository):
+    """Helper for creating simple test repositories using proper GitOps integration."""
 
     def __init__(self, repo_path: Path):
-        self.repo_path = repo_path
-        self.git_ops = GitOps(str(repo_path))
-        self._initialize_git()
+        super().__init__(repo_path)
 
-    def _initialize_git(self):
-        """Initialize a git repository with test configuration."""
-        subprocess.run(
-            ["git", "init"], cwd=self.repo_path, check=True, capture_output=True
-        )
-        subprocess.run(
-            ["git", "config", "user.name", "Test User"], cwd=self.repo_path, check=True
-        )
-        subprocess.run(
-            ["git", "config", "user.email", "test@example.com"],
-            cwd=self.repo_path,
-            check=True,
-        )
-
+    @safe_test_operation("simple_scenario_creation", max_retries=2)
     def create_simple_scenario(self) -> Dict[str, str]:
-        """Create a simple repository with dual changes scenario."""
+        """Create a simple repository with dual changes scenario using GitOps."""
 
         # Create initial file with two instances of a pattern
-        test_file = self.repo_path / "test.py"
         initial_content = """def function_one():
     #if OLD_CONFIG
     return "config1"
@@ -52,20 +35,8 @@ def function_two():
     return "config2"
     #endif
 """
-        test_file.write_text(initial_content)
 
-        subprocess.run(["git", "add", "."], cwd=self.repo_path, check=True)
-        subprocess.run(
-            ["git", "commit", "-m", "Initial commit"], cwd=self.repo_path, check=True
-        )
-
-        initial_commit = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=self.repo_path,
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout.strip()
+        initial_commit = self.add_commit({"test.py": initial_content}, "Initial commit")
 
         # Create target commit - modify one instance
         target_content = """def function_one():
@@ -78,21 +49,10 @@ def function_two():
     return "config2"
     #endif
 """
-        test_file.write_text(target_content)
-        subprocess.run(["git", "add", "."], cwd=self.repo_path, check=True)
-        subprocess.run(
-            ["git", "commit", "-m", "Update first config"],
-            cwd=self.repo_path,
-            check=True,
-        )
 
-        target_commit = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=self.repo_path,
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout.strip()
+        target_commit = self.add_commit(
+            {"test.py": target_content}, "Update first config"
+        )
 
         # Create source commit - modify both instances
         source_content = """def function_one():
@@ -105,21 +65,10 @@ def function_two():
     return "config2"
     #endif
 """
-        test_file.write_text(source_content)
-        subprocess.run(["git", "add", "."], cwd=self.repo_path, check=True)
-        subprocess.run(
-            ["git", "commit", "-m", "Update all configs"],
-            cwd=self.repo_path,
-            check=True,
-        )
 
-        source_commit = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=self.repo_path,
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout.strip()
+        source_commit = self.add_commit(
+            {"test.py": source_content}, "Update all configs"
+        )
 
         return {
             "initial_commit": initial_commit,
@@ -131,10 +80,8 @@ def function_two():
 @pytest.fixture
 def simple_repo():
     """Create a simple temporary git repository for testing."""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        repo_path = Path(temp_dir) / "simple_repo"
-        repo_path.mkdir()
-        yield SimplePatchTestRepo(repo_path)
+    with temporary_test_repository("simple_repo") as temp_repo:
+        yield SimplePatchTestRepo(temp_repo.repo_path)
 
 
 class TestPatchGenerationBasics:
