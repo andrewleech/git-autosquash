@@ -34,13 +34,20 @@ class EnhancedAutoSquashApp(App[bool]):
         padding: 0 1;
     }
     
-    /* Action buttons - compact height */
+    /* Action buttons - compact height, no padding so buttons fill full height */
     #action-buttons {
         height: auto;
         max-height: 3;
-        padding: 1;
+        padding: 0;
         layout: horizontal;
         align: center middle;
+    }
+    
+    /* Ensure buttons fill the container height */
+    #action-buttons Button {
+        height: 3;
+        min-height: 3;
+        margin: 0 1;
     }
     
     /* Section headers */
