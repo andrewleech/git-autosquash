@@ -205,14 +205,20 @@ class FallbackHunkMappingWidget(Widget):
         # Find the RadioSet with target selection
         try:
             target_selector = self.query_one("#target-selector", RadioSet)
-            # Find the selected RadioButton (value=True) and focus it
-            for radio_button in target_selector.query(RadioButton):
+            radio_buttons = target_selector.query(RadioButton).results()
+            
+            # Find the selected RadioButton (value=True) and set focus index
+            for i, radio_button in enumerate(radio_buttons):
                 if radio_button.value:
-                    # Focus the RadioSet and ensure the selected button is highlighted
-                    target_selector.focus()
-                    # Set the pressed button to the selected one to align focus with selection
+                    # Set the focus index to the selected button
+                    target_selector._focus_index = i
+                    # Also set the pressed button to maintain consistency
                     target_selector._pressed = radio_button
+                    # Focus the RadioSet to make the highlight visible
+                    target_selector.focus()
+                    # Refresh both the RadioSet and the parent widget to ensure highlight updates
                     target_selector.refresh()
+                    self.refresh()
                     break
         except Exception:
             # Gracefully handle if RadioSet or selected button not found
