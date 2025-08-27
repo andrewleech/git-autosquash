@@ -1,5 +1,6 @@
 """Enhanced screen implementations with fallback target selection support."""
 
+import asyncio
 from typing import Dict, List, Union, Optional
 
 from textual import on
@@ -169,7 +170,7 @@ class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
 
         yield Footer()
 
-    def on_mount(self) -> None:
+    async def on_mount(self) -> None:
         """Handle screen mounting."""
         # No separate diff viewer in new layout - diff is embedded in each hunk
         self._diff_viewer = None
@@ -179,6 +180,8 @@ class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
 
         # Update progress
         self._update_progress()
+
+        # Initial focus is now handled by the first widget's on_mount method
 
     def _create_hunk_widget(
         self,
@@ -196,7 +199,11 @@ class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
         Returns:
             Configured FallbackHunkMappingWidget
         """
-        hunk_widget = FallbackHunkMappingWidget(mapping, commit_suggestions, self.commit_history_analyzer)
+        # Mark the first widget for initial focus handling
+        is_first_widget = (index == 0)
+        hunk_widget = FallbackHunkMappingWidget(
+            mapping, commit_suggestions, self.commit_history_analyzer, is_first_widget=is_first_widget
+        )
 
         # Build O(1) lookup caches
         self._mapping_to_widget[mapping] = hunk_widget

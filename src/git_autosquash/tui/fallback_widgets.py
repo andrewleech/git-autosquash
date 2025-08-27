@@ -1,5 +1,6 @@
 """Enhanced widgets for fallback target selection scenarios."""
 
+import asyncio
 from typing import Dict, List, Optional, Union
 
 from rich.syntax import Syntax
@@ -178,6 +179,7 @@ class FallbackHunkMappingWidget(Widget):
         mapping: HunkTargetMapping,
         commit_infos: Optional[List[CommitInfo]] = None,
         commit_analyzer=None,
+        is_first_widget: bool = False,
         **kwargs,
     ) -> None:
         """Initialize fallback hunk mapping widget.
@@ -186,12 +188,14 @@ class FallbackHunkMappingWidget(Widget):
             mapping: The hunk to commit mapping to display
             commit_infos: List of CommitInfo objects for fallback candidates
             commit_analyzer: CommitHistoryAnalyzer for getting different commit sets
+            is_first_widget: True if this is the first widget (for initial focus)
         """
         super().__init__(**kwargs)
         self.mapping = mapping
         self.commit_infos = commit_infos or []
         self.commit_analyzer = commit_analyzer
         self.is_fallback = mapping.needs_user_selection
+        self.is_first_widget = is_first_widget
         self.show_all_commits = False  # Track filter state
 
         # Create commit hash to index mapping for O(1) lookups
@@ -226,6 +230,14 @@ class FallbackHunkMappingWidget(Widget):
                     target_selector.refresh()
                     self.refresh()
                     break
+                    
+            # If this is the first widget, set initial screen focus to Accept button
+            if self.is_first_widget:
+                await asyncio.sleep(0.1)  # Small delay to ensure RadioSet setup completes
+                action_selector = self.query_one("#action-selector", RadioSet)
+                if action_selector:
+                    action_selector.focus()
+                    
         except Exception:
             # Gracefully handle if RadioSet or selected button not found
             pass
