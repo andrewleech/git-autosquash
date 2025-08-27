@@ -68,7 +68,7 @@ class TestEnhancedAppLayout:
         async with app.run_test() as pilot:
             # Check that the single-pane scrollable layout is visible
             await TextualAssertions.assert_widget_visible(pilot, "hunk-scroll-pane")
-            
+
             # Check that hunk widgets exist within the scroll pane
             hunk_widgets = pilot.app.screen.query("FallbackHunkMappingWidget")
             assert len(hunk_widgets) > 0, "No hunk widgets found in scroll pane"
@@ -121,7 +121,7 @@ class TestWidgetVisibility:
             # Should show commit selection RadioButtons (header text is now compact/minimal)
             # The implementation now focuses on functionality over verbose headers
 
-            # Should show radio buttons for commit selection  
+            # Should show radio buttons for commit selection
             radio_buttons = pilot.app.screen.query("RadioButton")
             assert len(radio_buttons) > 0, "No radio buttons found for commit selection"
 
@@ -134,13 +134,13 @@ class TestWidgetVisibility:
 
         async with app.run_test() as pilot:
             # Should show manual selection header (simplified text)
-            await TextualAssertions.assert_text_in_screen(
-                pilot, "Select target:"
-            )
+            await TextualAssertions.assert_text_in_screen(pilot, "Select target:")
 
             # Should show ignore option in RadioButtons (new design)
             radio_buttons = pilot.app.screen.query("RadioButton")
-            ignore_found = any("Ignore (keep in working" in str(rb.label) for rb in radio_buttons)
+            ignore_found = any(
+                "Ignore (keep in working" in str(rb.label) for rb in radio_buttons
+            )
             assert ignore_found, "Ignore (keep in working tree) RadioButton not found"
 
     @pytest.mark.asyncio
@@ -163,12 +163,14 @@ class TestWidgetVisibility:
 
             assert accept_found, "Accept action RadioButton not found"
             assert ignore_found, "Ignore action RadioButton not found"
-            
+
             # Also check that filter checkboxes exist
             checkboxes = pilot.app.screen.query("Checkbox")
             assert len(checkboxes) >= 1, "No commit filter checkboxes found"
-            
-            filter_checkbox_found = any("All commits" in str(cb.label) for cb in checkboxes)
+
+            filter_checkbox_found = any(
+                "All commits" in str(cb.label) for cb in checkboxes
+            )
             assert filter_checkbox_found, "Commit filter checkbox not found"
 
     @pytest.mark.asyncio
@@ -184,19 +186,21 @@ class TestWidgetVisibility:
             # In the new single-pane layout, diff content is embedded in each hunk widget
             hunk_widgets = pilot.app.screen.query("FallbackHunkMappingWidget")
             assert len(hunk_widgets) > 0, "No hunk widgets found"
-            
+
             # Each hunk widget should contain Static widgets with diff content
             static_widgets = pilot.app.screen.query("Static")
             diff_content_found = False
-            
+
             for static in static_widgets:
-                if hasattr(static, 'renderable'):
+                if hasattr(static, "renderable"):
                     content = str(static.renderable)
                     # Look for diff markers that indicate diff content
-                    if any(marker in content for marker in ["@@", "---", "+++"]) or content.startswith(("-", "+")):
+                    if any(
+                        marker in content for marker in ["@@", "---", "+++"]
+                    ) or content.startswith(("-", "+")):
                         diff_content_found = True
                         break
-            
+
             assert diff_content_found, "No diff content found in hunk widgets"
 
 

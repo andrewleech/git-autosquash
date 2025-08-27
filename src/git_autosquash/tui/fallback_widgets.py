@@ -193,10 +193,12 @@ class FallbackHunkMappingWidget(Widget):
         self.commit_analyzer = commit_analyzer
         self.is_fallback = mapping.needs_user_selection
         self.show_all_commits = False  # Track filter state
-        
+
         # Create commit hash to index mapping for O(1) lookups
         self._commit_hash_to_id: Dict[str, str] = {}
-        self._current_commit_list = self.commit_infos  # Track currently displayed commits
+        self._current_commit_list = (
+            self.commit_infos
+        )  # Track currently displayed commits
 
     def compose(self) -> ComposeResult:
         """Compose the widget layout."""
@@ -221,17 +223,13 @@ class FallbackHunkMappingWidget(Widget):
                 commit_hash = self.mapping.target_commit or "unknown"
                 yield Static(
                     f"→ {commit_hash[:8]} ({self.mapping.confidence})",
-                    classes="commit-info"
+                    classes="commit-info",
                 )
 
             # Compact checkbox for commit filter (only if analyzer available)
             if self.commit_analyzer and self.commit_infos:
-                yield Checkbox(
-                    "All commits", 
-                    id="show-all-commits", 
-                    value=False
-                )
-            
+                yield Checkbox("All commits", id="show-all-commits", value=False)
+
             # RadioSet with commit options using proper Textual patterns
             with RadioSet(id="target-selector"):
                 # Add commit options using proper value-based selection
@@ -242,39 +240,37 @@ class FallbackHunkMappingWidget(Widget):
                     ):
                         label = self._format_commit_option(commit_info)
                         commit_id = f"commit-{i}"
-                        
+
                         # Store hash mapping for event handling
                         self._commit_hash_to_id[commit_info.commit_hash] = commit_id
-                        
+
                         # Set value=True for target commit (proper Textual pattern)
-                        is_target = (commit_info.commit_hash == target_hash and 
-                                   not self.mapping.needs_user_selection)
-                        
+                        is_target = (
+                            commit_info.commit_hash == target_hash
+                            and not self.mapping.needs_user_selection
+                        )
+
                         yield RadioButton(label, id=commit_id, value=is_target)
                 # If no commit infos, create fallback option
                 else:
                     existing_hash = self.mapping.target_commit or "existing"
                     self._commit_hash_to_id[existing_hash] = "existing"
                     yield RadioButton(
-                        "Use existing target commit", 
-                        id="existing", 
-                        value=not self.mapping.needs_user_selection
+                        "Use existing target commit",
+                        id="existing",
+                        value=not self.mapping.needs_user_selection,
                     )
 
-            # Separate accept/ignore buttons below the commit list  
+            # Separate accept/ignore buttons below the commit list
             with RadioSet(id="action-selector", classes="action-buttons"):
                 # Default to accept for auto-detected targets
                 default_accept = not self.mapping.needs_user_selection
-                
+
                 yield RadioButton(
-                    "Accept selected commit", 
-                    id="accept-action",
-                    value=default_accept
+                    "Accept selected commit", id="accept-action", value=default_accept
                 )
                 yield RadioButton(
-                    "Ignore (keep in working tree)", 
-                    id="ignore-action",
-                    value=False
+                    "Ignore (keep in working tree)", id="ignore-action", value=False
                 )
 
     def _format_hunk_range(self) -> str:
@@ -317,7 +313,7 @@ class FallbackHunkMappingWidget(Widget):
         """Refresh commit list based on show_all_commits toggle."""
         if not self.commit_analyzer:
             return
-            
+
         try:
             # Get new commit list based on filter state
             if self.show_all_commits:
@@ -329,33 +325,35 @@ class FallbackHunkMappingWidget(Widget):
                 # File-specific commits only
                 new_commits = self.commit_analyzer.get_commit_suggestions(
                     CommitSelectionStrategy.FILE_RELEVANCE,
-                    target_file=self.mapping.hunk.file_path
+                    target_file=self.mapping.hunk.file_path,
                 )
-            
+
             # Update commit infos and rebuild widget
             self.commit_infos = new_commits[:MAX_COMMIT_OPTIONS]
             self._current_commit_list = self.commit_infos
-            
+
             # Clear and rebuild the target selector
             target_selector = self.query_one("#target-selector", RadioSet)
             target_selector.remove_children()
-            
+
             # Rebuild commit options with new list
             self._commit_hash_to_id.clear()
             target_hash = self.mapping.target_commit
-            
+
             for i, commit_info in enumerate(self.commit_infos):
                 label = self._format_commit_option(commit_info)
                 commit_id = f"commit-{i}"
-                
+
                 self._commit_hash_to_id[commit_info.commit_hash] = commit_id
-                
-                is_target = (commit_info.commit_hash == target_hash and 
-                           not self.mapping.needs_user_selection)
-                
+
+                is_target = (
+                    commit_info.commit_hash == target_hash
+                    and not self.mapping.needs_user_selection
+                )
+
                 radio_button = RadioButton(label, id=commit_id, value=is_target)
                 target_selector.mount(radio_button)
-                
+
         except Exception:
             # If refresh fails, continue with current state
             pass
@@ -363,19 +361,21 @@ class FallbackHunkMappingWidget(Widget):
     def _format_commit_option(self, commit_info: CommitInfo) -> str:
         """Format commit info with dynamic width calculation."""
         available_width = self._calculate_available_width()
-        
+
         merge_marker = " (merge)" if commit_info.is_merge else ""
         hash_prefix = f"{commit_info.short_hash}: "
-        
+
         # Reserve space for hash, merge marker, and RadioButton UI chrome
-        # Be more generous with space allocation  
+        # Be more generous with space allocation
         ui_chrome_space = 2  # Reduced from 5 to give more space to text
-        subject_space = available_width - len(hash_prefix) - len(merge_marker) - ui_chrome_space
-        
+        subject_space = (
+            available_width - len(hash_prefix) - len(merge_marker) - ui_chrome_space
+        )
+
         subject = commit_info.subject
         if len(subject) > subject_space and subject_space > 10:
-            subject = subject[:subject_space-3] + "..."
-        
+            subject = subject[: subject_space - 3] + "..."
+
         return f"{hash_prefix}{subject}{merge_marker}"
 
     def _calculate_available_width(self) -> int:
@@ -383,25 +383,31 @@ class FallbackHunkMappingWidget(Widget):
         try:
             # Try multiple methods to get terminal width
             terminal_width = None
-            
+
             # Method 1: Through app's console
-            if hasattr(self.app, 'console') and self.app.console:
+            if hasattr(self.app, "console") and self.app.console:
                 terminal_width = self.app.console.width
-            
+
             # Method 2: Through screen size
-            elif hasattr(self, 'screen') and self.screen and hasattr(self.screen, 'size'):
+            elif (
+                hasattr(self, "screen") and self.screen and hasattr(self.screen, "size")
+            ):
                 terminal_width = self.screen.size.width
-            
+
             # Method 3: Through app's screen
-            elif hasattr(self.app, 'screen') and self.app.screen and hasattr(self.app.screen, 'size'):
+            elif (
+                hasattr(self.app, "screen")
+                and self.app.screen
+                and hasattr(self.app.screen, "size")
+            ):
                 terminal_width = self.app.screen.size.width
-            
+
             if terminal_width is None or terminal_width < 40:
                 terminal_width = 80  # Default fallback
-            
+
             # Be aggressive with space usage - only subtract minimal UI chrome
             available = max(60, terminal_width - 4)  # Increased minimum to 60
-            
+
             return available
         except Exception:
             return 80  # Safe fallback
@@ -433,7 +439,7 @@ class FallbackHunkMappingWidget(Widget):
 
     @on(Checkbox.Changed, "#show-all-commits")
     def on_show_all_commits_changed(self, event: Checkbox.Changed) -> None:
-        """Handle show all commits toggle with dynamic refresh.""" 
+        """Handle show all commits toggle with dynamic refresh."""
         self.show_all_commits = event.value
         self._refresh_commit_list()
 
@@ -550,7 +556,11 @@ class BatchSelectionWidget(Widget):
             self.post_message(self.BatchTargetSelected("ignore", apply_to_all=True))
         elif event.button.id == "apply-to-all":
             select_widget = self.query_one("#batch-target-select", Select)
-            if select_widget.value and select_widget.value != "" and isinstance(select_widget.value, str):
+            if (
+                select_widget.value
+                and select_widget.value != ""
+                and isinstance(select_widget.value, str)
+            ):
                 self.post_message(
                     self.BatchTargetSelected(select_widget.value, apply_to_all=True)
                 )
