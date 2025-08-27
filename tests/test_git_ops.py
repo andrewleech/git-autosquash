@@ -253,3 +253,39 @@ class TestGitOps:
         result = git_ops.has_commits_since_merge_base("abc123")
 
         assert result is False
+
+    @patch("subprocess.run")
+    def test_is_git_available_success(self, mock_run: Mock) -> None:
+        """Test git availability check when git is available."""
+        mock_run.return_value = Mock(returncode=0)
+
+        git_ops = GitOps()
+        result = git_ops.is_git_available()
+
+        assert result is True
+        mock_run.assert_called_once_with(
+            ["git", "--version"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+
+    @patch("subprocess.run")
+    def test_is_git_available_not_found(self, mock_run: Mock) -> None:
+        """Test git availability check when git is not found."""
+        mock_run.side_effect = FileNotFoundError("git not found")
+
+        git_ops = GitOps()
+        result = git_ops.is_git_available()
+
+        assert result is False
+
+    @patch("subprocess.run")
+    def test_is_git_available_non_zero_exit(self, mock_run: Mock) -> None:
+        """Test git availability check when git returns non-zero exit code."""
+        mock_run.return_value = Mock(returncode=1)
+
+        git_ops = GitOps()
+        result = git_ops.is_git_available()
+
+        assert result is False

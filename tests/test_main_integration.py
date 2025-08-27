@@ -689,10 +689,23 @@ class TestApplyIgnoredHunks:
 class TestMainEntryPointFailures:
     """Test failure scenarios in main entry point."""
 
+    def test_git_not_available_failure(self) -> None:
+        """Test main() exits gracefully when git is not installed."""
+        with patch("git_autosquash.main.GitOps") as mock_git_ops_class:
+            mock_git_ops = Mock()
+            mock_git_ops.is_git_available.return_value = False
+            mock_git_ops_class.return_value = mock_git_ops
+
+            with patch("sys.argv", ["git-autosquash"]):
+                with patch("sys.exit") as mock_exit:
+                    main()
+                    mock_exit.assert_called_with(1)
+
     def test_git_repo_validation_failure(self) -> None:
         """Test main() exits gracefully when not in a git repository."""
         with patch("git_autosquash.main.GitOps") as mock_git_ops_class:
             mock_git_ops = Mock()
+            mock_git_ops.is_git_available.return_value = True
             mock_git_ops.is_git_repo.return_value = False
             mock_git_ops_class.return_value = mock_git_ops
 
@@ -705,6 +718,7 @@ class TestMainEntryPointFailures:
         """Test main() exits gracefully when in detached HEAD state."""
         with patch("git_autosquash.main.GitOps") as mock_git_ops_class:
             mock_git_ops = Mock()
+            mock_git_ops.is_git_available.return_value = True
             mock_git_ops.is_git_repo.return_value = True
             mock_git_ops.get_current_branch.return_value = None  # Detached HEAD
             mock_git_ops_class.return_value = mock_git_ops
@@ -718,6 +732,7 @@ class TestMainEntryPointFailures:
         """Test main() exits gracefully when no merge base found."""
         with patch("git_autosquash.main.GitOps") as mock_git_ops_class:
             mock_git_ops = Mock()
+            mock_git_ops.is_git_available.return_value = True
             mock_git_ops.is_git_repo.return_value = True
             mock_git_ops.get_current_branch.return_value = "feature-branch"
             mock_git_ops.get_merge_base_with_main.return_value = None  # No merge base
@@ -732,6 +747,7 @@ class TestMainEntryPointFailures:
         """Test main() exits gracefully when no commits to work with."""
         with patch("git_autosquash.main.GitOps") as mock_git_ops_class:
             mock_git_ops = Mock()
+            mock_git_ops.is_git_available.return_value = True
             mock_git_ops.is_git_repo.return_value = True
             mock_git_ops.get_current_branch.return_value = "feature-branch"
             mock_git_ops.get_merge_base_with_main.return_value = "abc123"

@@ -3,6 +3,7 @@
 import argparse
 import subprocess
 import sys
+from typing import Dict, List
 
 from git_autosquash import __version__
 from git_autosquash.hunk_target_resolver import HunkTargetResolver
@@ -14,7 +15,7 @@ from git_autosquash.exceptions import (
     handle_unexpected_error,
 )
 from git_autosquash.git_ops import GitOps
-from git_autosquash.hunk_parser import HunkParser
+from git_autosquash.hunk_parser import DiffHunk, HunkParser
 from git_autosquash.rebase_manager import RebaseConflictError, RebaseManager
 
 
@@ -30,7 +31,6 @@ def _simple_approval_fallback(mappings, resolver, commit_analyzer=None):
         Dict with approved and ignored mappings
     """
     from git_autosquash.hunk_target_resolver import HunkTargetMapping
-    from typing import List
 
     print("\nReview hunk → commit mappings:")
     print("=" * 60)
@@ -231,7 +231,7 @@ def _create_combined_patch(ignored_mappings) -> str:
         Combined patch content for all hunks
     """
     # Group hunks by file path
-    files_with_hunks = {}
+    files_with_hunks: Dict[str, List[DiffHunk]] = {}
     for mapping in ignored_mappings:
         file_path = mapping.hunk.file_path
         if file_path not in files_with_hunks:
@@ -419,7 +419,16 @@ def main() -> None:
     try:
         git_ops = GitOps()
 
-        # Phase 1: Validate git repository
+        # Phase 1: Check git availability
+        if not git_ops.is_git_available():
+            error = RepositoryStateError(
+                "Git is not installed or not available in PATH",
+                recovery_suggestion="Please install git and ensure it's available in your PATH environment variable",
+            )
+            ErrorReporter.report_error(error)
+            sys.exit(1)
+
+        # Phase 2: Validate git repository
         if not git_ops.is_git_repo():
             error = RepositoryStateError(
                 "Not in a git repository",
@@ -490,7 +499,7 @@ def main() -> None:
         else:
             print("Processing unstaged changes")
 
-        # Phase 2: Parse hunks and analyze blame
+        # Phase 3: Parse hunks and analyze blame
         print("\nAnalyzing changes and finding target commits...")
 
         hunk_parser = HunkParser(git_ops)
@@ -521,35 +530,45 @@ def main() -> None:
             print("No hunks found to process", file=sys.stderr)
             sys.exit(1)
 
-        # Phase 3: User approval - either auto-accept or interactive TUI
+        # Phase 4: User approval - either auto-accept or interactive TUI
         if args.auto_accept:
             # Auto-accept mode: accept all hunks with automatic blame targets
             approved_mappings = []
             ignored_mappings = []
-            
+
             print(f"\nAuto-accept mode: Processing {len(mappings)} hunks...")
-            
+
             for mapping in mappings:
                 if mapping.target_commit and not mapping.needs_user_selection:
                     # This hunk has an automatic blame-identified target
                     approved_mappings.append(mapping)
                     commit_summary = resolver.get_commit_summary(mapping.target_commit)
-                    print(f"✓ Auto-accepted: {mapping.hunk.file_path} → {commit_summary}")
+                    print(
+                        f"✓ Auto-accepted: {mapping.hunk.file_path} → {commit_summary}"
+                    )
                 else:
                     # This hunk needs manual selection, leave in working tree
                     ignored_mappings.append(mapping)
                     if mapping.needs_user_selection:
-                        print(f"⚠ Left in working tree: {mapping.hunk.file_path} (needs manual selection)")
+                        print(
+                            f"⚠ Left in working tree: {mapping.hunk.file_path} (needs manual selection)"
+                        )
                     else:
-                        print(f"⚠ Left in working tree: {mapping.hunk.file_path} (no target found)")
-            
-            print(f"\nAuto-accepted {len(approved_mappings)} hunks with automatic targets")
+                        print(
+                            f"⚠ Left in working tree: {mapping.hunk.file_path} (no target found)"
+                        )
+
+            print(
+                f"\nAuto-accepted {len(approved_mappings)} hunks with automatic targets"
+            )
             if ignored_mappings:
                 print(f"Left {len(ignored_mappings)} hunks in working tree")
-            
+
             # Execute the rebase for approved hunks
             if approved_mappings:
-                success = _execute_rebase(approved_mappings, git_ops, merge_base, resolver)
+                success = _execute_rebase(
+                    approved_mappings, git_ops, merge_base, resolver
+                )
                 if not success:
                     print("✗ Squash operation was aborted or failed.")
                     return
@@ -577,14 +596,12 @@ def main() -> None:
                     )
                 elif approved_mappings:
                     print("✓ Squash operation completed successfully!")
-                    print(
-                        "Your changes have been distributed to their target commits."
-                    )
+                    print("Your changes have been distributed to their target commits.")
                 elif ignored_mappings:
                     print("✓ Ignored hunks have been restored to working tree.")
             else:
                 print("✗ Operation failed.")
-                
+
         else:
             # Interactive TUI mode
             print("\nLaunching enhanced interactive approval interface...")
@@ -606,7 +623,9 @@ def main() -> None:
                     approved_mappings = app.approved_mappings
                     ignored_mappings = app.ignored_mappings
 
-                    print(f"\nUser selected {len(approved_mappings)} hunks for squashing")
+                    print(
+                        f"\nUser selected {len(approved_mappings)} hunks for squashing"
+                    )
                     if ignored_mappings:
                         print(
                             f"User selected {len(ignored_mappings)} hunks to ignore (keep in working tree)"
@@ -679,16 +698,22 @@ def main() -> None:
 
                     if success:
                         print("✓ Squash operation completed successfully!")
-                        print("Your changes have been distributed to their target commits.")
+                        print(
+                            "Your changes have been distributed to their target commits."
+                        )
 
                         # Apply ignored hunks back to working tree
                         if ignored_mappings:
                             print(
                                 f"\nApplying {len(ignored_mappings)} ignored hunks back to working tree..."
                             )
-                            ignore_success = _apply_ignored_hunks(ignored_mappings, git_ops)
+                            ignore_success = _apply_ignored_hunks(
+                                ignored_mappings, git_ops
+                            )
                             if ignore_success:
-                                print("✓ Ignored hunks have been restored to working tree")
+                                print(
+                                    "✓ Ignored hunks have been restored to working tree"
+                                )
                             else:
                                 print(
                                     "⚠️  Some ignored hunks could not be restored - check working tree status"
@@ -721,16 +746,22 @@ def main() -> None:
 
                     if success:
                         print("✓ Squash operation completed successfully!")
-                        print("Your changes have been distributed to their target commits.")
+                        print(
+                            "Your changes have been distributed to their target commits."
+                        )
 
                         # Apply ignored hunks back to working tree
                         if ignored_mappings:
                             print(
                                 f"\nApplying {len(ignored_mappings)} ignored hunks back to working tree..."
                             )
-                            ignore_success = _apply_ignored_hunks(ignored_mappings, git_ops)
+                            ignore_success = _apply_ignored_hunks(
+                                ignored_mappings, git_ops
+                            )
                             if ignore_success:
-                                print("✓ Ignored hunks have been restored to working tree")
+                                print(
+                                    "✓ Ignored hunks have been restored to working tree"
+                                )
                             else:
                                 print(
                                     "⚠️  Some ignored hunks could not be restored - check working tree status"
@@ -745,8 +776,8 @@ def main() -> None:
         ErrorReporter.report_error(e)
         sys.exit(1)
     except KeyboardInterrupt:
-        error = UserCancelledError("git-autosquash operation")
-        ErrorReporter.report_error(error)
+        cancel_error = UserCancelledError("git-autosquash operation")
+        ErrorReporter.report_error(cancel_error)
         sys.exit(130)
     except (subprocess.SubprocessError, FileNotFoundError) as e:
         # Git/system operation failures

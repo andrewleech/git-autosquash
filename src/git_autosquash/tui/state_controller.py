@@ -33,7 +33,7 @@ class UIStateController:
         self._ignored: Set[int] = set()
 
         # O(1) index lookup for mappings
-        self._mapping_to_index: Dict[id, int] = {
+        self._mapping_to_index: Dict[int, int] = {
             id(mapping): i for i, mapping in enumerate(mappings)
         }
 

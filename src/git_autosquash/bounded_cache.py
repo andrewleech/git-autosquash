@@ -2,7 +2,7 @@
 
 import threading
 from collections import OrderedDict
-from typing import Dict, Generic, List, Optional, TypeVar, TYPE_CHECKING
+from typing import Dict, Generic, List, Optional, TypeVar, TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
     from git_autosquash.batch_git_ops import BatchCommitInfo
@@ -94,7 +94,7 @@ class BoundedLRUCache(Generic[K, V]):
         with self._lock:
             return len(self._cache)
 
-    def get_stats(self) -> Dict[str, int]:
+    def get_stats(self) -> Dict[str, Union[int, float]]:
         """Get cache statistics.
 
         Returns:
@@ -225,7 +225,7 @@ class BoundedCommitInfoCache:
         """Clear all cached entries."""
         self._cache.clear()
 
-    def get_stats(self) -> Dict[str, int]:
+    def get_stats(self) -> Dict[str, Union[int, float]]:
         """Get cache statistics."""
         return self._cache.get_stats()
 
@@ -277,6 +277,6 @@ class BoundedFileCommitCache:
         """Clear all cached entries."""
         self._cache.clear()
 
-    def get_stats(self) -> Dict[str, int]:
+    def get_stats(self) -> Dict[str, Union[int, float]]:
         """Get cache statistics."""
         return self._cache.get_stats()

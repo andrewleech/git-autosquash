@@ -14,7 +14,7 @@ from git_autosquash.tui.state_controller import UIStateController
 from git_autosquash.tui.widgets import DiffViewer, HunkMappingWidget, ProgressIndicator
 
 
-class ApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
+class ApprovalScreen(Screen[Union[bool, Dict[str, List[HunkTargetMapping]]]]):
     """Screen for approving hunk to commit mappings."""
 
     BINDINGS = [

@@ -103,6 +103,7 @@ class EnhancedAutoSquashApp(App[bool]):
     DiffViewer .diff-removed {
         color: $error;
     }
+    
     """
 
     def __init__(

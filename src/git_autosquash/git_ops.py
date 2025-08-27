@@ -18,6 +18,23 @@ class GitOps:
         """
         self.repo_path = repo_path if repo_path is not None else Path.cwd()
 
+    def is_git_available(self) -> bool:
+        """Check if git is installed and available.
+
+        Returns:
+            True if git command is available, False otherwise
+        """
+        try:
+            result = subprocess.run(
+                ["git", "--version"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            return result.returncode == 0
+        except (subprocess.SubprocessError, FileNotFoundError, OSError):
+            return False
+
     def _run_git_command(self, *args: str) -> tuple[bool, str]:
         """Run a git command and return success status and output.
 

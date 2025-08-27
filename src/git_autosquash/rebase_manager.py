@@ -346,7 +346,7 @@ class RebaseManager:
         self, hunks: List[DiffHunk]
     ) -> Dict[str, List[DiffHunk]]:
         """Group hunks by file and detect potential conflicts."""
-        files_to_hunks = {}
+        files_to_hunks: Dict[str, List[DiffHunk]] = {}
         for hunk in hunks:
             if hunk.file_path not in files_to_hunks:
                 files_to_hunks[hunk.file_path] = []
@@ -395,10 +395,9 @@ class RebaseManager:
         # Find all possible matches
         for i, file_line in enumerate(file_lines):
             line_num = i + 1  # 1-based
-            if (
-                file_line.rstrip("\n").strip() == old_line
-                and line_num not in used_lines
-            ):
+            file_line_stripped = file_line.rstrip("\n").strip()
+
+            if file_line_stripped == old_line and line_num not in used_lines:
                 candidates.append(line_num)
 
         if not candidates:
@@ -437,7 +436,9 @@ class RebaseManager:
         )
 
         # Group hunks by file
-        files_to_hunks: Dict[str, List[DiffHunk]] = self._consolidate_hunks_by_file(hunks)
+        files_to_hunks: Dict[str, List[DiffHunk]] = self._consolidate_hunks_by_file(
+            hunks
+        )
 
         patch_lines = []
 
@@ -447,13 +448,27 @@ class RebaseManager:
             # Add file header
             patch_lines.extend([f"--- a/{file_path}", f"+++ b/{file_path}"])
 
-            # Read the current file content to find correct line numbers
+            # Read the file content from the target commit state
             try:
-                with open(file_path, "r") as f:
-                    file_lines = f.readlines()
-                print(f"DEBUG: Read {len(file_lines)} lines from {file_path}")
-            except IOError as e:
-                print(f"DEBUG: Failed to read {file_path}: {e}")
+                # Use git show to get file content from target commit
+                show_result = self.git_ops.run_git_command(
+                    ["show", f"{target_commit}:{file_path}"]
+                )
+                if show_result.returncode != 0:
+                    print(
+                        f"DEBUG: Failed to read {file_path} from commit {target_commit[:8]}: {show_result.stderr}"
+                    )
+                    continue
+
+                file_content = show_result.stdout
+                file_lines = file_content.splitlines(keepends=True)
+                print(
+                    f"DEBUG: Read {len(file_lines)} lines from {file_path} at commit {target_commit[:8]}"
+                )
+            except Exception as e:
+                print(
+                    f"DEBUG: Failed to read {file_path} from commit {target_commit[:8]}: {e}"
+                )
                 continue
 
             # Track which lines we've already used to prevent duplicates

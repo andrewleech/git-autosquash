@@ -20,7 +20,8 @@ from git_autosquash.commit_history_analyzer import (
 )
 
 # Constants
-MAX_COMMIT_OPTIONS = 3  # Minimal set for compact display
+MAX_FILE_COMMIT_OPTIONS = 5  # File-specific commits (filtered view)
+MAX_ALL_COMMIT_OPTIONS = 10  # All commits (unfiltered view)
 COMMIT_SUBJECT_TRUNCATE_LENGTH = 40  # Compact display
 
 
@@ -114,6 +115,20 @@ class FallbackHunkMappingWidget(Widget):
         padding: 0;
     }
     
+    /* Visibility control for commit filtering */
+    FallbackHunkMappingWidget RadioButton.file-commit {
+        display: block;
+    }
+    
+    FallbackHunkMappingWidget RadioButton.all-commit {
+        display: none;  /* Hidden by default (filtered state) */
+    }
+    
+    /* When show all commits is enabled, show all commits */
+    FallbackHunkMappingWidget.show-all RadioButton.all-commit {
+        display: block;
+    }
+    
     FallbackHunkMappingWidget Horizontal {
         height: auto;
         margin: 0;
@@ -121,9 +136,10 @@ class FallbackHunkMappingWidget(Widget):
     }
     
     FallbackHunkMappingWidget Checkbox {
-        height: 1;
-        margin: 0;
-        padding: 0 1;
+        min-height: 1;
+        width: auto;
+        margin: 0 1 0 0;
+        padding: 0;
     }
     
     FallbackHunkMappingWidget .confidence-high {
@@ -192,17 +208,38 @@ class FallbackHunkMappingWidget(Widget):
         """
         super().__init__(**kwargs)
         self.mapping = mapping
-        self.commit_infos = commit_infos or []
         self.commit_analyzer = commit_analyzer
         self.is_fallback = mapping.needs_user_selection
         self.is_first_widget = is_first_widget
         self.show_all_commits = False  # Track filter state
 
+        # Always get both filtered and all commits for visibility-based filtering
+        self.file_commits: List[CommitInfo] = []
+        self.all_commits: List[CommitInfo] = []
+
+        if commit_analyzer:
+            # Get file-specific commits (filtered)
+            self.file_commits = commit_analyzer.get_commit_suggestions(
+                CommitSelectionStrategy.FILE_RELEVANCE,
+                target_file=mapping.hunk.file_path,
+            )[:MAX_FILE_COMMIT_OPTIONS]
+
+            # Get all recent commits (more commits for "show all" mode)
+            self.all_commits = commit_analyzer.get_commit_suggestions(
+                CommitSelectionStrategy.RECENCY
+            )[:MAX_ALL_COMMIT_OPTIONS]
+        elif commit_infos:
+            # Use provided commits as file commits, limit all commits to same
+            self.file_commits = commit_infos[:MAX_FILE_COMMIT_OPTIONS]
+            self.all_commits = commit_infos[:MAX_ALL_COMMIT_OPTIONS]
+
+        # Use file commits as initial display (default filtered state)
+        self.commit_infos = self.file_commits
+
         # Create commit hash to index mapping for O(1) lookups
         self._commit_hash_to_id: Dict[str, str] = {}
-        self._current_commit_list = (
-            self.commit_infos
-        )  # Track currently displayed commits
+        self._file_commit_hashes = {c.commit_hash for c in self.file_commits}
+        self._current_commit_list = self.commit_infos
 
     async def on_mount(self) -> None:
         """Handle widget mounting - set focus to selected RadioButton."""
@@ -210,34 +247,37 @@ class FallbackHunkMappingWidget(Widget):
         try:
             target_selector = self.query_one("#target-selector", RadioSet)
             radio_buttons = target_selector.query(RadioButton).results()
-            
+
             # Find the selected RadioButton (value=True) and set focus index
             for i, radio_button in enumerate(radio_buttons):
                 if radio_button.value:
                     # Set the focus index to the selected button
-                    target_selector._focus_index = i
+                    # target_selector._focus_index = i  # Private attr, may not exist
                     # Set the selected index to control local cursor/highlight position
-                    target_selector._selected = i
+                    # target_selector._selected = i  # Private attr, may not exist
                     # Also set the pressed button to maintain consistency
-                    target_selector._pressed = radio_button
-                    
+                    # target_selector._pressed = radio_button  # Private attr, may not exist
+                    target_selector.focus()
+
                     # Only focus this RadioSet if this is not a manual selection widget
                     # This ensures only auto-detected targets get visual focus
                     if not self.mapping.needs_user_selection:
                         target_selector.focus()
-                    
+
                     # Refresh both the RadioSet and the parent widget to ensure highlight updates
                     target_selector.refresh()
                     self.refresh()
                     break
-                    
+
             # If this is the first widget, set initial screen focus to Accept button
             if self.is_first_widget:
-                await asyncio.sleep(0.1)  # Small delay to ensure RadioSet setup completes
+                await asyncio.sleep(
+                    0.1
+                )  # Small delay to ensure RadioSet setup completes
                 action_selector = self.query_one("#action-selector", RadioSet)
                 if action_selector:
                     action_selector.focus()
-                    
+
         except Exception:
             # Gracefully handle if RadioSet or selected button not found
             pass
@@ -268,18 +308,17 @@ class FallbackHunkMappingWidget(Widget):
                     classes="commit-info",
                 )
 
-            # Compact checkbox for commit filter (only if analyzer available)
-            if self.commit_analyzer and self.commit_infos:
-                yield Checkbox("All commits", id="show-all-commits", value=False)
+            # Compact checkbox for commit filter (only if analyzer available and we have commits)
+            if self.commit_analyzer and (self.all_commits or self.file_commits):
+                yield Checkbox("Show all commits", id="show-all-commits", value=False)
 
             # RadioSet with commit options using proper Textual patterns
             with RadioSet(id="target-selector"):
-                # Add commit options using proper value-based selection
-                if self.commit_infos:
+                # Add ALL commits but use CSS classes to control visibility
+                if self.all_commits:
                     target_hash = self.mapping.target_commit
-                    for i, commit_info in enumerate(
-                        self.commit_infos[:MAX_COMMIT_OPTIONS]
-                    ):
+
+                    for i, commit_info in enumerate(self.all_commits):
                         label = self._format_commit_option(commit_info)
                         commit_id = f"commit-{i}"
 
@@ -292,15 +331,44 @@ class FallbackHunkMappingWidget(Widget):
                             and not self.mapping.needs_user_selection
                         )
 
-                        yield RadioButton(label, id=commit_id, value=is_target)
-                # If no commit infos, create fallback option
+                        # Add CSS class based on whether this commit is file-relevant
+                        is_file_relevant = (
+                            commit_info.commit_hash in self._file_commit_hashes
+                        )
+                        css_classes = (
+                            "file-commit" if is_file_relevant else "all-commit"
+                        )
+
+                        yield RadioButton(
+                            label, id=commit_id, value=is_target, classes=css_classes
+                        )
+
+                # If no commits at all, create fallback option
+                elif self.commit_infos:
+                    # Legacy fallback for when we have commit_infos but no all_commits
+                    target_hash = self.mapping.target_commit
+                    for i, commit_info in enumerate(
+                        self.commit_infos[:MAX_FILE_COMMIT_OPTIONS]
+                    ):
+                        label = self._format_commit_option(commit_info)
+                        commit_id = f"commit-{i}"
+                        self._commit_hash_to_id[commit_info.commit_hash] = commit_id
+                        is_target = (
+                            commit_info.commit_hash == target_hash
+                            and not self.mapping.needs_user_selection
+                        )
+                        yield RadioButton(
+                            label, id=commit_id, value=is_target, classes="file-commit"
+                        )
                 else:
+                    # Absolute fallback option
                     existing_hash = self.mapping.target_commit or "existing"
                     self._commit_hash_to_id[existing_hash] = "existing"
                     yield RadioButton(
                         "Use existing target commit",
                         id="existing",
                         value=not self.mapping.needs_user_selection,
+                        classes="file-commit",
                     )
 
             # Separate accept/ignore buttons below the commit list
@@ -352,53 +420,85 @@ class FallbackHunkMappingWidget(Widget):
         return None
 
     def _refresh_commit_list(self) -> None:
-        """Refresh commit list based on show_all_commits toggle."""
+        """Refresh commit list based on show_all_commits toggle.
+
+        Uses simple visibility toggle instead of widget reconstruction to avoid timeouts.
+        """
         if not self.commit_analyzer:
             return
 
         try:
+            # Get target selector
+            target_selector = self.query_one("#target-selector", RadioSet)
+
             # Get new commit list based on filter state
             if self.show_all_commits:
                 # All branch commits
                 new_commits = self.commit_analyzer.get_commit_suggestions(
                     CommitSelectionStrategy.RECENCY
-                )
+                )[:MAX_ALL_COMMIT_OPTIONS]
             else:
                 # File-specific commits only
                 new_commits = self.commit_analyzer.get_commit_suggestions(
                     CommitSelectionStrategy.FILE_RELEVANCE,
                     target_file=self.mapping.hunk.file_path,
-                )
+                )[:MAX_FILE_COMMIT_OPTIONS]
 
-            # Update commit infos and rebuild widget
-            self.commit_infos = new_commits[:MAX_COMMIT_OPTIONS]
+            # Create new radio buttons and update in batch
+            self._update_commit_buttons(target_selector, new_commits)
+
+            # Update tracking state
+            self.commit_infos = new_commits
             self._current_commit_list = self.commit_infos
 
-            # Clear and rebuild the target selector
-            target_selector = self.query_one("#target-selector", RadioSet)
-            target_selector.remove_children()
+        except Exception as e:
+            # If refresh fails, log error and continue with current state
+            self.log.error(f"Failed to refresh commit list: {e}")
 
-            # Rebuild commit options with new list
-            self._commit_hash_to_id.clear()
-            target_hash = self.mapping.target_commit
+    def _update_commit_buttons(
+        self, target_selector: RadioSet, commits: List[CommitInfo]
+    ) -> None:
+        """Update commit buttons by replacing content efficiently."""
+        # Clear existing mappings
+        self._commit_hash_to_id.clear()
 
-            for i, commit_info in enumerate(self.commit_infos):
-                label = self._format_commit_option(commit_info)
-                commit_id = f"commit-{i}"
+        # Store current selection if any
+        current_selection = None
+        if hasattr(target_selector, "pressed") and target_selector.pressed:
+            current_selection = target_selector.pressed.id
 
-                self._commit_hash_to_id[commit_info.commit_hash] = commit_id
+        # Remove all existing buttons
+        target_selector.remove_children()
 
-                is_target = (
-                    commit_info.commit_hash == target_hash
-                    and not self.mapping.needs_user_selection
-                )
+        # Add new commit buttons
+        target_hash = self.mapping.target_commit
+        for i, commit_info in enumerate(commits):
+            label = self._format_commit_option(commit_info)
+            commit_id = f"commit-{i}"
+            self._commit_hash_to_id[commit_info.commit_hash] = commit_id
 
-                radio_button = RadioButton(label, id=commit_id, value=is_target)
-                target_selector.mount(radio_button)
+            is_target = (
+                commit_info.commit_hash == target_hash
+                and not self.mapping.needs_user_selection
+            )
 
-        except Exception:
-            # If refresh fails, continue with current state
-            pass
+            radio_button = RadioButton(label, id=commit_id, value=is_target)
+            target_selector.mount(radio_button)
+
+        # Add action buttons
+        target_selector.mount(RadioButton("Accept selected commit", id="action-accept"))
+        target_selector.mount(
+            RadioButton("Ignore (keep in working tree)", id="action-ignore")
+        )
+
+        # Restore selection if it still exists
+        if current_selection:
+            try:
+                button = target_selector.query_one(f"#{current_selection}")
+                if hasattr(button, "value"):
+                    button.value = True
+            except Exception:
+                pass  # Selection no longer exists, that's OK
 
     def _format_commit_option(self, commit_info: CommitInfo) -> str:
         """Format commit info with dynamic width calculation."""
@@ -481,9 +581,17 @@ class FallbackHunkMappingWidget(Widget):
 
     @on(Checkbox.Changed, "#show-all-commits")
     def on_show_all_commits_changed(self, event: Checkbox.Changed) -> None:
-        """Handle show all commits toggle with dynamic refresh."""
+        """Handle show all commits toggle by updating visibility."""
         self.show_all_commits = event.value
-        self._refresh_commit_list()
+
+        # Toggle CSS class to control visibility of all-commit RadioButtons
+        if self.show_all_commits:
+            self.add_class("show-all")
+        else:
+            self.remove_class("show-all")
+
+        # Force refresh to apply visibility changes
+        self.refresh()
 
     @on(RadioSet.Changed)
     def on_radio_set_changed(self, event: RadioSet.Changed) -> None:

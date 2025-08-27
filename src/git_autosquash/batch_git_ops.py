@@ -138,7 +138,7 @@ class BatchGitOperations:
 
     def _batch_load_basic_info(
         self, commit_hashes: List[str]
-    ) -> Dict[str, Dict[str, any]]:
+    ) -> Dict[str, Dict[str, Any]]:
         """Load basic commit info in a single git command.
 
         Args:
@@ -511,7 +511,7 @@ class BatchGitOperations:
         Returns:
             Dictionary with cache size information
         """
-        stats = {
+        stats: Dict[str, Any] = {
             "branch_commits_cached": 1 if self._branch_commits_cache is not None else 0,
             "new_files_populated": 1 if self._new_files_populated else 0,
             "branch_commits_lru_info": self.get_branch_commits.cache_info()._asdict(),
@@ -519,10 +519,10 @@ class BatchGitOperations:
         }
 
         # Add bounded cache statistics
-        stats.update(self._commit_info_cache.get_stats())
-        stats.update(
-            {"file_" + k: v for k, v in self._file_commit_cache.get_stats().items()}
-        )
+        commit_cache_stats = self._commit_info_cache.get_stats()
+        stats.update({k: v for k, v in commit_cache_stats.items()})
+        file_cache_stats = self._file_commit_cache.get_stats()
+        stats.update({"file_" + k: v for k, v in file_cache_stats.items()})
         stats["new_files_cache_size"] = self._new_files_cache.size()
 
         return stats

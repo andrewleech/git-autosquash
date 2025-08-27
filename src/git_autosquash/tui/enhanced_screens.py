@@ -35,7 +35,7 @@ SEPARATOR_FALLBACK_WIDTH = (
 )
 
 
-class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
+class EnhancedApprovalScreen(Screen[Union[bool, Dict[str, List[HunkTargetMapping]]]]):
     """Enhanced approval screen with fallback target selection support."""
 
     BINDINGS = [
@@ -238,9 +238,11 @@ class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
             if not target_in_suggestions:
                 # Add the target commit in its natural chronological position
                 try:
-                    target_commit_info = self.commit_history_analyzer.git_ops.batch_ops.batch_load_commit_info(
-                        [mapping.target_commit]
-                    ).get(mapping.target_commit)
+                    target_commit_info = (
+                        self.commit_history_analyzer.batch_ops.batch_load_commit_info(
+                            [mapping.target_commit]
+                        ).get(mapping.target_commit)
+                    )
 
                     if target_commit_info:
                         from git_autosquash.commit_history_analyzer import CommitInfo

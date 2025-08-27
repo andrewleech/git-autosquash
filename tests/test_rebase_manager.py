@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, Mock, mock_open, patch
 
 import pytest
 
-from git_autosquash.blame_analyzer import HunkTargetMapping
+from git_autosquash.hunk_target_resolver import HunkTargetMapping
 from git_autosquash.hunk_parser import DiffHunk
 from git_autosquash.rebase_manager import RebaseConflictError, RebaseManager
 
@@ -91,12 +91,18 @@ class TestRebaseManager:
         commits = {"commit1", "commit2", "commit3"}
 
         # Mock BatchGitOperations to return branch commits in topological order (newest first)
-        with patch('git_autosquash.rebase_manager.BatchGitOperations') as mock_batch_ops_class:
+        with patch(
+            "git_autosquash.rebase_manager.BatchGitOperations"
+        ) as mock_batch_ops_class:
             mock_batch_ops = Mock()
             mock_batch_ops_class.return_value = mock_batch_ops
-            
+
             # Simulate git topological order: commit2 -> commit3 -> commit1 (newest to oldest)
-            mock_batch_ops.get_branch_commits.return_value = ["commit2", "commit3", "commit1"]
+            mock_batch_ops.get_branch_commits.return_value = [
+                "commit2",
+                "commit3",
+                "commit1",
+            ]
 
             result = self.rebase_manager._get_commit_order(commits)
 
@@ -108,10 +114,12 @@ class TestRebaseManager:
         commits = {"commit1", "commit2", "commit3"}
 
         # Mock BatchGitOperations to return only some commits
-        with patch('git_autosquash.rebase_manager.BatchGitOperations') as mock_batch_ops_class:
+        with patch(
+            "git_autosquash.rebase_manager.BatchGitOperations"
+        ) as mock_batch_ops_class:
             mock_batch_ops = Mock()
             mock_batch_ops_class.return_value = mock_batch_ops
-            
+
             # Only commit1 and commit2 are in branch, commit3 is missing
             mock_batch_ops.get_branch_commits.return_value = ["commit2", "commit1"]
 
@@ -302,7 +310,13 @@ class TestRebaseManager:
 
         mock_file.write.assert_called_once_with(patch_content)
         self.mock_git_ops.run_git_command.assert_called_once_with(
-            ["apply", "--3way", "--ignore-space-change", "--whitespace=nowarn", "/tmp/test_patch"]
+            [
+                "apply",
+                "--3way",
+                "--ignore-space-change",
+                "--whitespace=nowarn",
+                "/tmp/test_patch",
+            ]
         )
         mock_unlink.assert_called_once_with("/tmp/test_patch")
 
