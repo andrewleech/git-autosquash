@@ -248,26 +248,24 @@ class FallbackHunkMappingWidget(Widget):
             target_selector = self.query_one("#target-selector", RadioSet)
             radio_buttons = target_selector.query(RadioButton).results()
 
-            # Find the selected RadioButton (value=True) and set focus index
+            # Find which radio button is selected (value=True) and navigate to it
+            selected_index = None
             for i, radio_button in enumerate(radio_buttons):
                 if radio_button.value:
-                    # Set the focus index to the selected button
-                    # target_selector._focus_index = i  # Private attr, may not exist
-                    # Set the selected index to control local cursor/highlight position
-                    # target_selector._selected = i  # Private attr, may not exist
-                    # Also set the pressed button to maintain consistency
-                    # target_selector._pressed = radio_button  # Private attr, may not exist
-                    target_selector.focus()
-
-                    # Only focus this RadioSet if this is not a manual selection widget
-                    # This ensures only auto-detected targets get visual focus
-                    if not self.mapping.needs_user_selection:
-                        target_selector.focus()
-
-                    # Refresh both the RadioSet and the parent widget to ensure highlight updates
-                    target_selector.refresh()
-                    self.refresh()
+                    selected_index = i
                     break
+
+            # For auto-detected targets, focus the RadioSet and navigate to selected item
+            if not self.mapping.needs_user_selection and selected_index is not None:
+                target_selector.focus()
+
+                # Navigate to the selected button using keyboard simulation
+                # This moves the focus highlight to match the selection
+                for _ in range(selected_index):
+                    # Send down arrow key to navigate to the correct position
+                    target_selector.post_message(
+                        events.Key("down", key="down", character=None)
+                    )
 
             # If this is the first widget, set initial screen focus to Accept button
             if self.is_first_widget:
