@@ -1,12 +1,11 @@
 """Enhanced screen implementations with fallback target selection support."""
 
-import asyncio
 from typing import Dict, List, Union, Optional
 
 from textual import on
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Horizontal, Vertical, VerticalScroll
+from textual.containers import Container, Horizontal, VerticalScroll
 from textual.screen import Screen, ModalScreen
 from textual.widgets import Button, Footer, Header, Static
 
@@ -17,6 +16,7 @@ from git_autosquash.commit_history_analyzer import (
     CommitSelectionStrategy,
 )
 from git_autosquash.tui.state_controller import UIStateController
+
 # DiffViewer no longer needed - diff is embedded in hunk widgets
 from git_autosquash.tui.fallback_widgets import (
     FallbackHunkMappingWidget,
@@ -92,77 +92,70 @@ class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
         yield Header()
 
         with Container(id="main-container"):
-            # Content wrapper for everything except buttons
-            with Container(id="content-wrapper"):
-                # Title and summary
-                yield Static("Git patch -> target commit Review", id="screen-title")
-                yield Static(
-                    f"Progress Summary: {len(self.mappings)} hunks - "
-                    f"{len(self.blame_matches)} automatic targets, "
-                    f"{len(self.fallback_mappings)} manual selection",
-                    id="screen-description",
+            # Title and summary
+            yield Static("Git patch -> target commit Review", id="screen-title")
+            yield Static(
+                f"Progress Summary: {len(self.mappings)} hunks - "
+                f"{len(self.blame_matches)} automatic targets, "
+                f"{len(self.fallback_mappings)} manual selection",
+                id="screen-description",
+            )
+
+            # Horizontal rule separator - adapts to terminal width
+            try:
+                terminal_width = (
+                    self.app.console.width
+                    if hasattr(self.app, "console")
+                    else SEPARATOR_FALLBACK_WIDTH
                 )
+                separator_width = min(
+                    terminal_width - 4, SEPARATOR_FALLBACK_WIDTH
+                )  # Leave margin
+            except Exception:
+                separator_width = SEPARATOR_FALLBACK_WIDTH
+            yield Static("─" * separator_width, id="separator")
 
-                # Horizontal rule separator - adapts to terminal width
-                try:
-                    terminal_width = (
-                        self.app.console.width
-                        if hasattr(self.app, "console")
-                        else SEPARATOR_FALLBACK_WIDTH
+            # Main content area - single scrollable pane
+            with VerticalScroll(id="hunk-scroll-pane"):
+                # First section: Blame matches
+                if self.blame_matches:
+                    yield Static(
+                        "✓ Automatic Targets (Blame Analysis)",
+                        classes="section-header",
                     )
-                    separator_width = min(
-                        terminal_width - 4, SEPARATOR_FALLBACK_WIDTH
-                    )  # Leave margin
-                except Exception:
-                    separator_width = SEPARATOR_FALLBACK_WIDTH
-                yield Static("─" * separator_width, id="separator")
+                    for i, mapping in enumerate(self.blame_matches):
+                        commit_suggestions = self._get_suggestions_for_mapping(mapping)
 
-                # Main content area - single scrollable pane
-                with VerticalScroll(id="hunk-scroll-pane"):
-                    # First section: Blame matches
-                    if self.blame_matches:
-                        yield Static(
-                            "✓ Automatic Targets (Blame Analysis)",
-                            classes="section-header",
+                        # Target commit info is logged in FallbackHunkMappingWidget if needed
+
+                        hunk_widget = self._create_hunk_widget(
+                            mapping, i, commit_suggestions
                         )
-                        for i, mapping in enumerate(self.blame_matches):
-                            commit_suggestions = (
-                                self._get_suggestions_for_mapping(mapping)
-                            )
-                            
-                            # Target commit info is logged in FallbackHunkMappingWidget if needed
-                            
-                            hunk_widget = self._create_hunk_widget(
-                                mapping, i, commit_suggestions
-                            )
-                            self.hunk_widgets.append(hunk_widget)
-                            yield hunk_widget
+                        self.hunk_widgets.append(hunk_widget)
+                        yield hunk_widget
 
-                    # Separator if we have both types
-                    if self.blame_matches and self.fallback_mappings:
-                        yield FallbackSectionSeparator()
+                # Separator if we have both types
+                if self.blame_matches and self.fallback_mappings:
+                    yield FallbackSectionSeparator()
 
-                    # Second section: Fallback scenarios
-                    if self.fallback_mappings:
-                        yield Static(
-                            "⚠ Manual Selection Required (Press 'b' for batch operations)",
-                            classes="section-header fallback",
+                # Second section: Fallback scenarios
+                if self.fallback_mappings:
+                    yield Static(
+                        "⚠ Manual Selection Required (Press 'b' for batch operations)",
+                        classes="section-header fallback",
+                    )
+
+                    start_index = len(self.blame_matches)
+                    for i, mapping in enumerate(self.fallback_mappings):
+                        commit_suggestions = self._get_suggestions_for_mapping(mapping)
+                        hunk_widget = self._create_hunk_widget(
+                            mapping, start_index + i, commit_suggestions
                         )
+                        self.hunk_widgets.append(hunk_widget)
+                        yield hunk_widget
 
-                        start_index = len(self.blame_matches)
-                        for i, mapping in enumerate(self.fallback_mappings):
-                            commit_suggestions = (
-                                self._get_suggestions_for_mapping(mapping)
-                            )
-                            hunk_widget = self._create_hunk_widget(
-                                mapping, start_index + i, commit_suggestions
-                            )
-                            self.hunk_widgets.append(hunk_widget)
-                            yield hunk_widget
-
-            # Action buttons - now outside content-wrapper so they dock to bottom  
-            with Horizontal(id="action-buttons") as action_container:
-                action_container.styles.height = "3"
+            # Action buttons - inside main-container like working version
+            with Horizontal(id="action-buttons"):
                 yield Button(
                     "Approve All & Continue", variant="success", id="approve-all"
                 )
@@ -201,9 +194,12 @@ class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
             Configured FallbackHunkMappingWidget
         """
         # Mark the first widget for initial focus handling
-        is_first_widget = (index == 0)
+        is_first_widget = index == 0
         hunk_widget = FallbackHunkMappingWidget(
-            mapping, commit_suggestions, self.commit_history_analyzer, is_first_widget=is_first_widget
+            mapping,
+            commit_suggestions,
+            self.commit_history_analyzer,
+            is_first_widget=is_first_widget,
         )
 
         # Build O(1) lookup caches
@@ -265,7 +261,7 @@ class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
                                 suggestions.insert(i, target_info)
                                 inserted = True
                                 break
-                        
+
                         # If not inserted (oldest commit), append to end
                         if not inserted:
                             suggestions.append(target_info)

@@ -7,7 +7,6 @@ from textual.app import App
 from git_autosquash.hunk_target_resolver import HunkTargetMapping
 from git_autosquash.commit_history_analyzer import CommitHistoryAnalyzer
 from git_autosquash.tui.enhanced_screens import EnhancedApprovalScreen
-from git_autosquash.tui.styles import CONSOLIDATED_CSS
 
 
 class EnhancedAutoSquashApp(App[bool]):
@@ -19,7 +18,63 @@ class EnhancedAutoSquashApp(App[bool]):
     """
 
     TITLE = "Git Autosquash"
-    CSS = CONSOLIDATED_CSS
+
+    # Minimal CSS for widget styling without layout constraints
+    CSS = """
+    /* Section headers */
+    .section-header {
+        background: $boost;
+        color: $text;
+        text-style: bold;
+        padding: 0 1;
+        margin: 1 0;
+        text-align: left;
+    }
+
+    .section-header.fallback {
+        background: $warning;
+        color: $background;
+    }
+
+    /* Hunk mapping widgets */
+    FallbackHunkMappingWidget {
+        height: auto;
+        margin: 1 0;
+        border: round $primary;
+    }
+
+    FallbackHunkMappingWidget.selected {
+        border: thick $accent;
+    }
+
+    FallbackHunkMappingWidget.approved {
+        border-left: thick $success;
+    }
+
+    FallbackHunkMappingWidget.ignored {
+        opacity: 0.6;
+        border-left: thick $warning;
+    }
+
+    /* Diff viewer */
+    DiffViewer {
+        border: round $primary;
+        padding: 1;
+    }
+
+    DiffViewer .diff-header {
+        color: $text-muted;
+        text-style: bold;
+    }
+
+    DiffViewer .diff-added {
+        color: $success;
+    }
+
+    DiffViewer .diff-removed {
+        color: $error;
+    }
+    """
 
     def __init__(
         self,

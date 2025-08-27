@@ -12,15 +12,11 @@ LAYOUT_CSS = """
     layout: vertical;
 }
 
-#content-wrapper {
-    height: auto;
-    layout: vertical;
-}
 
 /* Single scrollable pane for all hunks */  
 #hunk-scroll-pane {
     height: auto;
-    max-height: 15;
+    max-height: 70%;
     width: 100%;
     overflow: auto;
     padding: 0 1;
@@ -55,6 +51,7 @@ BUTTON_CSS = """
 #action-buttons {
     height: 3;
     min-height: 3;
+    max-height: 3;
     padding: 1;
     margin-bottom: 0;
     background: $surface;
@@ -66,6 +63,11 @@ BUTTON_CSS = """
 #action-buttons Button {
     margin: 0 1;
     min-width: 20;
+    height: 1;
+    min-height: 1;
+}
+
+Button {
     height: 1;
     min-height: 1;
 }
