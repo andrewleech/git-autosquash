@@ -212,6 +212,8 @@ class FallbackHunkMappingWidget(Widget):
                 if radio_button.value:
                     # Set the focus index to the selected button
                     target_selector._focus_index = i
+                    # Set the selected index to control local cursor/highlight position
+                    target_selector._selected = i
                     # Also set the pressed button to maintain consistency
                     target_selector._pressed = radio_button
                     
