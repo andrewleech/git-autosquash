@@ -34,6 +34,15 @@ class EnhancedAutoSquashApp(App[bool]):
         padding: 0 1;
     }
     
+    /* Action buttons - compact height */
+    #action-buttons {
+        height: auto;
+        max-height: 3;
+        padding: 1;
+        layout: horizontal;
+        align: center middle;
+    }
+    
     /* Section headers */
     .section-header {
         background: $boost;
