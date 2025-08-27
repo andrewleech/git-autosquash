@@ -19,8 +19,21 @@ class EnhancedAutoSquashApp(App[bool]):
 
     TITLE = "Git Autosquash"
 
-    # Minimal CSS for widget styling without layout constraints
+    # CSS for widget styling and proper screen height allocation
     CSS = """
+    /* Main container takes full screen height minus header/footer */
+    #main-container {
+        height: 1fr;
+        layout: vertical;
+    }
+    
+    /* Scroll pane expands to fill available space above buttons */
+    #hunk-scroll-pane {
+        height: 1fr;
+        overflow: auto;
+        padding: 0 1;
+    }
+    
     /* Section headers */
     .section-header {
         background: $boost;
