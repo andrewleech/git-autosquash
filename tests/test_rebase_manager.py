@@ -87,55 +87,40 @@ class TestRebaseManager:
         assert result["commit2"] == [hunk2]
 
     def test_get_commit_order(self) -> None:
-        """Test getting commits in chronological order."""
+        """Test getting commits in git topological order."""
         commits = {"commit1", "commit2", "commit3"}
 
-        # Mock git show commands to return timestamps
-        def mock_git_command(args):
-            result = Mock()
-            if args[0] == "show" and "commit1" in args:
-                result.returncode = 0
-                result.stdout = "1000000000"  # Older timestamp
-            elif args[0] == "show" and "commit2" in args:
-                result.returncode = 0
-                result.stdout = "1000000002"  # Newer timestamp
-            elif args[0] == "show" and "commit3" in args:
-                result.returncode = 0
-                result.stdout = "1000000001"  # Middle timestamp
-            else:
-                result.returncode = 1
-            return result
+        # Mock BatchGitOperations to return branch commits in topological order (newest first)
+        with patch('git_autosquash.rebase_manager.BatchGitOperations') as mock_batch_ops_class:
+            mock_batch_ops = Mock()
+            mock_batch_ops_class.return_value = mock_batch_ops
+            
+            # Simulate git topological order: commit2 -> commit3 -> commit1 (newest to oldest)
+            mock_batch_ops.get_branch_commits.return_value = ["commit2", "commit3", "commit1"]
 
-        self.mock_git_ops.run_git_command.side_effect = mock_git_command
+            result = self.rebase_manager._get_commit_order(commits)
 
-        result = self.rebase_manager._get_commit_order(commits)
+            # Should be ordered by git topology (oldest first)
+            assert result == ["commit1", "commit3", "commit2"]
 
-        # Should be ordered by timestamp (oldest first)
-        assert result == ["commit1", "commit3", "commit2"]
+    def test_get_commit_order_with_missing_commits(self) -> None:
+        """Test commit ordering when some commits are not found in branch."""
+        commits = {"commit1", "commit2", "commit3"}
 
-    def test_get_commit_order_with_failures(self) -> None:
-        """Test commit ordering when some timestamp lookups fail."""
-        commits = {"commit1", "commit2"}
+        # Mock BatchGitOperations to return only some commits
+        with patch('git_autosquash.rebase_manager.BatchGitOperations') as mock_batch_ops_class:
+            mock_batch_ops = Mock()
+            mock_batch_ops_class.return_value = mock_batch_ops
+            
+            # Only commit1 and commit2 are in branch, commit3 is missing
+            mock_batch_ops.get_branch_commits.return_value = ["commit2", "commit1"]
 
-        def mock_git_command(args):
-            result = Mock()
-            if args[0] == "show" and "commit1" in args:
-                result.returncode = 0
-                result.stdout = "1000000000"
-            elif args[0] == "show" and "commit2" in args:
-                # Simulate command failure but also exception handling
-                raise subprocess.SubprocessError("Command failed")
-            else:
-                result.returncode = 1  # Other failures
-            return result
+            result = self.rebase_manager._get_commit_order(commits)
 
-        self.mock_git_ops.run_git_command.side_effect = mock_git_command
-
-        result = self.rebase_manager._get_commit_order(commits)
-
-        # commit1 should be first (has timestamp), commit2 last (failed with inf timestamp)
-        assert result[0] == "commit1"
-        assert "commit2" in result
+            # commit1 and commit2 should be in topological order, commit3 at end (fallback)
+            assert result[0] == "commit1"  # oldest first
+            assert result[1] == "commit2"
+            assert result[2] == "commit3"  # missing commits added at end
 
     def test_handle_working_tree_state_clean(self) -> None:
         """Test handling clean working tree."""
@@ -317,7 +302,7 @@ class TestRebaseManager:
 
         mock_file.write.assert_called_once_with(patch_content)
         self.mock_git_ops.run_git_command.assert_called_once_with(
-            ["apply", "--whitespace=nowarn", "/tmp/test_patch"]
+            ["apply", "--3way", "--ignore-space-change", "--whitespace=nowarn", "/tmp/test_patch"]
         )
         mock_unlink.assert_called_once_with("/tmp/test_patch")
 
