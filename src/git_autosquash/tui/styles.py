@@ -13,13 +13,14 @@ LAYOUT_CSS = """
 }
 
 #content-wrapper {
-    height: 1fr;
+    height: auto;
     layout: vertical;
 }
 
-/* Single scrollable pane for all hunks */
+/* Single scrollable pane for all hunks */  
 #hunk-scroll-pane {
-    height: 1fr;
+    height: auto;
+    max-height: 20;
     width: 100%;
     overflow: auto;
     padding: 0 1;
@@ -50,11 +51,11 @@ LAYOUT_CSS = """
 
 # Action button styles
 BUTTON_CSS = """
-/* Action buttons - fixed at bottom with margin for Footer */
+/* Action buttons - dock to footer with no gap */
 #action-buttons {
-    height: 3;
-    padding: 0;
-    margin-bottom: 1;
+    height: auto;
+    padding: 1 0;
+    margin-bottom: -1;
     background: $surface;
     border-top: solid $primary;
     layout: horizontal;
@@ -64,6 +65,13 @@ BUTTON_CSS = """
 #action-buttons Button {
     margin: 0 1;
     min-width: 20;
+    height: auto;
+}
+
+/* Adjust footer to overlay action buttons slightly */
+Footer {
+    margin-top: -1;
+    background: $surface;
 }
 """
 
