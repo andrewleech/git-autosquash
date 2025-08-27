@@ -248,55 +248,26 @@ class FallbackHunkMappingWidget(Widget):
             target_selector = self.query_one("#target-selector", RadioSet)
             radio_buttons = target_selector.query(RadioButton).results()
 
-            # Find the selected RadioButton (value=True) and set focus to it
-            selected_index = 0
+            # Find the selected RadioButton (value=True) and set focus index
             for i, radio_button in enumerate(radio_buttons):
                 if radio_button.value:
-                    selected_index = i
-                    break
-
-            # Use post-mount action to set focus after RadioSet is fully initialized
-            async def sync_focus():
-                # Small delay to ensure RadioSet is fully mounted and initialized
-                await asyncio.sleep(0.01)
-
-                # Try multiple approaches to sync the visual focus with the radio button selection
-                try:
-                    current_buttons = target_selector.query(RadioButton).results()
-
-                    # Approach 1: Try to set the RadioSet's internal focus index to match selection
-                    # This is the most direct way to sync visual focus with radio selection
-                    if hasattr(
-                        target_selector, "_focus_index"
-                    ) and selected_index < len(current_buttons):
-                        target_selector._focus_index = selected_index
-                        # Force refresh to apply the focus change
-                        target_selector.refresh()
-
-                    # Approach 2: If internal index setting failed, try focusing the radio button directly
-                    elif selected_index < len(current_buttons):
-                        # Focus the specific radio button that's selected
-                        selected_button = current_buttons[selected_index]
-                        selected_button.focus()
-
-                    # Approach 3: Last resort - focus the RadioSet and hope it picks up the right focus
-                    else:
-                        target_selector.focus()
-
-                    # Refresh the parent widget to ensure visual updates are applied
-                    self.refresh()
-
-                except Exception:
-                    # Graceful fallback: Just focus the RadioSet
-                    # The RadioSet should handle its own internal focus logic
+                    # Set the focus index to the selected button
+                    # target_selector._focus_index = i  # Private attr, may not exist
+                    # Set the selected index to control local cursor/highlight position
+                    # target_selector._selected = i  # Private attr, may not exist
+                    # Also set the pressed button to maintain consistency
+                    # target_selector._pressed = radio_button  # Private attr, may not exist
                     target_selector.focus()
 
-            # Schedule the focus sync to run after the widget is fully mounted
-            self.call_after_refresh(sync_focus)
+                    # Only focus this RadioSet if this is not a manual selection widget
+                    # This ensures only auto-detected targets get visual focus
+                    if not self.mapping.needs_user_selection:
+                        target_selector.focus()
 
-            # For auto-detected targets, also focus the RadioSet immediately
-            if not self.mapping.needs_user_selection:
-                target_selector.focus()
+                    # Refresh both the RadioSet and the parent widget to ensure highlight updates
+                    target_selector.refresh()
+                    self.refresh()
+                    break
 
             # If this is the first widget, set initial screen focus to Accept button
             if self.is_first_widget:
