@@ -200,6 +200,24 @@ class FallbackHunkMappingWidget(Widget):
             self.commit_infos
         )  # Track currently displayed commits
 
+    async def on_mount(self) -> None:
+        """Handle widget mounting - set focus to selected RadioButton."""
+        # Find the RadioSet with target selection
+        try:
+            target_selector = self.query_one("#target-selector", RadioSet)
+            # Find the selected RadioButton (value=True) and focus it
+            for radio_button in target_selector.query(RadioButton):
+                if radio_button.value:
+                    # Focus the RadioSet and ensure the selected button is highlighted
+                    target_selector.focus()
+                    # Set the pressed button to the selected one to align focus with selection
+                    target_selector._pressed = radio_button
+                    target_selector.refresh()
+                    break
+        except Exception:
+            # Gracefully handle if RadioSet or selected button not found
+            pass
+
     def compose(self) -> ComposeResult:
         """Compose the widget layout."""
         with Vertical():
