@@ -174,9 +174,8 @@ class EnhancedApprovalScreen(Screen[Union[bool, List[HunkTargetMapping]]]):
         # No separate diff viewer in new layout - diff is embedded in each hunk
         self._diff_viewer = None
 
-        # Select first hunk if available
-        if self.hunk_widgets:
-            self._select_widget(self.hunk_widgets[0])
+        # Don't auto-select any widget - let each widget handle its own RadioButton focus
+        # This prevents conflicting highlights between widget-level selection and RadioButton focus
 
         # Update progress
         self._update_progress()

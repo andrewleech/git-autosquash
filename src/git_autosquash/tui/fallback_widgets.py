@@ -214,8 +214,12 @@ class FallbackHunkMappingWidget(Widget):
                     target_selector._focus_index = i
                     # Also set the pressed button to maintain consistency
                     target_selector._pressed = radio_button
-                    # Focus the RadioSet to make the highlight visible
-                    target_selector.focus()
+                    
+                    # Only focus this RadioSet if this is not a manual selection widget
+                    # This ensures only auto-detected targets get visual focus
+                    if not self.mapping.needs_user_selection:
+                        target_selector.focus()
+                    
                     # Refresh both the RadioSet and the parent widget to ensure highlight updates
                     target_selector.refresh()
                     self.refresh()
