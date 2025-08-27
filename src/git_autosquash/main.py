@@ -392,6 +392,11 @@ def main() -> None:
         help="Use line-by-line hunk splitting instead of default git hunks",
     )
     parser.add_argument(
+        "--auto-accept",
+        action="store_true",
+        help="Automatically accept all hunks with blame-identified targets, bypass TUI",
+    )
+    parser.add_argument(
         "--version",
         action="version",
         version=f"%(prog)s {__version__}",
@@ -516,159 +521,224 @@ def main() -> None:
             print("No hunks found to process", file=sys.stderr)
             sys.exit(1)
 
-        # Phase 3: Show enhanced TUI for user approval (with fallback support)
-        print("\nLaunching enhanced interactive approval interface...")
+        # Phase 3: User approval - either auto-accept or interactive TUI
+        if args.auto_accept:
+            # Auto-accept mode: accept all hunks with automatic blame targets
+            approved_mappings = []
+            ignored_mappings = []
+            
+            print(f"\nAuto-accept mode: Processing {len(mappings)} hunks...")
+            
+            for mapping in mappings:
+                if mapping.target_commit and not mapping.needs_user_selection:
+                    # This hunk has an automatic blame-identified target
+                    approved_mappings.append(mapping)
+                    commit_summary = resolver.get_commit_summary(mapping.target_commit)
+                    print(f"✓ Auto-accepted: {mapping.hunk.file_path} → {commit_summary}")
+                else:
+                    # This hunk needs manual selection, leave in working tree
+                    ignored_mappings.append(mapping)
+                    if mapping.needs_user_selection:
+                        print(f"⚠ Left in working tree: {mapping.hunk.file_path} (needs manual selection)")
+                    else:
+                        print(f"⚠ Left in working tree: {mapping.hunk.file_path} (no target found)")
+            
+            print(f"\nAuto-accepted {len(approved_mappings)} hunks with automatic targets")
+            if ignored_mappings:
+                print(f"Left {len(ignored_mappings)} hunks in working tree")
+            
+            # Execute the rebase for approved hunks
+            if approved_mappings:
+                success = _execute_rebase(approved_mappings, git_ops, merge_base, resolver)
+                if not success:
+                    print("✗ Squash operation was aborted or failed.")
+                    return
+            else:
+                success = True  # No rebase needed, just apply ignored hunks
 
-        try:
-            # Create commit history analyzer for fallback suggestions
-            from git_autosquash.commit_history_analyzer import CommitHistoryAnalyzer
-
-            commit_analyzer = CommitHistoryAnalyzer(git_ops, merge_base)
-
-            # Always use enhanced app for better display of commit information
-            from git_autosquash.tui.enhanced_app import EnhancedAutoSquashApp
-
-            app = EnhancedAutoSquashApp(mappings, commit_analyzer)
-
-            approved = app.run()
-
-            if approved and (app.approved_mappings or app.ignored_mappings):
-                approved_mappings = app.approved_mappings
-                ignored_mappings = app.ignored_mappings
-
-                print(f"\nUser selected {len(approved_mappings)} hunks for squashing")
-                if ignored_mappings:
+            # Apply ignored hunks back to working tree
+            if success and ignored_mappings:
+                print(
+                    f"\nApplying {len(ignored_mappings)} ignored hunks back to working tree..."
+                )
+                ignore_success = _apply_ignored_hunks(ignored_mappings, git_ops)
+                if ignore_success:
+                    print("✓ Ignored hunks have been restored to working tree")
+                else:
                     print(
-                        f"User selected {len(ignored_mappings)} hunks to ignore (keep in working tree)"
+                        "⚠️  Some ignored hunks could not be restored - check working tree status"
                     )
 
-                # Phase 4 - Execute the interactive rebase for approved hunks
+            # Report final results for auto-accept mode
+            if success:
+                if approved_mappings and ignored_mappings:
+                    print(
+                        "✓ Operation completed! Changes squashed to commits and ignored hunks restored to working tree."
+                    )
+                elif approved_mappings:
+                    print("✓ Squash operation completed successfully!")
+                    print(
+                        "Your changes have been distributed to their target commits."
+                    )
+                elif ignored_mappings:
+                    print("✓ Ignored hunks have been restored to working tree.")
+            else:
+                print("✗ Operation failed.")
+                
+        else:
+            # Interactive TUI mode
+            print("\nLaunching enhanced interactive approval interface...")
+
+            try:
+                # Create commit history analyzer for fallback suggestions
+                from git_autosquash.commit_history_analyzer import CommitHistoryAnalyzer
+
+                commit_analyzer = CommitHistoryAnalyzer(git_ops, merge_base)
+
+                # Always use enhanced app for better display of commit information
+                from git_autosquash.tui.enhanced_app import EnhancedAutoSquashApp
+
+                app = EnhancedAutoSquashApp(mappings, commit_analyzer)
+
+                approved = app.run()
+
+                if approved and (app.approved_mappings or app.ignored_mappings):
+                    approved_mappings = app.approved_mappings
+                    ignored_mappings = app.ignored_mappings
+
+                    print(f"\nUser selected {len(approved_mappings)} hunks for squashing")
+                    if ignored_mappings:
+                        print(
+                            f"User selected {len(ignored_mappings)} hunks to ignore (keep in working tree)"
+                        )
+
+                    # Phase 4 - Execute the interactive rebase for approved hunks
+                    if approved_mappings:
+                        print("\nExecuting interactive rebase for approved hunks...")
+                        success = _execute_rebase(
+                            approved_mappings, git_ops, merge_base, resolver
+                        )
+
+                        if not success:
+                            print("✗ Squash operation was aborted or failed.")
+                            return
+                    else:
+                        success = True  # No rebase needed, just apply ignored hunks
+
+                    # Phase 5 - Apply ignored hunks back to working tree
+                    if success and ignored_mappings:
+                        print(
+                            f"\nApplying {len(ignored_mappings)} ignored hunks back to working tree..."
+                        )
+                        ignore_success = _apply_ignored_hunks(ignored_mappings, git_ops)
+                        if ignore_success:
+                            print("✓ Ignored hunks have been restored to working tree")
+                        else:
+                            print(
+                                "⚠️  Some ignored hunks could not be restored - check working tree status"
+                            )
+
+                    if success:
+                        if approved_mappings and ignored_mappings:
+                            print(
+                                "✓ Operation completed! Changes squashed to commits and ignored hunks restored to working tree."
+                            )
+                        elif approved_mappings:
+                            print("✓ Squash operation completed successfully!")
+                            print(
+                                "Your changes have been distributed to their target commits."
+                            )
+                        elif ignored_mappings:
+                            print("✓ Ignored hunks have been restored to working tree.")
+                    else:
+                        print("✗ Operation failed.")
+
+                else:
+                    print("\nOperation cancelled by user or no hunks selected")
+
+            except ImportError as e:
+                print(f"\nTextual TUI not available: {e}")
+                print("Falling back to simple text-based approval...")
+                result = _simple_approval_fallback(mappings, resolver, commit_analyzer)
+
+                approved_mappings = result["approved"]
+                ignored_mappings = result["ignored"]
+
                 if approved_mappings:
-                    print("\nExecuting interactive rebase for approved hunks...")
+                    print(f"\nApproved {len(approved_mappings)} hunks for squashing")
+                    if ignored_mappings:
+                        print(
+                            f"Selected {len(ignored_mappings)} hunks to ignore (keep in working tree)"
+                        )
+
+                    # Phase 4 - Execute the interactive rebase
+                    print("\nExecuting interactive rebase...")
                     success = _execute_rebase(
                         approved_mappings, git_ops, merge_base, resolver
                     )
 
-                    if not success:
-                        print("✗ Squash operation was aborted or failed.")
-                        return
-                else:
-                    success = True  # No rebase needed, just apply ignored hunks
-
-                # Phase 5 - Apply ignored hunks back to working tree
-                if success and ignored_mappings:
-                    print(
-                        f"\nApplying {len(ignored_mappings)} ignored hunks back to working tree..."
-                    )
-                    ignore_success = _apply_ignored_hunks(ignored_mappings, git_ops)
-                    if ignore_success:
-                        print("✓ Ignored hunks have been restored to working tree")
-                    else:
-                        print(
-                            "⚠️  Some ignored hunks could not be restored - check working tree status"
-                        )
-
-                if success:
-                    if approved_mappings and ignored_mappings:
-                        print(
-                            "✓ Operation completed! Changes squashed to commits and ignored hunks restored to working tree."
-                        )
-                    elif approved_mappings:
+                    if success:
                         print("✓ Squash operation completed successfully!")
-                        print(
-                            "Your changes have been distributed to their target commits."
-                        )
-                    elif ignored_mappings:
-                        print("✓ Ignored hunks have been restored to working tree.")
+                        print("Your changes have been distributed to their target commits.")
+
+                        # Apply ignored hunks back to working tree
+                        if ignored_mappings:
+                            print(
+                                f"\nApplying {len(ignored_mappings)} ignored hunks back to working tree..."
+                            )
+                            ignore_success = _apply_ignored_hunks(ignored_mappings, git_ops)
+                            if ignore_success:
+                                print("✓ Ignored hunks have been restored to working tree")
+                            else:
+                                print(
+                                    "⚠️  Some ignored hunks could not be restored - check working tree status"
+                                )
+                    else:
+                        print("✗ Squash operation was aborted or failed.")
                 else:
-                    print("✗ Operation failed.")
+                    print("\nOperation cancelled")
 
-            else:
-                print("\nOperation cancelled by user or no hunks selected")
+            except Exception as e:
+                print(f"\nTUI encountered an error: {e}")
+                print("Falling back to simple text-based approval...")
+                result = _simple_approval_fallback(mappings, resolver, commit_analyzer)
 
-        except ImportError as e:
-            print(f"\nTextual TUI not available: {e}")
-            print("Falling back to simple text-based approval...")
-            result = _simple_approval_fallback(mappings, resolver, commit_analyzer)
+                approved_mappings = result["approved"]
+                ignored_mappings = result["ignored"]
 
-            approved_mappings = result["approved"]
-            ignored_mappings = result["ignored"]
-
-            if approved_mappings:
-                print(f"\nApproved {len(approved_mappings)} hunks for squashing")
-                if ignored_mappings:
-                    print(
-                        f"Selected {len(ignored_mappings)} hunks to ignore (keep in working tree)"
-                    )
-
-                # Phase 4 - Execute the interactive rebase
-                print("\nExecuting interactive rebase...")
-                success = _execute_rebase(
-                    approved_mappings, git_ops, merge_base, resolver
-                )
-
-                if success:
-                    print("✓ Squash operation completed successfully!")
-                    print("Your changes have been distributed to their target commits.")
-
-                    # Apply ignored hunks back to working tree
+                if approved_mappings:
+                    print(f"\nApproved {len(approved_mappings)} hunks for squashing")
                     if ignored_mappings:
                         print(
-                            f"\nApplying {len(ignored_mappings)} ignored hunks back to working tree..."
+                            f"Selected {len(ignored_mappings)} hunks to ignore (keep in working tree)"
                         )
-                        ignore_success = _apply_ignored_hunks(ignored_mappings, git_ops)
-                        if ignore_success:
-                            print("✓ Ignored hunks have been restored to working tree")
-                        else:
-                            print(
-                                "⚠️  Some ignored hunks could not be restored - check working tree status"
-                            )
-                else:
-                    print("✗ Squash operation was aborted or failed.")
-            else:
-                print("\nOperation cancelled")
 
-        except Exception as e:
-            print(f"\nTUI encountered an error: {e}")
-            print("Falling back to simple text-based approval...")
-            result = _simple_approval_fallback(mappings, resolver, commit_analyzer)
-
-            approved_mappings = result["approved"]
-            ignored_mappings = result["ignored"]
-
-            if approved_mappings:
-                print(f"\nApproved {len(approved_mappings)} hunks for squashing")
-                if ignored_mappings:
-                    print(
-                        f"Selected {len(ignored_mappings)} hunks to ignore (keep in working tree)"
+                    # Phase 4 - Execute the interactive rebase
+                    print("\nExecuting interactive rebase...")
+                    success = _execute_rebase(
+                        approved_mappings, git_ops, merge_base, resolver
                     )
 
-                # Phase 4 - Execute the interactive rebase
-                print("\nExecuting interactive rebase...")
-                success = _execute_rebase(
-                    approved_mappings, git_ops, merge_base, resolver
-                )
+                    if success:
+                        print("✓ Squash operation completed successfully!")
+                        print("Your changes have been distributed to their target commits.")
 
-                if success:
-                    print("✓ Squash operation completed successfully!")
-                    print("Your changes have been distributed to their target commits.")
-
-                    # Apply ignored hunks back to working tree
-                    if ignored_mappings:
-                        print(
-                            f"\nApplying {len(ignored_mappings)} ignored hunks back to working tree..."
-                        )
-                        ignore_success = _apply_ignored_hunks(ignored_mappings, git_ops)
-                        if ignore_success:
-                            print("✓ Ignored hunks have been restored to working tree")
-                        else:
+                        # Apply ignored hunks back to working tree
+                        if ignored_mappings:
                             print(
-                                "⚠️  Some ignored hunks could not be restored - check working tree status"
+                                f"\nApplying {len(ignored_mappings)} ignored hunks back to working tree..."
                             )
+                            ignore_success = _apply_ignored_hunks(ignored_mappings, git_ops)
+                            if ignore_success:
+                                print("✓ Ignored hunks have been restored to working tree")
+                            else:
+                                print(
+                                    "⚠️  Some ignored hunks could not be restored - check working tree status"
+                                )
+                    else:
+                        print("✗ Squash operation was aborted or failed.")
                 else:
-                    print("✗ Squash operation was aborted or failed.")
-            else:
-                print("\nOperation cancelled")
+                    print("\nOperation cancelled")
 
     except GitAutoSquashError as e:
         # Our custom exceptions with user-friendly messages
