@@ -410,3 +410,71 @@ class TestAssertions:
 def test_assertions():
     """Provide test assertion helpers."""
     return TestAssertions()
+
+
+# Additional fixtures for comprehensive testing
+
+
+@pytest.fixture(scope="function")
+def git_repo_builder():
+    """Enhanced git repository builder for complex scenarios."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        repo_path = Path(temp_dir) / "complex_test_repo"
+        repo_path.mkdir()
+
+        class GitRepoBuilder:
+            def __init__(self, path: Path):
+                self.repo_path = path
+                self.git_ops = GitOps(path)
+                self._init_repo()
+
+            def _init_repo(self):
+                subprocess.run(
+                    ["git", "init"], cwd=self.repo_path, check=True, capture_output=True
+                )
+                subprocess.run(
+                    ["git", "config", "user.name", "Builder"],
+                    cwd=self.repo_path,
+                    check=True,
+                )
+                subprocess.run(
+                    ["git", "config", "user.email", "builder@test.com"],
+                    cwd=self.repo_path,
+                    check=True,
+                )
+
+            def add_commit(self, files_content: Dict[str, str], message: str) -> str:
+                """Add files and create commit, return commit hash."""
+                for filename, content in files_content.items():
+                    file_path = self.repo_path / filename
+                    file_path.parent.mkdir(parents=True, exist_ok=True)
+                    file_path.write_text(content)
+
+                subprocess.run(["git", "add", "."], cwd=self.repo_path, check=True)
+                subprocess.run(
+                    ["git", "commit", "-m", message], cwd=self.repo_path, check=True
+                )
+
+                result = subprocess.run(
+                    ["git", "rev-parse", "HEAD"],
+                    cwd=self.repo_path,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                return result.stdout.strip()
+
+        yield GitRepoBuilder(repo_path)
+
+
+@pytest.fixture(scope="function")
+def performance_test_config():
+    """Configuration for performance tests."""
+    return {
+        "max_patch_generation_time": 5.0,
+        "max_hunk_parsing_time": 2.0,
+        "max_memory_increase_mb": 100,
+        "large_file_lines": 5000,
+        "many_hunks_count": 50,
+        "stress_test_files": 20,
+    }
