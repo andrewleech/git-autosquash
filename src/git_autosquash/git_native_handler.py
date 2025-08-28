@@ -128,6 +128,16 @@ class GitNativeIgnoreHandler:
                     )
                     return False
 
+                # Check for symlinks in path components (security)
+                current_path = repo_root
+                for part in file_path.parts:
+                    current_path = current_path / part
+                    if current_path.is_symlink():
+                        self.logger.error(
+                            f"Symlinks not allowed in file paths: {mapping.hunk.file_path}"
+                        )
+                        return False
+
                 # Check for path traversal by resolving against repo root
                 resolved_path = (repo_root / file_path).resolve()
                 try:
