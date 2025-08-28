@@ -1,0 +1,15 @@
+git-autosquash - Interactive Interface
+
+Navigation:        Keyboard Shortcuts:
+[↑↓] Move cursor   [Space] Toggle approval
+[Tab] Switch pane  [Enter] Apply changes  
+[PgUp/Dn] Scroll   [Escape] Cancel
+                   [q] Quit application
+
+Current Selection:
+┌─ src/auth.py:45-52 ─────────────────────────────┐
+│  45 │- if not email or not password:             │
+│  45 │+ if not email or not password or len(...): │
+└─────────────────────────────────────────────────┘
+
+Status: ✓ APPROVED for squashing into abc1234

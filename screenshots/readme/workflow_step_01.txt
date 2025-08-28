@@ -1,0 +1,12 @@
+$ git status
+On branch feature/user-dashboard
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git checkout -- <file>..." to discard changes)
+
+        modified:   src/auth.py
+        modified:   src/dashboard.py
+        modified:   tests/test_auth.py
+        modified:   src/utils.py
+
+no changes added to commit (use "git add" or "git commit -a")

@@ -1,0 +1,8 @@
+git-autosquash - Confirmation
+
+Ready to squash 2 hunks into their target commits?
+
+✓ src/main.py:15-20 → abc1234 Fix main function
+✓ src/utils.py:5-8  → def5678 Add utility helpers
+
+[y] Yes  [n] No  [q] Quit

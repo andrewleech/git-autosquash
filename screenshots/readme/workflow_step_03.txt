@@ -1,0 +1,14 @@
+git-autosquash - Analysis Results
+
+✅ HIGH CONFIDENCE MATCHES (3 hunks)
+  src/auth.py:45-52        → abc1234 "Fix login validation" 
+  src/dashboard.py:15-23   → def5678 "Add user dashboard"
+  tests/test_auth.py:67-70 → ghi9012 "Update auth tests"
+
+⚠️  MEDIUM CONFIDENCE (1 hunk)  
+  src/utils.py:85-90       → jkl3456 "Add utility helpers"
+
+❓ NEEDS REVIEW (1 hunk)
+  src/utils.py:12-18       → No clear target found
+
+Press [Space] to continue to interactive review...

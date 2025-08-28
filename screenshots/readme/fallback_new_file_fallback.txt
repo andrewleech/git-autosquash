@@ -1,0 +1,19 @@
+git-autosquash - New File Handling
+
+❓ NEW FILE DETECTED: src/new_feature.py
+
+No git blame history available (file didn't exist before)
+
+┌─ Fallback Options ────────────────────────────────────┐
+│ 1. 📅 Most recent commit in branch:                   │
+│    abc1234 "Add dashboard feature" (2 days ago)       │
+│                                                        │
+│ 2. 🎯 Commits that modified similar files:            │
+│    def5678 "Add auth system" (modified src/auth.py)   │
+│    ghi9012 "Add utilities" (modified src/utils.py)    │
+│                                                        │
+│ 3. ➕ Keep as new commit                               │
+│    (Recommended for genuinely new functionality)      │
+└────────────────────────────────────────────────────────┘
+
+Your choice: [1/2/3]

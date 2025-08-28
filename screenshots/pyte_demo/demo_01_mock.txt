@@ -1,0 +1,9 @@
+git-autosquash - Interactive Hunk Target Selection
+
+┌─ Hunks ──────────────────────────┐ ┌─ Target Commits ─────────────┐
+│ ✓ src/main.py:15-20             │ │ abc1234 Fix main function    │
+│ ? src/utils.py:5-8              │ │ def5678 Add utility helpers  │
+│ ? tests/test_main.py:25-30      │ │ hij9012 Update test cases    │
+└──────────────────────────────────┘ └───────────────────────────────┘
+
+[Space] Toggle  [Enter] Confirm  [q] Quit

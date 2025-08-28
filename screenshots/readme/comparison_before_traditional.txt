@@ -1,0 +1,13 @@
+Traditional Approach - Messy History
+
+$ git log --oneline -8
+abc1234 Fix lint errors and address review feedback  😞
+def5678 Add dashboard feature
+ghi9012 Fix failing tests  😞  
+jkl3456 Address PR comments 😞
+mno7890 Add user authentication 
+pqr1234 More lint fixes 😞
+stu5678 Add utility functions
+vwx9012 Initial setup
+
+Problem: Hard to understand what each commit actually accomplishes!

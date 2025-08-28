@@ -1,0 +1,16 @@
+git-autosquash - Safety Features
+
+⚠️  SAFETY DEFAULTS:
+All changes start UNAPPROVED - you must explicitly review and approve
+
+Current Status:
+◯ src/auth.py:45-52        [Not approved] 
+◯ src/dashboard.py:15-23   [Not approved]
+◯ tests/test_auth.py:67-70 [Not approved]
+
+🛡️  ROLLBACK PROTECTION:
+- Full git reflog integration
+- Backup refs created before rebase  
+- Easy recovery with: git reset --hard ORIG_HEAD
+
+Proceed only after careful review!

@@ -1,0 +1,19 @@
+git-autosquash - Conflict Resolution
+
+⚠️  MERGE CONFLICT DETECTED
+
+File: src/auth.py
+Conflict in commit: abc1234 "Fix login validation"
+
+┌─ Conflict Details ──────────────────────────────────┐
+│ <<<<<<< HEAD                                        │
+│ if not email or not password:                       │
+│ =======                                             │  
+│ if not email or not password or len(password) < 8: │
+│ >>>>>>> feature/enhanced-validation                 │
+└─────────────────────────────────────────────────────┘
+
+Options:
+[r] Retry after manual resolution
+[s] Skip this hunk and continue
+[a] Abort entire rebase operation

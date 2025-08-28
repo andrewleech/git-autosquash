@@ -8,6 +8,8 @@
 
 git-autosquash is a powerful tool that analyzes your working directory changes and automatically distributes them back to the commits where those code sections were last modified. Instead of creating noisy "fix lint errors", "cleanup tests", or "address review feedback" commits, it uses git blame analysis to intelligently squash improvements back into their logical historical commits.
 
+![git-autosquash Interactive TUI](../screenshots/readme/hero_screenshot.png)
+
 **Common scenario**: You've been working on a feature branch and now need to fix lint errors, test failures, or code review feedback. Rather than committing all fixes into a final "cleanup" commit, git-autosquash lets you push each fix back to the original commit that introduced the issue, maintaining clean and logical git history.
 
 !!! info "Project Status"
@@ -21,6 +23,23 @@ git-autosquash is a powerful tool that analyzes your working directory changes a
 - **⚡ Conflict Resolution**: Clear guidance when merge conflicts occur during rebase
 - **📊 Progress Tracking**: Real-time feedback with detailed commit summaries
 - **🔄 Rollback Support**: Automatic cleanup and restoration on errors or interruption
+
+### Feature Demonstrations
+
+??? example "🎯 Smart Targeting with Git Blame Analysis"
+    ![Smart Targeting](../screenshots/readme/feature_smart_targeting.png)
+    
+    git-autosquash analyzes git blame to understand exactly which commits last modified each line of code, providing high-confidence targeting for your changes.
+
+??? example "🖥️ Interactive Terminal Interface"
+    ![Interactive TUI](../screenshots/readme/feature_interactive_tui.png)
+    
+    Full keyboard navigation with syntax highlighting, real-time previews, and intuitive controls make reviewing changes efficient and clear.
+
+??? example "🔒 Safety-First Approach"
+    ![Safety First](../screenshots/readme/feature_safety_first.png)
+    
+    All changes start unapproved by default. Full git reflog integration and backup creation ensure you can always recover if something goes wrong.
 
 ## 🚀 Quick Start
 
@@ -77,29 +96,39 @@ graph TD
 
 ## 📋 Example Workflow
 
-Imagine you've been working on a feature and made several changes across different files. Some of these changes are bug fixes that should go back to earlier commits, while others are new feature additions.
+Here's what a typical git-autosquash session looks like:
 
-!!! example "Typical Scenario"
-    ```bash
-    $ git status
-    On branch feature/user-auth
-    Changes not staged for commit:
-      modified:   src/auth/login.py      # Bug fix for validation
-      modified:   src/auth/session.py    # Performance improvement  
-      modified:   src/ui/dashboard.py    # New feature code
-    
-    $ git-autosquash
-    Current branch: feature/user-auth
-    Merge base: abc123def
-    
-    Analyzing changes and finding target commits...
-    Found 3 hunks to process
-    Found target commits for 3 hunks
-    
-    Launching interactive approval interface...
-    ```
+### Before: Messy History
+![Before Traditional Approach](../screenshots/readme/comparison_before_traditional.png)
 
-The TUI will show you exactly which changes can go back to which commits, with confidence levels and clear diff visualization.
+### The git-autosquash Process
+
+The workflow transforms cluttered history into clean, logical commits through these steps:
+
+!!! example "Step 1: Check Status"
+    ![Workflow Step 1](../screenshots/readme/workflow_step_01.png)
+    
+    See what changes need organizing
+
+!!! example "Step 2: Launch Analysis"
+    ![Workflow Step 2](../screenshots/readme/workflow_step_02.png)
+    
+    git-autosquash analyzes your changes
+
+!!! example "Step 3: Review Results"
+    ![Workflow Step 3](../screenshots/readme/workflow_step_03.png)
+    
+    See confidence levels and proposed targets
+
+!!! example "Step 4: Interactive Review"
+    ![Workflow Step 4](../screenshots/readme/workflow_step_04.png)
+    
+    Approve or modify the suggestions
+
+### After: Clean History
+![After git-autosquash](../screenshots/readme/comparison_after_autosquash.png)
+
+The TUI shows you exactly which changes can go back to which commits, with confidence levels and clear diff visualization.
 
 ## 🎯 Use Cases
 

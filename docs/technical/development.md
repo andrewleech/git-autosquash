@@ -514,6 +514,80 @@ logger = logging.getLogger(__name__)
 logger.debug("Debug information here")
 ```
 
+## Documentation Screenshot System
+
+git-autosquash includes a comprehensive screenshot capture system for documentation and marketing materials. The system generates consistent, professional-looking terminal screenshots without requiring actual git repositories.
+
+### Screenshot Categories
+
+The system generates 18 screenshots organized into categories:
+
+- **Hero Screenshot**: Main visual for README and website landing
+- **Workflow Steps (6)**: Complete user journey from git status to completion
+- **Feature Demonstrations (5)**: Smart targeting, interactive TUI, safety features, conflict resolution, progress tracking  
+- **Comparison Views (2)**: Before/after git history visualization
+- **Fallback Scenarios (3)**: New files, ambiguous blame, manual override capabilities
+
+### Generating Screenshots
+
+```bash
+# Generate all documentation screenshots
+uv run python capture_readme_screenshots.py
+
+# Test screenshot generation system
+uv run pytest tests/test_tui_screenshot_integration.py -v
+
+# Screenshots saved to screenshots/readme/
+```
+
+### Screenshot Implementation
+
+The screenshot system uses PIL/Pillow to create PNG images from text representations:
+
+```python
+from capture_readme_screenshots import ReadmeScreenshotGenerator
+
+# Initialize generator
+generator = ReadmeScreenshotGenerator()
+
+# Generate specific screenshot categories
+generator.generate_hero_screenshot()
+generator.generate_workflow_screenshots()
+generator.generate_feature_screenshots()
+```
+
+### Screenshot Specifications
+
+- **Terminal Size**: 120 columns × 35 rows
+- **Background**: Dark terminal theme (#1a1a1a)
+- **Color Coding**: 
+  - Green (#00ff00): Success states and positive actions
+  - Yellow (#ffff00): Warnings and important notices
+  - Orange (#ff8000): User prompts and questions
+  - Cyan (#00ffff): Commands and technical information
+- **Font**: Monospace (DejaVu Sans Mono or system equivalent)
+
+### Updating Screenshots
+
+When TUI interface or workflow changes, regenerate screenshots:
+
+1. **Modify screenshot definitions** in `capture_readme_screenshots.py`
+2. **Update text representations** to match new interface
+3. **Run generation script** to create new PNG files
+4. **Update documentation** references if filenames change
+
+### Screenshot Naming Convention
+
+Screenshots follow consistent naming patterns:
+
+- `hero_screenshot.png` - Main application screenshot
+- `workflow_step_XX.png` - Numbered workflow steps (01-06)  
+- `feature_*.png` - Feature demonstration screenshots
+- `comparison_*.png` - Before/after comparison views
+- `fallback_*.png` - Edge case and fallback scenarios
+
+This system ensures documentation remains visually current as the application evolves.
+
 ## Release Process
 
 ### Version Management

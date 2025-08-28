@@ -19,19 +19,7 @@ Before starting, make sure you have:
 
 Let's create a realistic scenario. We'll assume you've been working on a feature and made several changes:
 
-```bash
-# Check your current status
-git status
-```
-
-You might see something like:
-```
-On branch feature/user-dashboard
-Changes not staged for commit:
-  modified:   src/auth/login.py
-  modified:   src/ui/components.py
-  modified:   src/utils/helpers.py
-```
+![Git Status Check](../../screenshots/readme/workflow_step_01.png)
 
 ### Step 2: Run git-autosquash
 
@@ -42,17 +30,8 @@ git-autosquash
 ```
 
 You'll see initial analysis output:
-```
-Current branch: feature/user-dashboard
-Merge base: a1b2c3d4
-Working tree status: staged=False, unstaged=True, clean=False
 
-Analyzing changes and finding target commits...
-Found 7 hunks to process
-Found target commits for 5 hunks
-
-Launching interactive approval interface...
-```
+![Analysis and Launch](../../screenshots/readme/workflow_step_02.png)
 
 !!! info "What's Happening?"
     - git-autosquash analyzes your branch and finds the merge base with main/master
@@ -64,19 +43,7 @@ Launching interactive approval interface...
 
 The TUI opens with three main sections:
 
-```
-┌─ Hunk Mappings ────────────────────┐┌─ Diff Viewer ─────────────────────┐
-│ ✓ src/auth/login.py @@ -23,3 +23,4 ││ @@ -23,3 +23,4 @@                   │
-│   → abc1234 Fix validation bug     ││  def validate_user(username):       │
-│   (high confidence)                ││      if not username:               │
-│   □ Include in squash               ││ +        return False               │
-│                                    ││      # ... rest of function         │
-│ ✓ src/ui/components.py @@ -45,2... ││                                     │
-│   → def5678 Add button styling     │├─────────────────────────────────────┤
-│   (medium confidence)              ││ Progress: 0/5 approved (0%)         │
-│   □ Include in squash               │└─────────────────────────────────────┘
-└────────────────────────────────────┘
-```
+![TUI Interface Overview](../../screenshots/readme/feature_interactive_tui.png)
 
 ### Step 4: Review and Approve Changes
 
@@ -103,18 +70,7 @@ For each hunk mapping:
 
 After approving the changes you want, press **Enter** to execute:
 
-```
-User approved 3 hunks for squashing
-
-Executing interactive rebase...
-Distributing 3 hunks to their target commits:
-  1 hunk → abc1234 Fix validation bug (7 minutes ago)
-  2 hunks → def5678 Add button styling (2 hours ago)
-
-Starting rebase operation...
-✓ Squash operation completed successfully!
-Your changes have been distributed to their target commits.
-```
+![Execution Progress](../../screenshots/readme/workflow_step_05.png)
 
 ### Step 6: Verify the Results
 

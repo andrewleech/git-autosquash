@@ -1,0 +1,13 @@
+git-autosquash - Smart Targeting Demo
+
+Git Blame Analysis:
+abc1234  (dev@example.com  2024-01-15 14:23:45 -0800  45) def validate_login(email, pass):
+abc1234  (dev@example.com  2024-01-15 14:23:45 -0800  46)     if not email or not pass:
+abc1234  (dev@example.com  2024-01-15 14:23:45 -0800  47)         raise ValueError("Invalid")
+
+Your Changes:
++    if not email or not pass or len(pass) < 8:  # Enhanced validation
+
+🎯 Smart Target Resolution:
+   Confidence: 95% → Commit abc1234 "Fix login validation"
+   Reason: All modified lines trace to same commit
