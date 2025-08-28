@@ -242,52 +242,46 @@ class FallbackHunkMappingWidget(Widget):
         self._current_commit_list = self.commit_infos
 
     async def on_mount(self) -> None:
-        """Handle widget mounting - set focus to selected RadioButton."""
-        # Find the RadioSet with target selection
+        """Handle widget mounting - sync RadioSet cursor with selected value."""
         try:
             target_selector = self.query_one("#target-selector", RadioSet)
 
-            # Schedule proper focus setup after UI is fully assembled
-            async def setup_proper_focus():
-                # Wait for UI assembly to complete
-                await asyncio.sleep(0.1)
+            # For blame-matched targets (not needing user selection), sync cursor with selected value
+            if not self.mapping.needs_user_selection:
+                # Schedule proper cursor positioning after UI assembly
+                async def sync_radioset_cursor():
+                    await asyncio.sleep(0.1)  # Wait for RadioSet to complete setup
 
-                # Find the selected radio button and focus it directly
-                current_buttons = target_selector.query(RadioButton).results()
-                selected_button = None
+                    # Find which RadioButton is selected and navigate to it
+                    buttons = target_selector.query(RadioButton).results()
+                    selected_index = None
 
-                for button in current_buttons:
-                    if button.value:
-                        selected_button = button
-                        break
+                    for i, button in enumerate(buttons):
+                        if button.value:
+                            selected_index = i
+                            break
 
-                if selected_button and not self.mapping.needs_user_selection:
-                    # Focus the specific radio button that's selected
-                    selected_button.focus()
+                    if selected_index is not None and selected_index > 0:
+                        # Focus the RadioSet first
+                        target_selector.focus()
 
-                    # Return focus to the screen/container level and scroll to top
-                    # This ensures the screen shows the top and doesn't stay scrolled down
-                    screen = self.screen
-                    if screen:
-                        # Reset scroll position to top
-                        screen.scroll_to(0, 0, animate=False)
-                        # Set screen-level focus to ensure proper navigation
-                        screen.focus()
+                        # Navigate to the correct position using public navigation method
+                        # RadioSet starts at position 0, so navigate to selected_index
+                        for _ in range(selected_index):
+                            target_selector.action_next_button()
 
-            # Schedule the focus setup
-            self.call_after_refresh(setup_proper_focus)
+                # Schedule the cursor sync
+                self.call_after_refresh(sync_radioset_cursor)
 
-            # If this is the first widget, set initial screen focus to Accept button
+            # If this is the first widget, focus the action selector for initial navigation
             if self.is_first_widget:
-                await asyncio.sleep(
-                    0.1
-                )  # Small delay to ensure RadioSet setup completes
+                await asyncio.sleep(0.1)  # Ensure RadioSet setup completes
                 action_selector = self.query_one("#action-selector", RadioSet)
                 if action_selector:
                     action_selector.focus()
 
         except Exception:
-            # Gracefully handle if RadioSet or selected button not found
+            # Gracefully handle missing widgets
             pass
 
     def compose(self) -> ComposeResult:
