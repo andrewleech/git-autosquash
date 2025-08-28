@@ -1,5 +1,6 @@
 """Enhanced screen implementations with fallback target selection support."""
 
+import asyncio
 from typing import Dict, List, Union, Optional
 
 from textual import on
@@ -174,6 +175,16 @@ class EnhancedApprovalScreen(Screen[Union[bool, Dict[str, List[HunkTargetMapping
 
         # Update progress
         self._update_progress()
+
+        # Ensure the hunks scroll pane starts at the top
+        await asyncio.sleep(0.1)  # Small delay to ensure UI is fully rendered
+        try:
+            hunk_scroll_pane = self.query_one("#hunk-scroll-pane")
+            if hunk_scroll_pane and hasattr(hunk_scroll_pane, "scroll_to"):
+                hunk_scroll_pane.scroll_to(0, 0, animate=False)
+        except Exception:
+            # Gracefully handle if scroll pane not found
+            pass
 
         # Initial focus is now handled by the first widget's on_mount method
 

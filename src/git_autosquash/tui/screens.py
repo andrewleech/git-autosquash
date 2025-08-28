@@ -99,6 +99,15 @@ class ApprovalScreen(Screen[Union[bool, Dict[str, List[HunkTargetMapping]]]]):
         # Cache diff viewer reference
         self._diff_viewer = self.query_one("#diff-viewer", DiffViewer)
 
+        # Ensure the hunks list starts at the top
+        try:
+            hunk_list = self.query_one("#hunk-list")
+            if hunk_list and hasattr(hunk_list, "scroll_to"):
+                hunk_list.scroll_to(0, 0, animate=False)
+        except Exception:
+            # Gracefully handle if scroll container not found
+            pass
+
         # Select first hunk if available
         if self.hunk_widgets:
             self._select_widget(self.hunk_widgets[0])
