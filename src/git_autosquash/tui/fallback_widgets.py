@@ -246,26 +246,36 @@ class FallbackHunkMappingWidget(Widget):
         # Find the RadioSet with target selection
         try:
             target_selector = self.query_one("#target-selector", RadioSet)
-            radio_buttons = target_selector.query(RadioButton).results()
 
-            # Find which radio button is selected (value=True) and navigate to it
-            selected_index = None
-            for i, radio_button in enumerate(radio_buttons):
-                if radio_button.value:
-                    selected_index = i
-                    break
+            # Schedule proper focus setup after UI is fully assembled
+            async def setup_proper_focus():
+                # Wait for UI assembly to complete
+                await asyncio.sleep(0.1)
 
-            # For auto-detected targets, focus the RadioSet and navigate to selected item
-            if not self.mapping.needs_user_selection and selected_index is not None:
-                target_selector.focus()
+                # Find the selected radio button and focus it directly
+                current_buttons = target_selector.query(RadioButton).results()
+                selected_button = None
 
-                # Navigate to the selected button using keyboard simulation
-                # This moves the focus highlight to match the selection
-                for _ in range(selected_index):
-                    # Send down arrow key to navigate to the correct position
-                    target_selector.post_message(
-                        events.Key("down", key="down", character=None)
-                    )
+                for button in current_buttons:
+                    if button.value:
+                        selected_button = button
+                        break
+
+                if selected_button and not self.mapping.needs_user_selection:
+                    # Focus the specific radio button that's selected
+                    selected_button.focus()
+
+                    # Return focus to the screen/container level and scroll to top
+                    # This ensures the screen shows the top and doesn't stay scrolled down
+                    screen = self.screen
+                    if screen:
+                        # Reset scroll position to top
+                        screen.scroll_to(0, 0, animate=False)
+                        # Set screen-level focus to ensure proper navigation
+                        screen.focus()
+
+            # Schedule the focus setup
+            self.call_after_refresh(setup_proper_focus)
 
             # If this is the first widget, set initial screen focus to Accept button
             if self.is_first_widget:
