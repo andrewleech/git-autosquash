@@ -7,9 +7,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from git_autosquash.git_ops import GitOps
+from git_autosquash.git_native_handler import GitNativeIgnoreHandler
+from git_autosquash.git_worktree_handler import GitWorktreeIgnoreHandler
 from git_autosquash.hunk_parser import DiffHunk
 from git_autosquash.hunk_target_resolver import HunkTargetMapping, TargetingMethod
-from git_autosquash.main import _apply_ignored_hunks_legacy
 
 
 class TestPathTraversalProtection:
@@ -19,9 +20,30 @@ class TestPathTraversalProtection:
         """Setup test fixtures."""
         self.mock_git_ops = MagicMock(spec=GitOps)
         self.mock_git_ops.repo_path = "/fake/repo"
+        # Mock git operations to avoid actual git calls
+        self.mock_git_ops._run_git_command.return_value = (True, "stash_ref_12345")
+        self.mock_git_ops._run_git_command_with_input.return_value = (True, "")
+        self.native_handler = GitNativeIgnoreHandler(self.mock_git_ops)
+        self.worktree_handler = GitWorktreeIgnoreHandler(self.mock_git_ops)
+        # Mock worktree-specific operations to focus on security validation
+        self.worktree_handler._check_worktree_support = MagicMock(return_value=True)
+        self.worktree_handler._create_comprehensive_backup = MagicMock(
+            return_value="stash@{0}"
+        )
+        self.worktree_handler._create_temporary_worktree = MagicMock(
+            return_value=Path("/tmp/fake_worktree")
+        )
+        self.worktree_handler._apply_hunks_in_worktree = MagicMock(return_value=True)
+        self.worktree_handler._extract_changes_from_worktree = MagicMock(
+            return_value=True
+        )
+        self.worktree_handler._cleanup_temporary_worktree = MagicMock(return_value=None)
+        self.worktree_handler._restore_from_stash = MagicMock(return_value=True)
+        self.worktree_handler._cleanup_stash = MagicMock(return_value=None)
 
     def test_absolute_path_rejection(self):
         """Test rejection of absolute file paths."""
+
         absolute_path_hunk = DiffHunk(
             file_path="/etc/passwd",  # Absolute path - should be rejected
             old_start=1,
@@ -41,8 +63,12 @@ class TestPathTraversalProtection:
             targeting_method=TargetingMethod.BLAME_MATCH,
         )
 
-        result = _apply_ignored_hunks_legacy([mapping], self.mock_git_ops)
-        assert result is False  # Should reject absolute paths
+        # Test both handlers
+        native_result = self.native_handler.apply_ignored_hunks([mapping])
+        worktree_result = self.worktree_handler.apply_ignored_hunks([mapping])
+
+        assert native_result is False  # Should reject absolute paths
+        assert worktree_result is False  # Should reject absolute paths
 
     def test_path_traversal_rejection(self):
         """Test rejection of path traversal attempts."""
@@ -83,8 +109,16 @@ class TestPathTraversalProtection:
                 targeting_method=TargetingMethod.BLAME_MATCH,
             )
 
-            result = _apply_ignored_hunks_legacy([mapping], self.mock_git_ops)
-            assert result is False, f"Should reject path traversal: {malicious_path}"
+            # Test both handlers
+            native_result = self.native_handler.apply_ignored_hunks([mapping])
+            worktree_result = self.worktree_handler.apply_ignored_hunks([mapping])
+
+            assert native_result is False, (
+                f"Native handler should reject path traversal: {malicious_path}"
+            )
+            assert worktree_result is False, (
+                f"Worktree handler should reject path traversal: {malicious_path}"
+            )
 
     def test_symlink_detection_and_rejection(self):
         """Test detection and rejection of symlinks in file paths."""
@@ -129,8 +163,12 @@ class TestPathTraversalProtection:
                 targeting_method=TargetingMethod.BLAME_MATCH,
             )
 
-            result = _apply_ignored_hunks_legacy([mapping], self.mock_git_ops)
-            assert result is False  # Should reject paths with symlinks
+            # Test both handlers
+            native_result = self.native_handler.apply_ignored_hunks([mapping])
+            worktree_result = self.worktree_handler.apply_ignored_hunks([mapping])
+
+            assert native_result is False  # Should reject paths with symlinks
+            assert worktree_result is False  # Should reject paths with symlinks
 
     def test_legitimate_paths_acceptance(self):
         """Test that legitimate file paths are accepted."""
@@ -180,8 +218,16 @@ class TestPathTraversalProtection:
                     targeting_method=TargetingMethod.BLAME_MATCH,
                 )
 
-                result = _apply_ignored_hunks_legacy([mapping], self.mock_git_ops)
-                assert result is True, f"Should accept legitimate path: {legit_path}"
+                # Test both handlers
+                native_result = self.native_handler.apply_ignored_hunks([mapping])
+                worktree_result = self.worktree_handler.apply_ignored_hunks([mapping])
+
+                assert native_result is True, (
+                    f"Native handler should accept legitimate path: {legit_path}"
+                )
+                assert worktree_result is True, (
+                    f"Worktree handler should accept legitimate path: {legit_path}"
+                )
 
     def test_edge_case_path_formats(self):
         """Test edge case path formats that should be handled correctly."""
@@ -229,9 +275,15 @@ class TestPathTraversalProtection:
                 )
 
                 try:
-                    result = _apply_ignored_hunks_legacy([mapping], self.mock_git_ops)
+                    # Test both handlers
+                    native_result = self.native_handler.apply_ignored_hunks([mapping])
+                    worktree_result = self.worktree_handler.apply_ignored_hunks(
+                        [mapping]
+                    )
+
                     # Should handle without exceptions
-                    assert isinstance(result, bool)
+                    assert isinstance(native_result, bool)
+                    assert isinstance(worktree_result, bool)
                 except Exception as e:
                     # Should not raise unhandled exceptions
                     assert False, f"Unexpected exception for path '{edge_path}': {e}"
@@ -261,8 +313,16 @@ class TestPathTraversalProtection:
                 targeting_method=TargetingMethod.BLAME_MATCH,
             )
 
-            result = _apply_ignored_hunks_legacy([mapping], self.mock_git_ops)
-            assert result is False  # Should fail safely on path validation errors
+            # Test both handlers
+            native_result = self.native_handler.apply_ignored_hunks([mapping])
+            worktree_result = self.worktree_handler.apply_ignored_hunks([mapping])
+
+            assert (
+                native_result is False
+            )  # Should fail safely on path validation errors
+            assert (
+                worktree_result is False
+            )  # Should fail safely on path validation errors
 
     def test_repo_root_resolution_edge_cases(self):
         """Test edge cases in repository root resolution."""
@@ -270,6 +330,10 @@ class TestPathTraversalProtection:
         self.mock_git_ops.repo_path = "/nonexistent/repo/path"
         # Mock git operations to avoid the unpacking error
         self.mock_git_ops._run_git_command.return_value = (False, "repo not found")
+        # Override the worktree backup mock for this specific failure case
+        self.worktree_handler._create_comprehensive_backup = MagicMock(
+            return_value=None
+        )
 
         hunk = DiffHunk(
             file_path="src/file.py",
@@ -290,8 +354,12 @@ class TestPathTraversalProtection:
             targeting_method=TargetingMethod.BLAME_MATCH,
         )
 
-        result = _apply_ignored_hunks_legacy([mapping], self.mock_git_ops)
-        assert result is False  # Should handle non-existent repo gracefully
+        # Test both handlers
+        native_result = self.native_handler.apply_ignored_hunks([mapping])
+        worktree_result = self.worktree_handler.apply_ignored_hunks([mapping])
+
+        assert native_result is False  # Should handle non-existent repo gracefully
+        assert worktree_result is False  # Should handle non-existent repo gracefully
 
     def test_multiple_security_violations(self):
         """Test handling multiple security violations in a single call."""
@@ -323,8 +391,12 @@ class TestPathTraversalProtection:
             )
             mappings.append(mapping)
 
-        result = _apply_ignored_hunks_legacy(mappings, self.mock_git_ops)
-        assert result is False  # Should reject on first violation
+        # Test both handlers
+        native_result = self.native_handler.apply_ignored_hunks(mappings)
+        worktree_result = self.worktree_handler.apply_ignored_hunks(mappings)
+
+        assert native_result is False  # Should reject on first violation
+        assert worktree_result is False  # Should reject on first violation
 
     def test_security_with_git_operation_failures(self):
         """Test security validation when git operations fail."""
@@ -332,6 +404,10 @@ class TestPathTraversalProtection:
         self.mock_git_ops._run_git_command.return_value = (
             False,
             "stash creation failed",
+        )
+        # Override the worktree backup mock for this specific failure case
+        self.worktree_handler._create_comprehensive_backup = MagicMock(
+            return_value=None
         )
 
         # Use legitimate path - should pass security but fail on git operations
@@ -359,13 +435,27 @@ class TestPathTraversalProtection:
                 targeting_method=TargetingMethod.BLAME_MATCH,
             )
 
-            result = _apply_ignored_hunks_legacy([mapping], self.mock_git_ops)
-            assert result is False  # Should fail on git operations, not security
+            # Test both handlers
+            native_result = self.native_handler.apply_ignored_hunks([mapping])
+            worktree_result = self.worktree_handler.apply_ignored_hunks([mapping])
+
+            assert native_result is False  # Should fail on git operations, not security
+            assert (
+                worktree_result is False
+            )  # Should fail on git operations, not security
 
     def test_empty_mappings_list_security(self):
         """Test security handling with empty mappings list."""
-        result = _apply_ignored_hunks_legacy([], self.mock_git_ops)
-        assert result is True  # Empty list should succeed (no security violations)
+        # Test both handlers
+        native_result = self.native_handler.apply_ignored_hunks([])
+        worktree_result = self.worktree_handler.apply_ignored_hunks([])
+
+        assert (
+            native_result is True
+        )  # Empty list should succeed (no security violations)
+        assert (
+            worktree_result is True
+        )  # Empty list should succeed (no security violations)
 
     def test_case_sensitivity_in_paths(self):
         """Test case sensitivity handling in path validation."""
@@ -403,9 +493,15 @@ class TestPathTraversalProtection:
                 )
 
                 try:
-                    result = _apply_ignored_hunks_legacy([mapping], self.mock_git_ops)
+                    # Test both handlers
+                    native_result = self.native_handler.apply_ignored_hunks([mapping])
+                    worktree_result = self.worktree_handler.apply_ignored_hunks(
+                        [mapping]
+                    )
+
                     # Should handle without security violations
-                    assert isinstance(result, bool)
+                    assert isinstance(native_result, bool)
+                    assert isinstance(worktree_result, bool)
                 except Exception as e:
                     assert False, (
                         f"Unexpected exception for case variant '{case_variant}': {e}"

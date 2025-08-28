@@ -3,7 +3,7 @@
 import argparse
 import subprocess
 import sys
-from typing import Dict, List
+from typing import List
 
 from git_autosquash import __version__
 from git_autosquash.hunk_target_resolver import HunkTargetResolver
@@ -15,7 +15,7 @@ from git_autosquash.exceptions import (
     handle_unexpected_error,
 )
 from git_autosquash.git_ops import GitOps
-from git_autosquash.hunk_parser import DiffHunk, HunkParser
+from git_autosquash.hunk_parser import HunkParser
 from git_autosquash.rebase_manager import RebaseConflictError, RebaseManager
 
 
@@ -126,133 +126,6 @@ def _simple_approval_fallback(mappings, resolver, commit_analyzer=None):
                     print("Please enter s (squash), i (ignore), n (skip), or q (quit)")
 
     return {"approved": approved_mappings, "ignored": ignored_mappings}
-
-
-def _apply_ignored_hunks_legacy(ignored_mappings, git_ops) -> bool:
-    """Apply ignored hunks back to the working tree with best-effort recovery.
-
-    Creates a backup and attempts to restore on failure, but cannot guarantee
-    atomicity across multiple git operations.
-
-    Args:
-        ignored_mappings: List of ignored hunk to commit mappings
-        git_ops: GitOps instance
-
-    Returns:
-        True if successful, False if any hunks could not be applied
-    """
-    if not ignored_mappings:
-        return True
-
-    from pathlib import Path
-
-    # Enhanced path validation to prevent path traversal attacks
-    try:
-        repo_root = Path(git_ops.repo_path).resolve()
-        for mapping in ignored_mappings:
-            file_path = Path(mapping.hunk.file_path)
-            # Reject absolute paths
-            if file_path.is_absolute():
-                print(
-                    f"Error: Absolute file path not allowed - {mapping.hunk.file_path}"
-                )
-                return False
-
-            # Check for symlinks in path components (security)
-            current_path = repo_root
-            for part in file_path.parts:
-                current_path = current_path / part
-                if current_path.is_symlink():
-                    print(
-                        f"Error: Symlinks not allowed in file paths - {mapping.hunk.file_path}"
-                    )
-                    return False
-
-            # Check for path traversal by resolving against repo root
-            resolved_path = (repo_root / file_path).resolve()
-            try:
-                resolved_path.relative_to(repo_root)
-            except ValueError:
-                print(f"Error: Path traversal detected - {mapping.hunk.file_path}")
-                return False
-    except Exception as e:
-        print(f"Error: Path validation failed - {e}")
-        return False
-
-    # Create backup stash
-    success, stash_ref = git_ops._run_git_command(
-        "stash", "create", "autosquash-backup"
-    )
-    if not success:
-        print("Error: Failed to create backup stash")
-        return False
-
-    # Track files that will be modified for targeted rollback
-    modified_files = list(set(mapping.hunk.file_path for mapping in ignored_mappings))
-    stash_ref = stash_ref.strip()
-
-    try:
-        # Batch all hunks into single patch for efficiency
-        all_hunks_patch = _create_combined_patch(ignored_mappings)
-        success, error_msg = git_ops._run_git_command_with_input(
-            "apply", input_text=all_hunks_patch
-        )
-
-        if not success:
-            print(f"Error: Failed to apply patches - {error_msg}")
-            # Attempt targeted rollback of only the files we were modifying
-            for file_path in modified_files:
-                git_ops._run_git_command("checkout", stash_ref, "--", file_path)
-            return False
-
-        return True
-
-    except Exception as e:
-        print(f"Error: Patch application failed - {e}")
-        # Attempt targeted rollback
-        for file_path in modified_files:
-            git_ops._run_git_command("checkout", stash_ref, "--", file_path)
-        return False
-    finally:
-        # Clean up the stash reference we created
-        if stash_ref and stash_ref != "":
-            git_ops._run_git_command("stash", "drop", stash_ref)
-
-
-def _create_combined_patch(ignored_mappings) -> str:
-    """Create a single combined patch for all ignored hunks.
-
-    Batches hunks by file for efficient single-operation application.
-
-    Args:
-        ignored_mappings: List of ignored hunk to commit mappings
-
-    Returns:
-        Combined patch content for all hunks
-    """
-    # Group hunks by file path
-    files_with_hunks: Dict[str, List[DiffHunk]] = {}
-    for mapping in ignored_mappings:
-        file_path = mapping.hunk.file_path
-        if file_path not in files_with_hunks:
-            files_with_hunks[file_path] = []
-        files_with_hunks[file_path].append(mapping.hunk)
-
-    patch_lines = []
-
-    # Create patch section for each file
-    for file_path, hunks in files_with_hunks.items():
-        # Add diff header for this file
-        patch_lines.append(f"diff --git a/{file_path} b/{file_path}")
-        patch_lines.append("index 0000000..1111111 100644")
-        patch_lines.append(f"--- a/{file_path}")
-        patch_lines.append(f"+++ b/{file_path}")
-
-        # Add all hunks for this file
-        for hunk in hunks:
-            patch_lines.extend(hunk.lines)
-
-    return "\n".join(patch_lines) + "\n"
 
 
 def _apply_ignored_hunks(ignored_mappings, git_ops) -> bool:
