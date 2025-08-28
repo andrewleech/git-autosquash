@@ -270,6 +270,11 @@ class FallbackHunkMappingWidget(Widget):
                         for _ in range(selected_index):
                             target_selector.action_next_button()
 
+                    # After configuring highlights, ensure the screen is scrolled to the top
+                    screen = self.screen
+                    if screen and hasattr(screen, "scroll_to"):
+                        screen.scroll_to(0, 0, animate=False)
+
                 # Schedule the cursor sync
                 self.call_after_refresh(sync_radioset_cursor)
 
