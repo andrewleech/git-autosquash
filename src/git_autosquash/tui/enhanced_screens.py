@@ -3,6 +3,8 @@
 import asyncio
 from typing import Dict, List, Union, Optional
 
+from .ui_controllers import UILifecycleManager, ScrollManager
+
 from textual import on
 from textual.app import ComposeResult
 from textual.binding import Binding
@@ -85,6 +87,10 @@ class EnhancedApprovalScreen(Screen[Union[bool, Dict[str, List[HunkTargetMapping
         self._mapping_to_index: Dict[HunkTargetMapping, int] = {}
         self._cleanup_required = True
 
+        # Initialize screen-level UI management
+        self.ui_manager = UILifecycleManager(self)
+        self.scroll_manager = ScrollManager()
+
         # Generate commit info for fallback scenarios
         self.commit_infos = self._generate_commit_suggestions()
 
@@ -166,40 +172,45 @@ class EnhancedApprovalScreen(Screen[Union[bool, Dict[str, List[HunkTargetMapping
         yield Footer()
 
     async def on_mount(self) -> None:
-        """Handle screen mounting."""
+        """Handle screen mounting with event-driven architecture."""
         # No separate diff viewer in new layout - diff is embedded in each hunk
         self._diff_viewer = None
 
-        # Don't auto-select any widget - let each widget handle its own RadioButton focus
-        # This prevents conflicting highlights between widget-level selection and RadioButton focus
+        # Initialize scroll management
+        try:
+            hunk_scroll_pane = self.query_one("#hunk-scroll-pane")
+            self.scroll_manager.register_scroll_target(
+                "hunk-scroll-pane", hunk_scroll_pane
+            )
+        except Exception as e:
+            self.log.error(f"Could not register hunk scroll pane: {e}")
 
         # Update progress
         self._update_progress()
 
-        # Ensure the hunks scroll pane starts at the top
-        await asyncio.sleep(0.1)  # Small delay to ensure UI is fully rendered
-        try:
-            hunk_scroll_pane = self.query_one("#hunk-scroll-pane")
-            if hunk_scroll_pane and hasattr(hunk_scroll_pane, "scroll_to"):
-                hunk_scroll_pane.scroll_to(0, 0, animate=False)
-        except Exception:
-            # Gracefully handle if scroll pane not found
-            pass
+        # Register ready callback for scroll to top
+        self.ui_manager.register_ready_callback(self._ensure_scroll_to_top)
 
-        # Add a second scroll-to-top after widget focus setup to override any delayed scrolling
-        async def ensure_top_after_focus():
-            await asyncio.sleep(0.2)  # Wait for widget focus events to complete
+        # Use call_after_refresh to advance UI states after DOM is ready
+        self.call_after_refresh(self._advance_screen_states)
+
+    def _advance_screen_states(self) -> None:
+        """Advance screen UI states after DOM is ready."""
+        self.ui_manager.advance_to_mounted()
+        self.ui_manager.advance_to_focus_ready()
+        self.ui_manager.advance_to_scroll_ready()
+
+    def _ensure_scroll_to_top(self) -> None:
+        """Ensure the hunks scroll pane is at the top."""
+
+        async def scroll_to_top():
             try:
-                hunk_scroll_pane = self.query_one("#hunk-scroll-pane")
-                if hunk_scroll_pane and hasattr(hunk_scroll_pane, "scroll_to"):
-                    hunk_scroll_pane.scroll_to(0, 0, animate=False)
-            except Exception:
-                pass
+                await self.scroll_manager.scroll_to_top("hunk-scroll-pane")
+                self.log.debug("Scrolled hunk pane to top")
+            except Exception as e:
+                self.log.error(f"Error scrolling to top: {e}")
 
-        # Schedule the delayed scroll reset
-        self.call_after_refresh(ensure_top_after_focus)
-
-        # Initial focus is now handled by the first widget's on_mount method
+        asyncio.create_task(scroll_to_top())
 
     def _create_hunk_widget(
         self,

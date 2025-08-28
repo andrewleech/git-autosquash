@@ -1,6 +1,9 @@
 """Screen implementations for git-autosquash TUI."""
 
+import asyncio
 from typing import Dict, List, Union
+
+from .ui_controllers import ScrollManager
 
 from textual import on
 from textual.app import ComposeResult
@@ -44,6 +47,9 @@ class ApprovalScreen(Screen[Union[bool, Dict[str, List[HunkTargetMapping]]]]):
 
         # Centralized state management
         self.state_controller = UIStateController(mappings)
+
+        # Initialize scroll management
+        self.scroll_manager = ScrollManager()
 
         # O(1) lookup cache for widget selection performance
         self._mapping_to_widget: Dict[HunkTargetMapping, HunkMappingWidget] = {}
@@ -95,22 +101,27 @@ class ApprovalScreen(Screen[Union[bool, Dict[str, List[HunkTargetMapping]]]]):
         yield Footer()
 
     def on_mount(self) -> None:
-        """Handle screen mounting."""
+        """Handle screen mounting with proper scroll management."""
         # Cache diff viewer reference
         self._diff_viewer = self.query_one("#diff-viewer", DiffViewer)
 
-        # Select first hunk if available (before scroll reset to avoid double scroll)
+        # Register scroll target
+        try:
+            hunk_list = self.query_one("#hunk-list")
+            self.scroll_manager.register_scroll_target("hunk-list", hunk_list)
+            self.scroll_manager.mark_scroll_ready()
+        except Exception as e:
+            self.log.error(f"Could not register hunk list scroll target: {e}")
+
+        # Select first hunk if available (without scrolling)
         if self.hunk_widgets:
             self._select_widget(self.hunk_widgets[0], scroll_visible=False)
 
-        # Ensure the hunks list starts at the top (after selection to override any scroll)
+        # Ensure scroll to top after everything is set up
         try:
-            hunk_list = self.query_one("#hunk-list")
-            if hunk_list and hasattr(hunk_list, "scroll_to"):
-                hunk_list.scroll_to(0, 0, animate=False)
-        except Exception:
-            # Gracefully handle if scroll container not found
-            pass
+            asyncio.create_task(self.scroll_manager.scroll_to_top("hunk-list"))
+        except Exception as e:
+            self.log.error(f"Error scrolling to top: {e}")
 
         # Update progress
         self._update_progress()

@@ -3,11 +3,14 @@
 import asyncio
 from typing import Dict, List, Optional, Union
 
+from .ui_controllers import UILifecycleManager
+
 from rich.syntax import Syntax
 from rich.text import Text
 from textual import events, on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
+from textual.css.query import NoMatches
 from textual.message import Message
 from textual.reactive import reactive
 from textual.widget import Widget
@@ -213,6 +216,9 @@ class FallbackHunkMappingWidget(Widget):
         self.is_first_widget = is_first_widget
         self.show_all_commits = False  # Track filter state
 
+        # Initialize UI lifecycle management
+        self.ui_manager = UILifecycleManager(self)
+
         # Always get both filtered and all commits for visibility-based filtering
         self.file_commits: List[CommitInfo] = []
         self.all_commits: List[CommitInfo] = []
@@ -238,56 +244,142 @@ class FallbackHunkMappingWidget(Widget):
 
         # Create commit hash to index mapping for O(1) lookups
         self._commit_hash_to_id: Dict[str, str] = {}
+        self._id_to_commit_hash: Dict[
+            str, str
+        ] = {}  # Reverse lookup for O(1) performance
         self._file_commit_hashes = {c.commit_hash for c in self.file_commits}
         self._current_commit_list = self.commit_infos
 
     async def on_mount(self) -> None:
-        """Handle widget mounting - sync RadioSet cursor with selected value."""
+        """Handle widget mounting using event-driven lifecycle management."""
+        # Advance to mounted state
+        self.ui_manager.advance_to_mounted()
+
         try:
-            target_selector = self.query_one("#target-selector", RadioSet)
+            # Focus targets will be registered in _advance_ui_states after DOM is fully ready
 
-            # For blame-matched targets (not needing user selection), sync cursor with selected value
+            # Action selector registration will also happen in _advance_ui_states
+
+            # Register cleanup for unmount
+            self.ui_manager.register_cleanup_callback(self._cleanup_widget_resources)
+
+            # Register focus sync callback to run after UI is fully assembled
             if not self.mapping.needs_user_selection:
-                # Schedule proper cursor positioning after UI assembly
-                async def sync_radioset_cursor():
-                    await asyncio.sleep(0.1)  # Wait for RadioSet to complete setup
+                self.ui_manager.register_ready_callback(self._sync_focus_after_assembly)
 
-                    # Find which RadioButton is selected and navigate to it
-                    buttons = target_selector.query(RadioButton).results()
-                    selected_index = None
-
-                    for i, button in enumerate(buttons):
-                        if button.value:
-                            selected_index = i
-                            break
-
-                    if selected_index is not None and selected_index > 0:
-                        # Focus the RadioSet first
-                        target_selector.focus()
-
-                        # Navigate to the correct position using public navigation method
-                        # RadioSet starts at position 0, so navigate to selected_index
-                        for _ in range(selected_index):
-                            target_selector.action_next_button()
-
-                    # After configuring highlights, ensure the screen is scrolled to the top
-                    screen = self.screen
-                    if screen and hasattr(screen, "scroll_to"):
-                        screen.scroll_to(0, 0, animate=False)
-
-                # Schedule the cursor sync
-                self.call_after_refresh(sync_radioset_cursor)
-
-            # If this is the first widget, focus the action selector for initial navigation
             if self.is_first_widget:
-                await asyncio.sleep(0.1)  # Ensure RadioSet setup completes
+                self.ui_manager.register_ready_callback(self._set_initial_focus)
+
+            # Use call_after_refresh to ensure DOM is ready, then advance states
+            self.call_after_refresh(self._advance_ui_states)
+
+        except Exception as e:
+            self.log.error(f"Error during widget mount: {e}")
+            # Still advance states to prevent hanging
+            self.call_after_refresh(self._advance_ui_states)
+
+    def _advance_ui_states(self) -> None:
+        """Advance UI states after DOM is ready."""
+        try:
+            # Register RadioSet targets for focus management after DOM is ready
+            target_selector = self.query_one("#target-selector", RadioSet)
+            if target_selector:
+                self.ui_manager.focus_controller.register_focus_target(
+                    "target-selector", target_selector
+                )
+
+            # Register action selector if present
+            try:
                 action_selector = self.query_one("#action-selector", RadioSet)
                 if action_selector:
-                    action_selector.focus()
+                    self.ui_manager.focus_controller.register_focus_target(
+                        "action-selector", action_selector
+                    )
+            except (NoMatches, AttributeError):
+                # Action selector might not exist in all scenarios - this is expected
+                pass
 
-        except Exception:
-            # Gracefully handle missing widgets
-            pass
+            # Now advance to ready states
+            self.ui_manager.advance_to_focus_ready()
+            self.ui_manager.advance_to_scroll_ready()
+        except Exception as e:
+            self.log.error(f"Error advancing UI states: {e}")
+
+    def _sync_focus_after_assembly(self) -> None:
+        """Sync focus to selected RadioButton after UI is fully assembled."""
+
+        async def sync_focus():
+            try:
+                # Wait for UI to be fully ready
+                await self.ui_manager.focus_controller.wait_for_focus_ready()
+
+                # Find the target selector
+                target_selector = self.query_one("#target-selector", RadioSet)
+
+                # Find the button marked as target (has _is_target attribute)
+                all_buttons = target_selector.query("RadioButton").results()
+                target_button = None
+
+                for button in all_buttons:
+                    if hasattr(button, "value") and button.value:
+                        target_button = button
+                        break
+
+                if target_button:
+                    # Focus FIRST (while value=False), then set value=True
+                    target_button.value = False
+                    target_button.focus()
+                    target_button.value = True
+                    self.log.debug(
+                        f"Focused and selected target button: {target_button.id}"
+                    )
+
+            except Exception as e:
+                self.log.error(f"Error syncing focus after assembly: {e}")
+
+        asyncio.create_task(sync_focus())
+
+    def _set_initial_focus(self) -> None:
+        """Set initial focus for first widget."""
+
+        async def set_focus():
+            try:
+                # Wait for focus system to be ready
+                await self.ui_manager.focus_controller.wait_for_focus_ready()
+                # Set focus to action selector or target selector (only for first widget)
+                if self.is_first_widget:
+                    action_selector = (
+                        self.ui_manager.focus_controller.focus_targets.get(
+                            "action-selector"
+                        )
+                    )
+                    if action_selector and hasattr(action_selector, "focus"):
+                        action_selector.focus()
+                    else:
+                        target_selector = (
+                            self.ui_manager.focus_controller.focus_targets.get(
+                                "target-selector"
+                            )
+                        )
+                        if target_selector and hasattr(target_selector, "focus"):
+                            target_selector.focus()
+            except Exception as e:
+                self.log.error(f"Error setting initial focus: {e}")
+
+        # Create and run the async task
+        asyncio.create_task(set_focus())
+
+    def _cleanup_widget_resources(self) -> None:
+        """Clean up widget-specific resources."""
+        # Clear commit hash mappings
+        self._commit_hash_to_id.clear()
+        self._id_to_commit_hash.clear()
+        self._file_commit_hashes.clear()
+
+    def on_unmount(self) -> None:
+        """Handle widget unmounting with proper cleanup."""
+        if hasattr(self, "ui_manager"):
+            self.ui_manager.cleanup()
 
     def compose(self) -> ComposeResult:
         """Compose the widget layout."""
@@ -317,7 +409,9 @@ class FallbackHunkMappingWidget(Widget):
 
             # Compact checkbox for commit filter (only if analyzer available and we have commits)
             if self.commit_analyzer and (self.all_commits or self.file_commits):
-                yield Checkbox("Show all commits", id="show-all-commits", value=False)
+                yield Checkbox(
+                    "Show all commits", id="show-all-commits", value=False, compact=True
+                )
 
             # RadioSet with commit options using proper Textual patterns
             with RadioSet(id="target-selector"):
@@ -329,8 +423,10 @@ class FallbackHunkMappingWidget(Widget):
                         label = self._format_commit_option(commit_info)
                         commit_id = f"commit-{i}"
 
-                        # Store hash mapping for event handling
+                        # Store hash mapping for event handling (maintain both directions for O(1) lookup)
                         self._commit_hash_to_id[commit_info.commit_hash] = commit_id
+                        self._id_to_commit_hash[commit_id] = commit_info.commit_hash
+                        self._id_to_commit_hash[commit_id] = commit_info.commit_hash
 
                         # Set value=True for target commit (proper Textual pattern)
                         is_target = (
@@ -360,6 +456,7 @@ class FallbackHunkMappingWidget(Widget):
                         label = self._format_commit_option(commit_info)
                         commit_id = f"commit-{i}"
                         self._commit_hash_to_id[commit_info.commit_hash] = commit_id
+                        self._id_to_commit_hash[commit_id] = commit_info.commit_hash
                         is_target = (
                             commit_info.commit_hash == target_hash
                             and not self.mapping.needs_user_selection
@@ -371,6 +468,7 @@ class FallbackHunkMappingWidget(Widget):
                     # Absolute fallback option
                     existing_hash = self.mapping.target_commit or "existing"
                     self._commit_hash_to_id[existing_hash] = "existing"
+                    self._id_to_commit_hash["existing"] = existing_hash
                     yield RadioButton(
                         "Use existing target commit",
                         id="existing",
@@ -420,92 +518,8 @@ class FallbackHunkMappingWidget(Widget):
 
     def _get_commit_hash_from_button_id(self, button_id: str) -> Optional[str]:
         """Get commit hash from button ID using O(1) lookup."""
-        # Reverse lookup from ID to hash
-        for commit_hash, mapped_id in self._commit_hash_to_id.items():
-            if mapped_id == button_id:
-                return commit_hash
-        return None
-
-    def _refresh_commit_list(self) -> None:
-        """Refresh commit list based on show_all_commits toggle.
-
-        Uses simple visibility toggle instead of widget reconstruction to avoid timeouts.
-        """
-        if not self.commit_analyzer:
-            return
-
-        try:
-            # Get target selector
-            target_selector = self.query_one("#target-selector", RadioSet)
-
-            # Get new commit list based on filter state
-            if self.show_all_commits:
-                # All branch commits
-                new_commits = self.commit_analyzer.get_commit_suggestions(
-                    CommitSelectionStrategy.RECENCY
-                )[:MAX_ALL_COMMIT_OPTIONS]
-            else:
-                # File-specific commits only
-                new_commits = self.commit_analyzer.get_commit_suggestions(
-                    CommitSelectionStrategy.FILE_RELEVANCE,
-                    target_file=self.mapping.hunk.file_path,
-                )[:MAX_FILE_COMMIT_OPTIONS]
-
-            # Create new radio buttons and update in batch
-            self._update_commit_buttons(target_selector, new_commits)
-
-            # Update tracking state
-            self.commit_infos = new_commits
-            self._current_commit_list = self.commit_infos
-
-        except Exception as e:
-            # If refresh fails, log error and continue with current state
-            self.log.error(f"Failed to refresh commit list: {e}")
-
-    def _update_commit_buttons(
-        self, target_selector: RadioSet, commits: List[CommitInfo]
-    ) -> None:
-        """Update commit buttons by replacing content efficiently."""
-        # Clear existing mappings
-        self._commit_hash_to_id.clear()
-
-        # Store current selection if any
-        current_selection = None
-        if hasattr(target_selector, "pressed") and target_selector.pressed:
-            current_selection = target_selector.pressed.id
-
-        # Remove all existing buttons
-        target_selector.remove_children()
-
-        # Add new commit buttons
-        target_hash = self.mapping.target_commit
-        for i, commit_info in enumerate(commits):
-            label = self._format_commit_option(commit_info)
-            commit_id = f"commit-{i}"
-            self._commit_hash_to_id[commit_info.commit_hash] = commit_id
-
-            is_target = (
-                commit_info.commit_hash == target_hash
-                and not self.mapping.needs_user_selection
-            )
-
-            radio_button = RadioButton(label, id=commit_id, value=is_target)
-            target_selector.mount(radio_button)
-
-        # Add action buttons
-        target_selector.mount(RadioButton("Accept selected commit", id="action-accept"))
-        target_selector.mount(
-            RadioButton("Ignore (keep in working tree)", id="action-ignore")
-        )
-
-        # Restore selection if it still exists
-        if current_selection:
-            try:
-                button = target_selector.query_one(f"#{current_selection}")
-                if hasattr(button, "value"):
-                    button.value = True
-            except Exception:
-                pass  # Selection no longer exists, that's OK
+        # Use reverse lookup for O(1) performance
+        return self._id_to_commit_hash.get(button_id)
 
     def _format_commit_option(self, commit_info: CommitInfo) -> str:
         """Format commit info with dynamic width calculation."""
