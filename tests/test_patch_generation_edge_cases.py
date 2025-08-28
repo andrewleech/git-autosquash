@@ -617,7 +617,7 @@ class TestPatchGenerationEdgeCases:
 
         git_ops = GitOps(str(repo.repo_path))
         hunk_parser = HunkParser(git_ops)
-        rebase_manager = RebaseManager(git_ops, repo.base_commit)
+        RebaseManager(git_ops, repo.base_commit)
 
         # Test various corrupted diff formats
         corrupted_diffs = [

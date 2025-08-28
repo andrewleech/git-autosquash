@@ -402,7 +402,7 @@ class TestPatchGenerationFix:
         for i in range(1000):
             large_content += f"#define CONSTANT_{i:03d} MICROPY_PY___FILE__\n"
 
-        large_commit = micropython_scenario.repo.add_commit(
+        micropython_scenario.repo.add_commit(
             {"large_file.h": large_content}, "Add large file with many patterns"
         )
 
@@ -456,7 +456,7 @@ class TestPatchGenerationFix:
 
         content = "\n".join(content_lines)
 
-        base_commit = micropython_scenario.repo.add_commit(
+        micropython_scenario.repo.add_commit(
             {"scalability_test.c": content},
             f"Add scalability test with {pattern_count} patterns",
         )
@@ -491,7 +491,7 @@ class TestErrorRecoveryInPatchGeneration:
     ):
         """Test recovery from corrupted git repository state."""
         # Create normal scenario first
-        commits = micropython_scenario.create_micropython_scenario()
+        micropython_scenario.create_micropython_scenario()
 
         # Corrupt the git state
         git_dir = micropython_scenario.repo.repo_path / ".git"
@@ -507,7 +507,7 @@ class TestErrorRecoveryInPatchGeneration:
 
             # This might fail, but should not crash the system
             try:
-                hunks = hunk_parser.parse_hunks()
+                hunk_parser.parse_hunks()
             except Exception as e:
                 # Expected - corrupted state should be detected
                 assert "git" in str(e).lower() or "branch" in str(e).lower()
@@ -521,7 +521,7 @@ class TestErrorRecoveryInPatchGeneration:
     ):
         """Test recovery when files are unexpectedly missing."""
         # Create scenario
-        commits = micropython_scenario.create_micropython_scenario()
+        micropython_scenario.create_micropython_scenario()
 
         # Remove a file that should exist
         test_file = (
@@ -534,7 +534,7 @@ class TestErrorRecoveryInPatchGeneration:
 
         # Should handle missing files gracefully
         try:
-            hunks = hunk_parser.parse_hunks()
+            hunk_parser.parse_hunks()
             # If it succeeds, that's fine too
         except Exception as e:
             # Should be a clear, handleable error

@@ -30,7 +30,7 @@ class TextualAssertions:
         """Assert that a widget with the given ID is visible on screen."""
         try:
             widget = pilot.app.screen.query_one(f"#{widget_id}")
-        except:
+        except Exception:
             # Fallback to app query if not found in screen
             widget = pilot.app.query_one(f"#{widget_id}")
         assert widget is not None, f"Widget with ID '{widget_id}' not found"
@@ -93,7 +93,7 @@ class TextualAssertions:
         """Extract the progress text from screen."""
         try:
             description_widget = pilot.app.screen.query_one("#screen-description")
-        except:
+        except Exception:
             description_widget = pilot.app.query_one("#screen-description")
         if description_widget and hasattr(description_widget, "renderable"):
             return str(description_widget.renderable)

@@ -175,7 +175,7 @@ class ErrorBoundary:
 
     def categorize_exception(self, exception: Exception) -> TestErrorCategory:
         """Categorize an exception into a test error category."""
-        exception_type = type(exception)
+        type(exception)
         exception_message = str(exception).lower()
 
         # Git-specific errors

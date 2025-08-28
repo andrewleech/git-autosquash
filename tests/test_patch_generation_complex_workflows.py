@@ -110,7 +110,7 @@ void function_a() {
 """
         conflict_file.write_text(branch1_content)
         subprocess.run(["git", "add", "."], cwd=self.repo_path, check=True)
-        branch1_commit = subprocess.run(
+        subprocess.run(
             ["git", "commit", "-m", "Branch 1 changes"],
             cwd=self.repo_path,
             check=True,
@@ -135,7 +135,7 @@ void function_b() {
 """
         conflict_file.write_text(branch2_content)
         subprocess.run(["git", "add", "."], cwd=self.repo_path, check=True)
-        branch2_commit = subprocess.run(
+        subprocess.run(
             ["git", "commit", "-m", "Branch 2 changes"],
             cwd=self.repo_path,
             check=True,
@@ -227,7 +227,7 @@ void config_function_b() {
         modified_content_2 = modified_content_1.replace(
             "OLD_PATTERN_B", "NEW_PATTERN_B"
         )
-        commit2 = builder.modify_file_add_commit(
+        builder.modify_file_add_commit(
             "complex.c", modified_content_2, "Update pattern B"
         )
 
@@ -280,7 +280,7 @@ void config_function_b() {
         patch_file.write_text(patch_content)
 
         # Verify patch check (may have conflicts, which is expected)
-        check_result = git_ops.run_git_command(["apply", "--check", str(patch_file)])
+        git_ops.run_git_command(["apply", "--check", str(patch_file)])
         # In complex scenarios, conflicts are expected - we're testing the patch structure
 
     def test_cherry_pick_scenario_with_context_changes(self, complex_workflow_repo):
@@ -306,7 +306,7 @@ void setup() {
         base_commit = builder.create_base_file("cherry_pick_test.c", base_content)
 
         # Create feature branch that modifies context around patterns
-        feature_branch = builder.create_feature_branch("feature", base_commit)
+        builder.create_feature_branch("feature", base_commit)
 
         # Modify context in feature branch
         feature_content = """// Multiple similar patterns for cherry-pick testing
@@ -328,7 +328,7 @@ void setup() {
     #endif
 }
 """
-        context_commit = builder.modify_file_add_commit(
+        builder.modify_file_add_commit(
             "cherry_pick_test.c", feature_content, "Add context around patterns"
         )
 
@@ -412,7 +412,7 @@ void additional_feature() {
         pattern_file = builder.repo_path / "multi_branch.c"
         pattern_file.write_text(pattern_update_content)
         subprocess.run(["git", "add", "."], cwd=builder.repo_path, check=True)
-        pattern_commit = subprocess.run(
+        subprocess.run(
             ["git", "commit", "-m", "Update configuration pattern"],
             cwd=builder.repo_path,
             check=True,
@@ -550,7 +550,7 @@ void complex_function() {
         patch_file = builder.repo_path / "fixup.patch"
         patch_file.write_text(patch_content)
 
-        check_result = git_ops.run_git_command(["apply", "--check", str(patch_file)])
+        git_ops.run_git_command(["apply", "--check", str(patch_file)])
         # Record result for analysis (conflicts may be expected in complex scenarios)
 
     def test_stash_unstash_during_complex_rebase(self, complex_workflow_repo):

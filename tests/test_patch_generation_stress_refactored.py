@@ -176,7 +176,7 @@ class StressTestExecutor:
         finally:
             # Force garbage collection and measure final memory
             gc.collect()
-            final_memory = tracker.record_measurement()
+            tracker.record_measurement()
 
             # Verify memory usage is reasonable
             memory_increase = tracker.get_memory_increase()
@@ -259,7 +259,7 @@ class TestPatchGenerationStress:
         """Test patch generation performance with large files."""
         with stress_executor.memory_monitoring() as tracker:
             # Create large file scenario
-            commit_hash = stress_repo.create_large_file_scenario(line_count=10000)
+            stress_repo.create_large_file_scenario(line_count=10000)
 
             # Modify the file to create hunks
             large_content = (stress_repo.repo_path / "large_file.txt").read_text()
@@ -292,7 +292,7 @@ class TestPatchGenerationStress:
         """Test handling many files without memory issues."""
         with stress_executor.memory_monitoring() as tracker:
             # Create many small files
-            commit_hash = stress_repo.create_large_repository_scenario(
+            stress_repo.create_large_repository_scenario(
                 file_count=100, lines_per_file=100
             )
 
@@ -368,7 +368,7 @@ class TestPatchGenerationStress:
         """Test operations that consume significant memory."""
         with stress_executor.memory_monitoring() as tracker:
             # Create memory-intensive scenario
-            commit_hash = stress_repo.create_memory_intensive_scenario(total_size_mb=5)
+            stress_repo.create_memory_intensive_scenario(total_size_mb=5)
 
             # Perform multiple memory-intensive operations
             for i in range(3):
@@ -422,7 +422,7 @@ class TestPatchGenerationStress:
 
                     # Try to parse hunks
                     hunk_parser = HunkParser(repo.git_ops)
-                    hunks = hunk_parser.parse_hunks()
+                    hunk_parser.parse_hunks()
 
                 return True
 
@@ -497,7 +497,7 @@ class TestPatchGenerationStress:
 def test_patch_generation_performance_benchmark(stress_repo: StressTestRepository):
     """Benchmark patch generation performance for regression testing."""
     # Create test scenario
-    commit_hash = stress_repo.create_large_file_scenario(line_count=5000)
+    stress_repo.create_large_file_scenario(line_count=5000)
 
     # Modify file to create hunks
     file_path = stress_repo.repo_path / "large_file.txt"
@@ -525,11 +525,11 @@ def test_memory_usage_benchmark(stress_repo: StressTestRepository):
 
     try:
         # Create memory-intensive scenario
-        commit_hash = stress_repo.create_memory_intensive_scenario(total_size_mb=3)
+        stress_repo.create_memory_intensive_scenario(total_size_mb=3)
 
         # Perform operations
         hunk_parser = HunkParser(stress_repo.git_ops)
-        hunks = hunk_parser.parse_hunks()
+        hunk_parser.parse_hunks()
 
         # Measure memory
         memory_increase = tracker.get_memory_increase()

@@ -129,7 +129,7 @@ class TestLayoutResponsivenessDemo:
             # Verify layout hierarchy matches expectations
             main_container = pilot.app.screen.query_one("#main-container")
             content_wrapper = pilot.app.screen.query_one("#content-wrapper")
-            content_area = pilot.app.screen.query_one("#content-area")
+            pilot.app.screen.query_one("#content-area")
             action_buttons = pilot.app.screen.query_one("#action-buttons")
 
             # Main container should fill screen minus header/footer

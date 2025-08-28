@@ -316,7 +316,7 @@ class TestPatchGenerationErrorRecovery:
         assert len(conflict_hunks) > 0, "Should find hunks for conflict testing"
 
         # Store original branch state
-        original_branch = git_ops.get_current_branch()
+        git_ops.get_current_branch()
         original_commit = subprocess.run(
             ["git", "rev-parse", "HEAD"],
             cwd=repo.repo_path,
@@ -378,7 +378,7 @@ class TestPatchGenerationErrorRecovery:
             check=True,
         ).stdout.strip()
 
-        original_status = git_ops.run_git_command(["status", "--porcelain"]).stdout
+        git_ops.run_git_command(["status", "--porcelain"]).stdout
 
         # Simulate partial failure by creating a scenario where some files exist, others don't
         # Remove one of the files to cause failure
@@ -396,7 +396,7 @@ class TestPatchGenerationErrorRecovery:
                 hunks = hunk_parser._parse_diff_output(diff_result.stdout)
 
                 # Test that partial failure doesn't corrupt repository state
-                patch_content = rebase_manager._create_corrected_patch_for_hunks(
+                rebase_manager._create_corrected_patch_for_hunks(
                     hunks, scenario["target_commit"]
                 )
 
@@ -443,7 +443,7 @@ class TestPatchGenerationErrorRecovery:
 
         # Store working tree state
         working_file = repo.repo_path / "working_tree_test.c"
-        original_working_content = working_file.read_text()
+        working_file.read_text()
 
         untracked_file = repo.repo_path / "untracked.tmp"
         original_untracked_content = (
@@ -472,7 +472,7 @@ class TestPatchGenerationErrorRecovery:
 
         # Verify working tree state after failure
         if working_file.exists():
-            current_working_content = working_file.read_text()
+            working_file.read_text()
             # Working tree should be restored to original state or preserved
 
         if untracked_file.exists() and original_untracked_content:
@@ -491,7 +491,7 @@ class TestPatchGenerationErrorRecovery:
 
         # Store original state
         original_branch = git_ops.get_current_branch()
-        original_commit = subprocess.run(
+        subprocess.run(
             ["git", "rev-parse", "HEAD"],
             cwd=repo.repo_path,
             capture_output=True,
@@ -520,7 +520,7 @@ class TestPatchGenerationErrorRecovery:
             print(f"Cleanup handling exception: {e}")
 
         # Verify repository is in consistent state after cleanup
-        current_commit = subprocess.run(
+        subprocess.run(
             ["git", "rev-parse", "HEAD"],
             cwd=repo.repo_path,
             capture_output=True,
@@ -529,7 +529,7 @@ class TestPatchGenerationErrorRecovery:
         ).stdout.strip()
 
         # Should be back to original commit or a consistent state
-        status_result = git_ops.run_git_command(["status", "--porcelain"])
+        git_ops.run_git_command(["status", "--porcelain"])
         # Status might not be completely clean due to test artifacts, but should be consistent
 
     def test_reflog_safety_mechanism(self, error_recovery_repo):
@@ -562,7 +562,7 @@ class TestPatchGenerationErrorRecovery:
 
                 # These operations might fail, but should be traceable in reflog
                 if hunks:
-                    patch_content = rebase_manager._create_corrected_patch_for_hunks(
+                    rebase_manager._create_corrected_patch_for_hunks(
                         hunks, scenario["target_commit"]
                     )
 
@@ -604,7 +604,7 @@ class TestPatchGenerationErrorRecovery:
 
         if hunks:
             # Store original state for rollback verification
-            original_commit = subprocess.run(
+            subprocess.run(
                 ["git", "rev-parse", "HEAD"],
                 cwd=repo.repo_path,
                 capture_output=True,

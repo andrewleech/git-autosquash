@@ -92,7 +92,7 @@ class TestFooterButtonOverlap:
             header = pilot.app.screen.query_one("Header")
             main_container = pilot.app.screen.query_one("#main-container")
             content_area = pilot.app.screen.query_one("#content-area")
-            action_buttons = pilot.app.screen.query_one("#action-buttons")
+            pilot.app.screen.query_one("#action-buttons")
             footer = pilot.app.screen.query_one("Footer")
 
             # Calculate total used space

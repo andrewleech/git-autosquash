@@ -155,7 +155,7 @@ void safe_function() {
                 )
 
                 # Try to add symlink (git should handle this appropriately)
-                add_result = subprocess.run(
+                subprocess.run(
                     ["git", "add", "malicious_link.c"],
                     cwd=self.repo_path,
                     capture_output=True,
@@ -686,7 +686,7 @@ void normal_function() { }
 
         # Test with potentially dangerous commit hashes and references
         git_ops = GitOps(str(repo.repo_path))
-        rebase_manager = RebaseManager(git_ops, base_commit)
+        RebaseManager(git_ops, base_commit)
 
         # Test various potentially dangerous commit references
         dangerous_refs = [
@@ -759,7 +759,7 @@ void boundary_function() { }
         )
 
         # Test file access is restricted to repository
-        rebase_manager = RebaseManager(git_ops, base_commit)
+        RebaseManager(git_ops, base_commit)
 
         # All operations should be relative to the repository root
         status_result = git_ops.run_git_command(["status"])

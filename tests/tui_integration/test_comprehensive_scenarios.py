@@ -154,7 +154,7 @@ class TestRealWorldScenarios:
             assert "50 hunks" in progress_text
 
             # Test scrolling behavior
-            initial_hunk_widgets = len(pilot.app.query("FallbackHunkMappingWidget"))
+            len(pilot.app.query("FallbackHunkMappingWidget"))
 
             # Scroll down multiple times
             for _ in range(10):

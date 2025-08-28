@@ -27,7 +27,7 @@ class TestRebaseConflictRecovery:
         rebase_manager = RebaseManager(git_ops, commits["merge_base"])
 
         # Get initial state for verification
-        initial_head = git_ops.run_git_command(["rev-parse", "HEAD"]).stdout.strip()
+        git_ops.run_git_command(["rev-parse", "HEAD"]).stdout.strip()
         initial_branch = git_ops.run_git_command(
             ["symbolic-ref", "--short", "HEAD"]
         ).stdout.strip()
@@ -98,10 +98,10 @@ int main() {
             pass
 
         # Verify repository is in a clean state after conflict handling
-        final_status = git_ops.run_git_command(["status", "--porcelain"]).stdout.strip()
+        git_ops.run_git_command(["status", "--porcelain"]).stdout.strip()
         # Some uncommitted changes might remain, but no merge conflicts should be active
 
-        final_head = git_ops.run_git_command(["rev-parse", "HEAD"]).stdout.strip()
+        git_ops.run_git_command(["rev-parse", "HEAD"]).stdout.strip()
         # HEAD might have moved due to our test commit, but should not be in detached state
 
         symbolic_ref_result = git_ops.run_git_command(["symbolic-ref", "HEAD"])
@@ -131,7 +131,7 @@ int main() {
 
             # Should either handle the interrupted state or fail gracefully
             hunks = conflict_repo.get_conflicting_hunks()
-            patch_content = rebase_manager._create_corrected_patch_for_hunks(
+            rebase_manager._create_corrected_patch_for_hunks(
                 hunks, commits["target_commit"]
             )
 
@@ -148,7 +148,7 @@ int main() {
         # Verify we can clean up the interrupted state manually
         if rebase_merge_dir.exists():
             # Simulate git rebase --abort
-            abort_result = git_ops.run_git_command(["rebase", "--abort"])
+            git_ops.run_git_command(["rebase", "--abort"])
             # This might fail if there's no rebase in progress, which is fine
 
         # Verify repository is functional after cleanup
@@ -174,7 +174,7 @@ int main() {
             if file_obj.exists():
                 initial_file_states[file_path] = file_obj.read_text()
 
-        initial_head = git_ops.run_git_command(["rev-parse", "HEAD"]).stdout.strip()
+        git_ops.run_git_command(["rev-parse", "HEAD"]).stdout.strip()
 
         try:
             # Attempt to apply mixed hunks
@@ -209,7 +209,7 @@ int main() {
             pass
 
         # Verify repository state is consistent
-        final_head = git_ops.run_git_command(["rev-parse", "HEAD"]).stdout.strip()
+        git_ops.run_git_command(["rev-parse", "HEAD"]).stdout.strip()
 
         # HEAD should not have moved due to failed patch application
         # (though it might have moved due to our test setup)

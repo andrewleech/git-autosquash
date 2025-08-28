@@ -759,7 +759,7 @@ class ResourceMonitor:
             return {}
 
         try:
-            import psutil
+            import psutil  # noqa: F401
 
             end_metrics = {
                 "memory": self._process.memory_info(),
@@ -1057,8 +1057,8 @@ class PerformanceMonitoringRepository(ConcurrentSafeTestRepository):
         # Log performance summary before cleanup
         summary = self.get_performance_summary()
         if summary:
-            total_operations = sum(s["count"] for s in summary.values())
-            total_duration = sum(s["total_duration"] for s in summary.values())
+            sum(s["count"] for s in summary.values())
+            sum(s["total_duration"] for s in summary.values())
             # Performance metrics available for logging/analysis
 
         super().cleanup()

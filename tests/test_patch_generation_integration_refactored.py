@@ -270,10 +270,10 @@ class TestDualHunkIntegration:
     @error_boundary("rebase_integration", max_retries=2)
     def test_rebase_manager_dual_hunk_handling(self, dual_hunk_repo):
         """Test RebaseManager can handle dual-hunk scenarios properly."""
-        scenario = dual_hunk_repo.create_dual_hunk_scenario()
+        dual_hunk_repo.create_dual_hunk_scenario()
 
         # Test that RebaseManager can be initialized with the repository
-        rebase_manager = RebaseManager(dual_hunk_repo.repo_path)
+        RebaseManager(dual_hunk_repo.repo_path)
 
         # Verify the repository state is valid
         git_ops = GitOps(dual_hunk_repo.repo_path)
@@ -338,7 +338,7 @@ class TestErrorRecoveryInIntegration:
 
     def test_corrupted_repository_recovery(self, dual_hunk_repo):
         """Test recovery from repository corruption during dual-hunk operations."""
-        scenario = dual_hunk_repo.create_dual_hunk_scenario()
+        dual_hunk_repo.create_dual_hunk_scenario()
 
         git_ops = GitOps(dual_hunk_repo.repo_path)
 
@@ -350,7 +350,7 @@ class TestErrorRecoveryInIntegration:
 
     def test_memory_efficient_large_hunks(self, dual_hunk_repo):
         """Test memory efficiency with large dual-hunk scenarios."""
-        scenario = dual_hunk_repo.create_dual_hunk_scenario()
+        dual_hunk_repo.create_dual_hunk_scenario()
 
         # Create a large file scenario
         large_content = """#ifndef LARGE_CONFIG_H

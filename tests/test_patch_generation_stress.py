@@ -322,7 +322,7 @@ class TestDeepHistoryHandling:
 
     def test_deep_history_blame_performance(self, stress_test_repo):
         """Test blame analysis performance with deep history."""
-        scenario = stress_test_repo.create_deep_history_scenario(history_depth=10)
+        stress_test_repo.create_deep_history_scenario(history_depth=10)
 
         git_ops = GitOps(stress_test_repo.repo_path)
 
@@ -425,7 +425,7 @@ class TestErrorRecoveryUnderStress:
         """Test recovery from git operation failures during stress testing."""
 
         # Create a scenario that might cause git operations to fail
-        scenario = stress_test_repo.create_massive_repository(
+        stress_test_repo.create_massive_repository(
             num_files=5, lines_per_file=50, patterns_per_file=2
         )
 

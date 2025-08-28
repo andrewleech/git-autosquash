@@ -275,10 +275,10 @@ class TestPatchGenerationErrorHandling:
     def test_handles_missing_target_commit(self, temp_repo_single):
         """Test behavior when target commit doesn't exist."""
 
-        temp_repo_single.create_single_hunk_scenario()
+        commits = temp_repo_single.create_single_hunk_scenario()
 
         git_ops = temp_repo_single.git_ops
-        hunk_parser = HunkParser(git_ops)
+        HunkParser(git_ops)
         rebase_manager = RebaseManager(git_ops, commits["initial_commit"])
 
         # Create a hunk

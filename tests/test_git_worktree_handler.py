@@ -204,7 +204,7 @@ class TestGitWorktreeIgnoreHandler:
         )
 
         with (
-            patch("tempfile.mkdtemp") as mock_mkdtemp,
+            patch("tempfile.mkdtemp"),
             patch.object(self.handler, "_create_temporary_worktree") as mock_create_wt,
             patch("git_autosquash.git_worktree_handler.GitOps") as mock_git_ops_class,
         ):

@@ -21,7 +21,7 @@ class TestTerminalScreenCapture:
         )
 
         # Capture terminal output (simplified for demonstration)
-        async with app.run_test(size=(80, 24)) as pilot:
+        async with app.run_test(size=(80, 24)):
             # In a real implementation, we'd capture the actual terminal output
             # This is a demonstration of how the analyzer would work
 
@@ -57,7 +57,7 @@ class TestTerminalScreenCapture:
         analyzer = PyteScreenAnalyzer(width=80, height=24)
         app = EnhancedAutoSquashApp(mixed_mappings, mock_commit_history_analyzer)
 
-        async with app.run_test(size=(80, 24)) as pilot:
+        async with app.run_test(size=(80, 24)):
             # Simulate terminal output with buttons at bottom
             test_output = (
                 "Git Autosquash\n"
@@ -90,7 +90,7 @@ class TestTerminalScreenCapture:
             blame_matched_mappings, mock_commit_history_analyzer
         )
 
-        async with app.run_test(size=(120, 30)) as pilot:
+        async with app.run_test(size=(120, 30)):
             # Simulate side-by-side layout
             test_output = (
                 "Git Autosquash\n"
@@ -135,7 +135,7 @@ class TestTerminalScreenCapture:
         analyzer = PyteScreenAnalyzer(width=80, height=24)
         app = EnhancedAutoSquashApp(mixed_mappings, mock_commit_history_analyzer)
 
-        async with app.run_test(size=(80, 24)) as pilot:
+        async with app.run_test(size=(80, 24)):
             # This is a conceptual test - real implementation would capture ANSI codes
             test_output_with_colors = (
                 "\033[1;32mGit Autosquash\033[0m\n"  # Green bold title
@@ -165,7 +165,7 @@ class TestTerminalScreenCapture:
             large_mappings_dataset[:10], mock_commit_history_analyzer
         )  # Subset for testing
 
-        async with app.run_test(size=(100, 40)) as pilot:
+        async with app.run_test(size=(100, 40)):
             # Simulate output with many hunks
             test_lines = []
             test_lines.append("Git Autosquash")
@@ -210,7 +210,7 @@ class TestTerminalScreenCapture:
             large_mappings_dataset[:20], mock_commit_history_analyzer
         )
 
-        async with app.run_test(size=(80, 24)) as pilot:
+        async with app.run_test(size=(80, 24)):
             # Simulate scrolling by showing different sets of hunks
             initial_content = (
                 "Git Autosquash\n"
@@ -246,7 +246,7 @@ class TestLayoutValidation:
             blame_matched_mappings, mock_commit_history_analyzer
         )
 
-        async with app.run_test(size=(80, 24)) as pilot:
+        async with app.run_test(size=(80, 24)):
             # Create precise layout
             lines = [""] * 24
             lines[0] = " " * 30 + "Git Autosquash" + " " * 36  # Centered title
@@ -284,7 +284,7 @@ class TestLayoutValidation:
         analyzer = PyteScreenAnalyzer(width=100, height=30)
         app = EnhancedAutoSquashApp(mixed_mappings, mock_commit_history_analyzer)
 
-        async with app.run_test(size=(100, 30)) as pilot:
+        async with app.run_test(size=(100, 30)):
             # Simulate layout with clearly defined widget areas
             test_output = (
                 "Git Autosquash\n"
@@ -340,7 +340,7 @@ class TestLayoutValidation:
             blame_matched_mappings, mock_commit_history_analyzer
         )
 
-        async with app.run_test(size=(80, 24)) as pilot:
+        async with app.run_test(size=(80, 24)):
             # Test box drawing alignment
             test_output = (
                 "Git Autosquash\n"

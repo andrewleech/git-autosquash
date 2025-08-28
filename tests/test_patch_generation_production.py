@@ -75,7 +75,7 @@ class TestAtomicOperationReliability:
 
         # Attempt patch generation (should handle failure gracefully)
         try:
-            patch_content = rebase_manager._create_corrected_patch_for_hunks(
+            rebase_manager._create_corrected_patch_for_hunks(
                 problematic_hunks, commits["target_commit"]
             )
             # If it doesn't fail, that's also acceptable - just skip to verification
@@ -100,7 +100,7 @@ class TestAtomicOperationReliability:
         """Test that concurrent operations don't corrupt repository state."""
 
         repo_path, commits = temp_repo_complex.create_complex_scenario()
-        git_ops = GitOps(repo_path)
+        GitOps(repo_path)
 
         # This test verifies our operations are safe even if git commands
         # were to be run concurrently (though we don't actually do this
@@ -112,9 +112,7 @@ class TestAtomicOperationReliability:
         def worker_operation(worker_id):
             try:
                 worker_git_ops = GitOps(repo_path)
-                worker_rebase_manager = RebaseManager(
-                    worker_git_ops, commits["merge_base"]
-                )
+                RebaseManager(worker_git_ops, commits["merge_base"])
 
                 # Each worker attempts to read repository state
                 status = worker_git_ops.run_git_command(["status", "--porcelain"])
@@ -330,7 +328,7 @@ class TestLargeScalePerformance:
                         current_memory = process.memory_info().rss / 1024 / 1024
                         peak_memory = max(peak_memory, current_memory)
                         time.sleep(0.1)
-                    except:
+                    except Exception:
                         break
 
             monitor_thread = threading.Thread(target=monitor_memory, daemon=True)
@@ -520,9 +518,7 @@ class TestSecurityAndRobustness:
             # Should handle large content without crashing
             start_time = time.time()
             try:
-                patch_content = rebase_manager._create_corrected_patch_for_hunks(
-                    [large_hunk], "HEAD"
-                )
+                rebase_manager._create_corrected_patch_for_hunks([large_hunk], "HEAD")
                 # If it succeeds, verify it completed in reasonable time
                 elapsed = time.time() - start_time
                 assert elapsed < 30.0, (
@@ -560,9 +556,7 @@ class TestSecurityAndRobustness:
 
             start_time = time.time()
             try:
-                patch_content = rebase_manager._create_corrected_patch_for_hunks(
-                    many_hunks, "HEAD"
-                )
+                rebase_manager._create_corrected_patch_for_hunks(many_hunks, "HEAD")
                 elapsed = time.time() - start_time
                 memory_after = process.memory_info().rss / 1024 / 1024
                 memory_increase = memory_after - memory_before
