@@ -186,6 +186,19 @@ class EnhancedApprovalScreen(Screen[Union[bool, Dict[str, List[HunkTargetMapping
             # Gracefully handle if scroll pane not found
             pass
 
+        # Add a second scroll-to-top after widget focus setup to override any delayed scrolling
+        async def ensure_top_after_focus():
+            await asyncio.sleep(0.2)  # Wait for widget focus events to complete
+            try:
+                hunk_scroll_pane = self.query_one("#hunk-scroll-pane")
+                if hunk_scroll_pane and hasattr(hunk_scroll_pane, "scroll_to"):
+                    hunk_scroll_pane.scroll_to(0, 0, animate=False)
+            except Exception:
+                pass
+
+        # Schedule the delayed scroll reset
+        self.call_after_refresh(ensure_top_after_focus)
+
         # Initial focus is now handled by the first widget's on_mount method
 
     def _create_hunk_widget(

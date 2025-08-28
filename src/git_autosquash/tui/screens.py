@@ -99,7 +99,11 @@ class ApprovalScreen(Screen[Union[bool, Dict[str, List[HunkTargetMapping]]]]):
         # Cache diff viewer reference
         self._diff_viewer = self.query_one("#diff-viewer", DiffViewer)
 
-        # Ensure the hunks list starts at the top
+        # Select first hunk if available (before scroll reset to avoid double scroll)
+        if self.hunk_widgets:
+            self._select_widget(self.hunk_widgets[0], scroll_visible=False)
+
+        # Ensure the hunks list starts at the top (after selection to override any scroll)
         try:
             hunk_list = self.query_one("#hunk-list")
             if hunk_list and hasattr(hunk_list, "scroll_to"):
@@ -107,10 +111,6 @@ class ApprovalScreen(Screen[Union[bool, Dict[str, List[HunkTargetMapping]]]]):
         except Exception:
             # Gracefully handle if scroll container not found
             pass
-
-        # Select first hunk if available
-        if self.hunk_widgets:
-            self._select_widget(self.hunk_widgets[0])
 
         # Update progress
         self._update_progress()
@@ -210,11 +210,14 @@ class ApprovalScreen(Screen[Union[bool, Dict[str, List[HunkTargetMapping]]]]):
         )
         self._update_progress()
 
-    def _select_widget(self, widget: HunkMappingWidget) -> None:
+    def _select_widget(
+        self, widget: HunkMappingWidget, scroll_visible: bool = True
+    ) -> None:
         """Select a specific widget, optimized to avoid O(n) operations.
 
         Args:
             widget: The widget to select
+            scroll_visible: Whether to scroll the widget into view (default True)
         """
         # Deselect previous widget (O(1) operation)
         if self._selected_widget and self._selected_widget != widget:
@@ -228,8 +231,9 @@ class ApprovalScreen(Screen[Union[bool, Dict[str, List[HunkTargetMapping]]]]):
         if self._diff_viewer:
             self._diff_viewer.show_hunk(widget.mapping.hunk)
 
-        # Scroll to selected widget
-        widget.scroll_visible()
+        # Scroll to selected widget only if requested
+        if scroll_visible:
+            widget.scroll_visible()
 
     def _select_hunk_by_index(self, index: int) -> None:
         """Select hunk by index."""
