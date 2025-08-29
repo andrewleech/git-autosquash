@@ -2,7 +2,7 @@
 
 from unittest.mock import Mock, patch
 
-from git_autosquash.blame_analyzer import HunkTargetMapping
+from git_autosquash.hunk_target_resolver import HunkTargetMapping
 from git_autosquash.hunk_parser import DiffHunk
 from git_autosquash.main import _simple_approval_fallback, _apply_ignored_hunks, main
 
@@ -16,7 +16,7 @@ class TestSimpleApprovalFallback:
 
         result = _simple_approval_fallback([], blame_analyzer)
 
-        assert result == []
+        assert result == {"approved": [], "ignored": []}
         blame_analyzer.get_commit_summary.assert_not_called()
 
     @patch("builtins.input")
@@ -67,9 +67,10 @@ class TestSimpleApprovalFallback:
 
         result = _simple_approval_fallback(mappings, blame_analyzer)
 
-        assert len(result) == 2
-        assert result[0] is mapping1
-        assert result[1] is mapping2
+        assert len(result["approved"]) == 2
+        assert len(result["ignored"]) == 0
+        assert result["approved"][0] is mapping1
+        assert result["approved"][1] is mapping2
 
         # Verify commit summaries were retrieved
         assert blame_analyzer.get_commit_summary.call_count == 2
@@ -102,7 +103,7 @@ class TestSimpleApprovalFallback:
 
         result = _simple_approval_fallback([mapping], blame_analyzer)
 
-        assert result == []
+        assert result == {"approved": [], "ignored": []}
 
     @patch("builtins.input")
     def test_quit_early(self, mock_input: Mock) -> None:
@@ -130,7 +131,7 @@ class TestSimpleApprovalFallback:
 
         result = _simple_approval_fallback([mapping], blame_analyzer)
 
-        assert result == []
+        assert result == {"approved": [], "ignored": []}
 
     @patch("builtins.input")
     def test_invalid_input_then_approve(self, mock_input: Mock) -> None:
@@ -158,8 +159,9 @@ class TestSimpleApprovalFallback:
 
         result = _simple_approval_fallback([mapping], blame_analyzer)
 
-        assert len(result) == 1
-        assert result[0] is mapping
+        assert len(result["approved"]) == 1
+        assert len(result["ignored"]) == 0
+        assert result["approved"][0] is mapping
 
     @patch("builtins.input")
     def test_mixed_approvals(self, mock_input: Mock) -> None:
@@ -221,9 +223,10 @@ class TestSimpleApprovalFallback:
 
         result = _simple_approval_fallback(mappings, blame_analyzer)
 
-        assert len(result) == 2
-        assert result[0] is mapping1
-        assert result[1] is mapping3
+        assert len(result["approved"]) == 2
+        assert len(result["ignored"]) == 0  
+        assert result["approved"][0] is mapping1
+        assert result["approved"][1] is mapping3
 
     def test_hunk_line_display_truncation(self) -> None:
         """Test that long hunks are truncated in display."""
@@ -253,7 +256,7 @@ class TestSimpleApprovalFallback:
         with patch("builtins.input", return_value="n"):
             result = _simple_approval_fallback([mapping], blame_analyzer)
 
-        assert result == []
+        assert result == {"approved": [], "ignored": []}
 
 
 class TestApplyIgnoredHunks:
@@ -262,11 +265,12 @@ class TestApplyIgnoredHunks:
     def test_empty_mappings(self) -> None:
         """Test applying empty ignored mappings list."""
         git_ops = Mock()
+        git_ops._run_git_command.return_value = (True, "")  # Mock worktree check
 
         result = _apply_ignored_hunks([], git_ops)
 
         assert result is True
-        git_ops._run_git_command.assert_not_called()
+        # Note: Function now checks worktree support even for empty mappings
 
     def test_successful_apply(self) -> None:
         """Test successfully applying ignored hunks with batched implementation."""

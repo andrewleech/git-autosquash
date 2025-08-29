@@ -7,10 +7,11 @@ hunk conflicts when multiple hunks contain identical content changes.
 Refactored version using proper GitOps integration, error handling, and resource management.
 """
 
-from typing import Dict
+from typing import Dict, Any
 import pytest
 
 from git_autosquash.hunk_parser import HunkParser
+from git_autosquash.git_ops import GitOps
 
 from tests.base_test_repository import (
     PatchGenerationTestRepository,
@@ -197,7 +198,7 @@ static int parse_compile_execute(const void *source, mp_parse_input_kind_t input
 
         return self.commit_mapping
 
-    def create_identical_changes_scenario(self) -> Dict[str, str]:
+    def create_identical_changes_scenario(self) -> Dict[str, Any]:
         """
         Create a scenario that demonstrates identical changes in different locations.
 
@@ -288,7 +289,7 @@ class TestPatchGenerationFix:
 
         # Parse hunks to verify patch generation
         hunk_parser = HunkParser(micropython_scenario.repo.git_ops)
-        hunks = hunk_parser.parse_hunks()
+        hunks = hunk_parser.get_diff_hunks()
 
         # Verify hunks were generated
         assert len(hunks) > 0, "Should generate at least one hunk"
@@ -321,7 +322,7 @@ class TestPatchGenerationFix:
 
         # Parse hunks
         hunk_parser = HunkParser(micropython_scenario.repo.git_ops)
-        hunks = hunk_parser.parse_hunks()
+        hunks = hunk_parser.get_diff_hunks()
 
         # Verify expected number of hunks
         expected_hunks = scenario_info["expected_hunks"]
@@ -415,7 +416,7 @@ class TestPatchGenerationFix:
         # Time the hunk parsing
         start_time = time.time()
         hunk_parser = HunkParser(micropython_scenario.repo.git_ops)
-        hunks = hunk_parser.parse_hunks()
+        hunks = hunk_parser.get_diff_hunks()
         elapsed_time = time.time() - start_time
 
         # Performance assertions
@@ -470,7 +471,7 @@ class TestPatchGenerationFix:
         # Time the operation
         start_time = time.time()
         hunk_parser = HunkParser(micropython_scenario.repo.git_ops)
-        hunks = hunk_parser.parse_hunks()
+        hunks = hunk_parser.get_diff_hunks()
         elapsed_time = time.time() - start_time
 
         # Scalability assertions
@@ -507,7 +508,7 @@ class TestErrorRecoveryInPatchGeneration:
 
             # This might fail, but should not crash the system
             try:
-                hunk_parser.parse_hunks()
+                hunk_parser.get_diff_hunks()
             except Exception as e:
                 # Expected - corrupted state should be detected
                 assert "git" in str(e).lower() or "branch" in str(e).lower()
@@ -529,12 +530,12 @@ class TestErrorRecoveryInPatchGeneration:
         )
         test_file.unlink()
 
-        # Attempt hunk parsing
-        hunk_parser = HunkParser(micropython_scenario.repo.git_ops)
+        # Attempt hunk parsing with dummy git ops
+        hunk_parser = HunkParser(GitOps())
 
         # Should handle missing files gracefully
         try:
-            hunk_parser.parse_hunks()
+            hunk_parser.get_diff_hunks()
             # If it succeeds, that's fine too
         except Exception as e:
             # Should be a clear, handleable error
@@ -559,7 +560,7 @@ class TestErrorRecoveryInPatchGeneration:
 
                     # Parse hunks
                     hunk_parser = HunkParser(repo.git_ops)
-                    hunks = hunk_parser.parse_hunks()
+                    hunks = hunk_parser.get_diff_hunks()
 
                     return {
                         "worker_id": worker_id,

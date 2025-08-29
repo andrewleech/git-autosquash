@@ -4,7 +4,7 @@ import pytest
 import os
 from unittest.mock import Mock, patch
 
-from git_autosquash.blame_analyzer import HunkTargetMapping
+from git_autosquash.hunk_target_resolver import HunkTargetMapping
 from git_autosquash.git_native_complete_handler import (
     GitNativeCompleteHandler,
     GitNativeStrategyManager,

@@ -3,7 +3,7 @@
 from unittest.mock import Mock, patch
 
 
-from git_autosquash.blame_analyzer import HunkTargetMapping
+from git_autosquash.hunk_target_resolver import HunkTargetMapping
 from git_autosquash.hunk_parser import DiffHunk
 from git_autosquash.git_ops import GitOps
 from git_autosquash.git_native_complete_handler import (
@@ -101,7 +101,7 @@ class TestResultPattern:
 
     def test_ok_result(self) -> None:
         """Test Ok result operations."""
-        result = Ok(42)
+        result: Ok[int, Exception] = Ok(42)
 
         assert result.is_ok()
         assert not result.is_err()
@@ -119,7 +119,7 @@ class TestResultPattern:
     def test_err_result(self) -> None:
         """Test Err result operations."""
         error = GitOperationError("test_op", "test error")
-        result = Err(error)
+        result: Err[int, GitOperationError] = Err(error)
 
         assert not result.is_ok()
         assert result.is_err()
@@ -390,7 +390,7 @@ class TestPerformanceOptimizations:
             underlying_error=original_error,
         )
 
-        result = Err(strategy_error)
+        result: Err[None, StrategyExecutionError] = Err(strategy_error)
 
         # Chain error transformations
         chained_result = result.map_err(
@@ -398,7 +398,7 @@ class TestPerformanceOptimizations:
                 strategy="wrapper_strategy",
                 operation="wrapper_operation",
                 message="Wrapper failed",
-                underlying_error=e,
+                underlying_error=None,
             )
         )
 

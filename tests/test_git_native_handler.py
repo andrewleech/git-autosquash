@@ -2,7 +2,7 @@
 
 from unittest.mock import Mock, patch
 
-from git_autosquash.blame_analyzer import HunkTargetMapping
+from git_autosquash.hunk_target_resolver import HunkTargetMapping
 from git_autosquash.git_native_handler import GitNativeIgnoreHandler
 from git_autosquash.git_ops import GitOps
 from git_autosquash.hunk_parser import DiffHunk
