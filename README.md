@@ -201,6 +201,77 @@ Options:
 - **Technical**: Architecture, development guide, testing strategy
 - **Reference**: CLI options, configuration, FAQ, API documentation
 
+## 🏗️ System Architecture
+
+Git-autosquash employs a layered architecture with multiple execution strategies:
+
+```mermaid
+graph TD
+    %% CLI Layer
+    subgraph CLI_Layer["CLI Layer"]
+        CLI["Main Entry Point"]
+    end
+
+    %% Business Logic
+    subgraph Business["Business Logic"]
+        Parser["Hunk Parser"]
+        Resolver["Target Resolver"]
+        Strategy["Strategy Manager"]
+    end
+
+    %% User Interface
+    subgraph UI["User Interface"]
+        TUI["Interactive TUI"]
+    end
+
+    %% Execution Strategies
+    subgraph Execution["Execution Strategies"]
+        Native["Native Handler"]
+        Complete["Complete Handler"]
+        Worktree["Worktree Handler"]
+    end
+
+    %% Git Integration
+    subgraph Git["Git Integration"]
+        GitOps["Git Operations"]
+        Batch["Batch Operations"]
+    end
+
+    %% Connections
+    CLI -->|parse changes| Parser
+    Parser -->|find targets| Resolver
+    Resolver -->|present options| TUI
+    TUI -->|user decisions| Strategy
+    Strategy -->|simple scenarios| Native
+    Strategy -->|standard operations| Complete
+    Strategy -->|complex conflicts| Worktree
+    Native -->|git commands| GitOps
+    Complete -->|git commands| GitOps
+    Worktree -->|git commands| GitOps
+    GitOps -->|optimization| Batch
+
+    %% Styling
+    classDef cli fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    classDef business fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef ui fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    classDef execution fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef git fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    
+    class CLI cli
+    class Parser,Resolver,Strategy business
+    class TUI ui
+    class Native,Complete,Worktree execution
+    class GitOps,Batch git
+```
+
+**Key Architecture Benefits:**
+- **Safety-First**: Atomic operations with automatic rollback
+- **Performance**: Intelligent batching reduces git command overhead by ~10x
+- **Flexibility**: Multiple execution strategies handle different complexity levels
+- **User Experience**: Rich TUI with fallback modes for various scenarios
+
+For detailed architecture documentation, see [Software Architecture Document](docs/technical/software_architecture_document.md).
+
 ## 🔧 Advanced Features
 
 ### Conflict Resolution
