@@ -183,15 +183,7 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
                 # Left panel: Changes to Review (green border)
                 with Container(id="changes-panel") as changes_container:
                     changes_container.border_title = "Changes to Review"
-                    changes_list = ListView(id="changes-list")
-                    # Populate with change items
-                    for mapping in self.mappings:
-                        hunk = mapping.hunk
-                        # Format: "file.py:lines"
-                        change_text = f"{hunk.file_path}:{hunk.new_start}-{hunk.new_start + hunk.new_count - 1}"
-                        item = ChangeListItem(change_text, mapping)
-                        changes_list.append(item)
-                    yield changes_list
+                    yield ListView(id="changes-list")
 
                 # Right panel: Target Commits (cyan border)
                 with Container(id="targets-panel") as targets_container:
@@ -214,12 +206,19 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
 
     async def on_mount(self) -> None:
         """Handle screen mounting."""
+        # Populate changes list
+        changes_list = self.query_one("#changes-list", ListView)
+        for mapping in self.mappings:
+            hunk = mapping.hunk
+            # Format: "file.py:lines"
+            change_text = f"{hunk.file_path}:{hunk.new_start}-{hunk.new_start + hunk.new_count - 1}"
+            item = ChangeListItem(change_text, mapping)
+            await changes_list.append(item)
+        
         # Auto-select first change if available
         if self.mappings:
-            changes_list = self.query_one("#changes-list", ListView)
-            if changes_list.children:
-                changes_list.index = 0
-                await self._handle_change_selection(0)
+            changes_list.index = 0
+            await self._handle_change_selection(0)
 
     @on(ListView.Highlighted)
     async def on_list_highlighted(self, event: ListView.Highlighted) -> None:
