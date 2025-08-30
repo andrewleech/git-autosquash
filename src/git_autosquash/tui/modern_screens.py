@@ -119,7 +119,8 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
 
     #changes-list ListItem {
         padding: 0 1;
-        height: 1;
+        height: auto;
+        width: 100%;
     }
 
     #changes-list ListItem.--highlight {
@@ -135,7 +136,8 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
 
     #targets-list ListItem {
         padding: 0 1;
-        height: 1;
+        height: auto;
+        width: 100%;
     }
 
     #targets-list ListItem.--highlight {
@@ -292,12 +294,8 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
             else:
                 confidence_text = ""
             
-            # Truncate subject to fit in one line with hash and confidence
-            max_subject_length = 35 if confidence_text else 45
-            subject = commit_info.subject[:max_subject_length]
-            if len(commit_info.subject) > max_subject_length:
-                subject = subject.rstrip() + "..."
-            
+            # Don't truncate - let the panel handle text wrapping and sizing
+            subject = commit_info.subject
             commit_text = f"{commit_info.commit_hash[:7]} {subject}{confidence_text}"
             item = TargetListItem(commit_text, commit_info, is_auto_target)
             targets_list.append(item)
@@ -418,8 +416,8 @@ class ChangeListItem(ListItem):
     def __init__(self, text: str, mapping: HunkTargetMapping) -> None:
         super().__init__()
         self.mapping = mapping
-        # Simple text display without checkboxes
-        self._text = Static(text)
+        # Text that can expand to fill available width
+        self._text = Static(text, expand=True)
 
     def compose(self) -> ComposeResult:
         yield self._text
@@ -432,8 +430,8 @@ class TargetListItem(ListItem):
         super().__init__()
         self.commit_info = commit_info
         self.is_auto_target = is_auto_target
-        # Simple text display with styling for auto targets
-        self._text = Static(text)
+        # Text that can expand to fill available width
+        self._text = Static(text, expand=True)
         if is_auto_target:
             self._text.add_class("auto-target")
 
