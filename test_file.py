@@ -6,9 +6,11 @@ def hello():
     print("Hello World")
 
 
-def test_function():
-    # Old implementation
-    return "old version"
+def test_function(value=None):
+    # Updated implementation with validation
+    if not value:
+        raise ValueError("Input required")
+    return "new version with validation"
 
 
 if __name__ == "__main__":
