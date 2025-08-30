@@ -119,7 +119,7 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
 
     #changes-list ListItem {
         padding: 0 1;
-        height: 3;
+        height: 1;
     }
 
     #changes-list ListItem.--highlight {
@@ -134,12 +134,18 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
 
     #targets-list ListItem {
         padding: 0 1;
-        height: 3;
+        height: 1;
     }
 
     #targets-list ListItem.--highlight {
         background: $accent 10%;
         border-left: thick $accent;
+    }
+
+    /* Auto-target styling */
+    .auto-target {
+        color: $success;
+        text-style: bold;
     }
 
     /* Preview panel styling */
@@ -262,9 +268,32 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
         targets_list.clear()
 
         for commit_info in self.current_targets:
-            # Format: "abc1234 Commit subject"
-            commit_text = f"{commit_info.commit_hash[:7]} {commit_info.subject[:50]}"
-            item = TargetListItem(commit_text, commit_info)
+            # Check if this is the automatic blame target
+            is_auto_target = (mapping.target_commit and 
+                            commit_info.commit_hash == mapping.target_commit)
+            
+            # Format with confidence and auto-target indicators
+            if is_auto_target:
+                confidence = getattr(mapping, 'confidence', 'unknown')
+                if confidence == 'high':
+                    indicator = "✓ "
+                elif confidence == 'medium':
+                    indicator = "~ "
+                else:
+                    indicator = "? "
+                confidence_text = f"({confidence.upper()})"
+            else:
+                indicator = "  "
+                confidence_text = ""
+            
+            # Truncate subject to fit in one line with hash and indicators
+            max_subject_length = 35 if confidence_text else 45
+            subject = commit_info.subject[:max_subject_length]
+            if len(commit_info.subject) > max_subject_length:
+                subject = subject.rstrip() + "..."
+            
+            commit_text = f"{indicator}{commit_info.commit_hash[:7]} {subject} {confidence_text}".strip()
+            item = TargetListItem(commit_text, commit_info, is_auto_target)
             targets_list.append(item)
 
         # Pre-select existing target if available
@@ -393,11 +422,14 @@ class ChangeListItem(ListItem):
 class TargetListItem(ListItem):
     """List item for target commits in the right panel."""
 
-    def __init__(self, text: str, commit_info: CommitInfo) -> None:
+    def __init__(self, text: str, commit_info: CommitInfo, is_auto_target: bool = False) -> None:
         super().__init__()
         self.commit_info = commit_info
-        # Simple text display
+        self.is_auto_target = is_auto_target
+        # Simple text display with styling for auto targets
         self._text = Static(text)
+        if is_auto_target:
+            self._text.add_class("auto-target")
 
     def compose(self) -> ComposeResult:
         yield self._text
