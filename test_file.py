@@ -3,7 +3,8 @@
 
 
 def hello():
-    print("Hello World")
+    print("Hello Modern TUI!")
+    print("Testing the new 3-panel layout")
 
 
 def test_function(value=None):

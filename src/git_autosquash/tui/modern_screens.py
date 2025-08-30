@@ -77,7 +77,6 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
         height: 100%;
         margin: 0 1 0 0;
         border: round green;
-        border-title: "Changes to Review";
         border-title-style: bold;
         border-title-color: white;
         padding: 1;
@@ -88,7 +87,6 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
         height: 100%;
         margin: 0 0 0 1;
         border: round cyan;
-        border-title: "Target Commits";
         border-title-style: bold;
         border-title-color: white;
         padding: 1;
@@ -98,7 +96,6 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
         height: 35%;
         margin: 1 0;
         border: round white;
-        border-title: "Preview";
         border-title-style: bold;
         border-title-color: white;
         padding: 1;
@@ -184,7 +181,8 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
         with Container(id="main-container"):
             with Horizontal(id="panels-row"):
                 # Left panel: Changes to Review (green border)
-                with Container(id="changes-panel"):
+                with Container(id="changes-panel") as changes_container:
+                    changes_container.border_title = "Changes to Review"
                     changes_list = ListView(id="changes-list")
                     # Populate with change items
                     for mapping in self.mappings:
@@ -196,12 +194,14 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
                     yield changes_list
 
                 # Right panel: Target Commits (cyan border)
-                with Container(id="targets-panel"):
+                with Container(id="targets-panel") as targets_container:
+                    targets_container.border_title = "Target Commits"
                     targets_list = ListView(id="targets-list")
                     yield targets_list
 
             # Bottom panel: Preview (white border)
-            with Container(id="preview-panel"):
+            with Container(id="preview-panel") as preview_container:
+                preview_container.border_title = "Preview"
                 yield Static("Select a change to view diff preview", id="diff-preview")
 
             # Action buttons
