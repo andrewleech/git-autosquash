@@ -123,8 +123,9 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
     }
 
     #changes-list ListItem.--highlight {
-        background: $primary 10%;
+        background: $surface-lighten-1;
         border-left: thick $primary;
+        color: $text;
     }
 
     /* Target commits styling */
@@ -138,13 +139,20 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
     }
 
     #targets-list ListItem.--highlight {
-        background: $accent 10%;
-        border-left: thick $accent;
+        background: $surface-lighten-1;
+        border-left: thick $primary;
+        color: $text;
     }
 
     /* Auto-target styling */
     .auto-target {
         color: $success;
+        text-style: bold;
+    }
+
+    /* Auto-target when highlighted - darker green for better contrast */
+    #targets-list ListItem.--highlight .auto-target {
+        color: $success-darken-2;
         text-style: bold;
     }
 
@@ -272,27 +280,25 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
             is_auto_target = (mapping.target_commit and 
                             commit_info.commit_hash == mapping.target_commit)
             
-            # Format with confidence and auto-target indicators
+            # Format with confidence indicators at the end to maintain alignment
             if is_auto_target:
                 confidence = getattr(mapping, 'confidence', 'unknown')
                 if confidence == 'high':
-                    indicator = "✓ "
+                    confidence_text = " ✓HIGH"
                 elif confidence == 'medium':
-                    indicator = "~ "
+                    confidence_text = " ~MED"
                 else:
-                    indicator = "? "
-                confidence_text = f"({confidence.upper()})"
+                    confidence_text = " ?LOW"
             else:
-                indicator = "  "
                 confidence_text = ""
             
-            # Truncate subject to fit in one line with hash and indicators
+            # Truncate subject to fit in one line with hash and confidence
             max_subject_length = 35 if confidence_text else 45
             subject = commit_info.subject[:max_subject_length]
             if len(commit_info.subject) > max_subject_length:
                 subject = subject.rstrip() + "..."
             
-            commit_text = f"{indicator}{commit_info.commit_hash[:7]} {subject} {confidence_text}".strip()
+            commit_text = f"{commit_info.commit_hash[:7]} {subject}{confidence_text}"
             item = TargetListItem(commit_text, commit_info, is_auto_target)
             targets_list.append(item)
 
