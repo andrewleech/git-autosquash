@@ -123,7 +123,7 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
         padding: 0 1;
         height: 1;
         width: auto;
-        text-wrap: none;
+        text-wrap: nowrap;
     }
 
     #changes-list ListItem.--highlight {
@@ -142,7 +142,7 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
         height: 1;
         width: auto;
         min-width: 100%;
-        text-wrap: none;
+        text-wrap: nowrap;
     }
 
     #targets-list ListItem.--highlight {
