@@ -270,6 +270,11 @@ def main() -> None:
         help="Automatically accept all hunks with blame-identified targets, bypass TUI",
     )
     parser.add_argument(
+        "--modern-layout",
+        action="store_true",
+        help="Use modern 3-panel TUI layout with selection-based workflow",
+    )
+    parser.add_argument(
         "--version",
         action="version",
         version=f"%(prog)s {__version__}",
@@ -485,10 +490,15 @@ def main() -> None:
 
                 commit_analyzer = CommitHistoryAnalyzer(git_ops, merge_base)
 
-                # Always use enhanced app for better display of commit information
-                from git_autosquash.tui.enhanced_app import EnhancedAutoSquashApp
+                # Choose TUI implementation based on layout preference
+                if args.modern_layout:
+                    from git_autosquash.tui.modern_app import ModernAutoSquashApp
 
-                app = EnhancedAutoSquashApp(mappings, commit_analyzer)
+                    app = ModernAutoSquashApp(mappings, commit_analyzer)
+                else:
+                    from git_autosquash.tui.enhanced_app import EnhancedAutoSquashApp
+
+                    app = EnhancedAutoSquashApp(mappings, commit_analyzer)
 
                 approved = app.run()
 
