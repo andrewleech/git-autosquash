@@ -73,7 +73,8 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
     }
 
     #changes-panel {
-        width: 50%;
+        width: auto;
+        min-width: 30;
         height: 100%;
         margin: 0 1 0 0;
         border: round green;
@@ -83,13 +84,14 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
     }
 
     #targets-panel {
-        width: 50%;
+        width: 1fr;
         height: 100%;
         margin: 0 0 0 1;
         border: round cyan;
         border-title-style: bold;
         border-title-color: white;
         padding: 1;
+        overflow: auto scroll;
     }
 
     #preview-panel {
@@ -119,8 +121,9 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
 
     #changes-list ListItem {
         padding: 0 1;
-        height: auto;
-        width: 100%;
+        height: 1;
+        width: auto;
+        text-wrap: none;
     }
 
     #changes-list ListItem.--highlight {
@@ -136,8 +139,10 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
 
     #targets-list ListItem {
         padding: 0 1;
-        height: auto;
-        width: 100%;
+        height: 1;
+        width: auto;
+        min-width: 100%;
+        text-wrap: none;
     }
 
     #targets-list ListItem.--highlight {
@@ -416,8 +421,8 @@ class ChangeListItem(ListItem):
     def __init__(self, text: str, mapping: HunkTargetMapping) -> None:
         super().__init__()
         self.mapping = mapping
-        # Text that can expand to fill available width
-        self._text = Static(text, expand=True)
+        # Single-line text that doesn't wrap
+        self._text = Static(text, expand=False)
 
     def compose(self) -> ComposeResult:
         yield self._text
@@ -430,8 +435,8 @@ class TargetListItem(ListItem):
         super().__init__()
         self.commit_info = commit_info
         self.is_auto_target = is_auto_target
-        # Text that can expand to fill available width
-        self._text = Static(text, expand=True)
+        # Single-line text that doesn't wrap
+        self._text = Static(text, expand=False)
         if is_auto_target:
             self._text.add_class("auto-target")
 
