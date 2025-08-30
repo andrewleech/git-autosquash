@@ -8,5 +8,6 @@ def test_feature():
     return "updated implementation with validation"
 
 def new_function():
-    """Added new functionality for testing modern TUI."""
-    return "new feature added"
+    """Added new functionality for testing modern TUI display improvements."""
+    print("Testing improved target commits panel")
+    return "new feature with better TUI support"
