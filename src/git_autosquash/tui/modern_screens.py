@@ -5,9 +5,18 @@ from typing import Any, Dict, List, Optional
 from textual import on
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Horizontal
+from textual.containers import Container, Horizontal, Vertical
 from textual.screen import Screen
-from textual.widgets import Button, Footer, Header, Static, ListItem, ListView
+from textual.widgets import (
+    Button,
+    Footer,
+    Header,
+    Static,
+    ListItem,
+    ListView,
+    RadioButton,
+    RadioSet,
+)
 
 from git_autosquash.hunk_target_resolver import HunkTargetMapping
 from git_autosquash.commit_history_analyzer import (
@@ -73,8 +82,7 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
     }
 
     #changes-panel {
-        width: auto;
-        min-width: 30;
+        width: 40%;
         height: 100%;
         margin: 0 1 0 0;
         border: round green;
@@ -84,7 +92,7 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
     }
 
     #targets-panel {
-        width: 1fr;
+        width: 60%;
         height: 100%;
         margin: 0 0 0 1;
         border: round cyan;
@@ -117,12 +125,14 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
     /* Changes list styling */
     #changes-list {
         height: 100%;
+        width: 100%;
     }
 
     #changes-list ListItem {
         padding: 0 1;
         height: 1;
-        width: auto;
+        width: 100%;
+        min-width: 100%;
         text-wrap: nowrap;
     }
 
@@ -132,34 +142,32 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
         color: $text;
     }
 
-    /* Target commits styling */
-    #targets-list {
-        height: 100%;
+    #changes-list ListItem Static {
+        width: 100%;
+        height: 1;
     }
 
-    #targets-list ListItem {
+    /* Target commits styling */
+    #targets-container {
+        height: 100%;
+        width: 100%;
+    }
+
+    #targets-container RadioSet {
+        height: 100%;
+        width: 100%;
+    }
+
+    #targets-container RadioButton {
         padding: 0 1;
         height: 1;
-        width: auto;
-        min-width: 100%;
+        width: 100%;
         text-wrap: nowrap;
     }
 
-    #targets-list ListItem.--highlight {
-        background: $surface-lighten-1;
-        border-left: thick $primary;
-        color: $text;
-    }
-
     /* Auto-target styling */
-    .auto-target {
+    #targets-container RadioButton.auto-target {
         color: $success;
-        text-style: bold;
-    }
-
-    /* Auto-target when highlighted - darker green for better contrast */
-    #targets-list ListItem.--highlight .auto-target {
-        color: $success-darken-2;
         text-style: bold;
     }
 
@@ -209,8 +217,7 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
                 # Right panel: Target Commits (cyan border)
                 with Container(id="targets-panel") as targets_container:
                     targets_container.border_title = "Target Commits"
-                    targets_list = ListView(id="targets-list")
-                    yield targets_list
+                    yield Vertical(id="targets-container")
 
             # Bottom panel: Preview (white border)
             with Container(id="preview-panel") as preview_container:
@@ -235,7 +242,7 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
             change_text = f"{hunk.file_path}:{hunk.new_start}-{hunk.new_start + hunk.new_count - 1}"
             item = ChangeListItem(change_text, mapping)
             await changes_list.append(item)
-        
+
         # Auto-select first change if available
         if self.mappings:
             changes_list.index = 0
@@ -246,8 +253,15 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
         """Handle list item highlighting."""
         if event.list_view.id == "changes-list":
             await self._handle_change_selection(event.list_view.index)
-        elif event.list_view.id == "targets-list":
-            await self._handle_target_selection(event.list_view.index)
+
+    @on(RadioSet.Changed)
+    async def on_radio_changed(self, event: RadioSet.Changed) -> None:
+        """Handle radio button selection in targets panel."""
+        if event.radio_set.id == "targets-radio" and event.pressed:
+            # Find the commit info for the selected hash
+            selected_hash = event.pressed.value
+            if self.selected_mapping:
+                self.target_assignments[self.selected_mapping] = selected_hash
 
     async def _handle_change_selection(self, index: int) -> None:
         """Handle selection of a change from the left panel."""
@@ -278,56 +292,75 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
             strategy, mapping.hunk.file_path
         )[:10]  # Limit to 10 for UI performance
 
-        # Update the targets list
-        targets_list = self.query_one("#targets-list", ListView)
-        targets_list.clear()
+        # Update the targets container - recreate RadioSet each time
+        targets_container = self.query_one("#targets-container", Vertical)
+
+        # Clear existing RadioSet
+        await targets_container.remove_children()
+
+        # Create radio buttons for each commit
+        radio_buttons = []
+        selected_radio_btn = None
+        selected_value: Optional[str] = None
 
         for commit_info in self.current_targets:
             # Check if this is the automatic blame target
-            is_auto_target = (mapping.target_commit and 
-                            commit_info.commit_hash == mapping.target_commit)
-            
+            is_auto_target = (
+                mapping.target_commit
+                and commit_info.commit_hash == mapping.target_commit
+            )
+
             # Format with confidence indicators at the end to maintain alignment
             if is_auto_target:
-                confidence = getattr(mapping, 'confidence', 'unknown')
-                if confidence == 'high':
+                confidence = getattr(mapping, "confidence", "unknown")
+                if confidence == "high":
                     confidence_text = " ✓HIGH"
-                elif confidence == 'medium':
+                elif confidence == "medium":
                     confidence_text = " ~MED"
                 else:
                     confidence_text = " ?LOW"
             else:
                 confidence_text = ""
-            
+
             # Don't truncate - let the panel handle text wrapping and sizing
             subject = commit_info.subject
             commit_text = f"{commit_info.commit_hash[:7]} {subject}{confidence_text}"
-            item = TargetListItem(commit_text, commit_info, is_auto_target)
-            targets_list.append(item)
 
-        # Pre-select existing target if available
-        if mapping in self.target_assignments:
-            target_hash = self.target_assignments[mapping]
-            for i, commit_info in enumerate(self.current_targets):
-                if commit_info.commit_hash == target_hash:
-                    targets_list.index = i
-                    break
-        elif mapping.target_commit:
-            # Pre-existing target from blame
-            for i, commit_info in enumerate(self.current_targets):
-                if commit_info.commit_hash == mapping.target_commit:
-                    targets_list.index = i
-                    break
+            # Create radio button with commit hash as value
+            radio_btn = RadioButton(commit_text, value=commit_info.commit_hash)
+            if is_auto_target:
+                radio_btn.add_class("auto-target")
 
-    async def _handle_target_selection(self, index: int) -> None:
-        """Handle selection of a target commit from the right panel."""
-        if not self.selected_mapping or not (0 <= index < len(self.current_targets)):
-            return
+            # Determine if this should be the selected one and retain reference
+            # Priority 1: Existing user assignment (always takes precedence)
+            if mapping in self.target_assignments:
+                if self.target_assignments[mapping] == commit_info.commit_hash:
+                    selected_radio_btn = radio_btn
+                    selected_value = commit_info.commit_hash
+            # Priority 2: Auto-target (if no user assignment exists)
+            elif (
+                not selected_radio_btn
+                and mapping not in self.target_assignments
+                and is_auto_target
+            ):
+                selected_radio_btn = radio_btn
+                selected_value = commit_info.commit_hash
 
-        selected_commit = self.current_targets[index]
-        self.target_assignments[self.selected_mapping] = selected_commit.commit_hash
+            radio_buttons.append(radio_btn)
 
-        # Visual feedback could be added here (e.g., marking the change as assigned)
+        # Create new RadioSet with all buttons
+        targets_radio = RadioSet(*radio_buttons, id="targets-radio")
+
+        # Mount the RadioSet
+        await targets_container.mount(targets_radio)
+
+        # Set selection after mounting using the retained RadioButton reference
+        if selected_radio_btn:
+            selected_radio_btn.focus()
+
+            # Record the selection in target_assignments if not already there
+            if mapping not in self.target_assignments and selected_value is not None:
+                self.target_assignments[mapping] = selected_value
 
     async def _update_preview_panel(self) -> None:
         """Update the preview panel with diff content for the selected change."""
@@ -422,23 +455,7 @@ class ChangeListItem(ListItem):
         super().__init__()
         self.mapping = mapping
         # Single-line text that doesn't wrap
-        self._text = Static(text, expand=False)
-
-    def compose(self) -> ComposeResult:
-        yield self._text
-
-
-class TargetListItem(ListItem):
-    """List item for target commits in the right panel."""
-
-    def __init__(self, text: str, commit_info: CommitInfo, is_auto_target: bool = False) -> None:
-        super().__init__()
-        self.commit_info = commit_info
-        self.is_auto_target = is_auto_target
-        # Single-line text that doesn't wrap
-        self._text = Static(text, expand=False)
-        if is_auto_target:
-            self._text.add_class("auto-target")
+        self._text = Static(text, expand=True)
 
     def compose(self) -> ComposeResult:
         yield self._text
