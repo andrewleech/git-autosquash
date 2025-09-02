@@ -131,7 +131,7 @@ error: shared/runtime/pyexec.c: patch does not apply
 1. **Naive Line Matching**: Algorithm found same line for both different source hunks
 2. **No Context Awareness**: No understanding that multiple hunks should target different locations
 3. **No Deduplication**: Multiple hunks generated duplicate patches for same location
-4. **Poor Git Integration**: Didn't leverage git's sophisticated 3-way merge capabilities
+4. **Poor Git Integration**: Didn't leverage git's sophisticated merge capabilities
 
 ## The Solution: Context-Aware Patch Generation
 
@@ -256,7 +256,7 @@ DEBUG: Patch applied successfully
 
 - **Algorithm Complexity**: O(n²) worst case → O(n) with smart tracking
 - **Memory Usage**: Minimal overhead for `used_lines` set
-- **Git Operations**: Leverages native git 3-way merge capabilities
+- **Git Operations**: Leverages native git merge capabilities
 - **Error Recovery**: Robust handling of edge cases and conflicts
 
 ## Additional Enhancements

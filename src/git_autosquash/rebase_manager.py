@@ -711,14 +711,13 @@ class RebaseManager:
             print(f"DEBUG: Wrote patch to temporary file: {patch_file}")
 
         try:
-            # Apply patch using git apply with 3-way merge and fuzzy matching for better context handling
+            # Apply patch using git apply with fuzzy matching for better context handling
             print(
-                f"DEBUG: Running git apply --3way --ignore-space-change --whitespace=nowarn {patch_file}"
+                f"DEBUG: Running git apply --ignore-space-change --whitespace=nowarn {patch_file}"
             )
             result = self.git_ops.run_git_command(
                 [
                     "apply",
-                    "--3way",
                     "--ignore-space-change",
                     "--whitespace=nowarn",
                     patch_file,

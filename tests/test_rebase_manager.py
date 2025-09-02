@@ -312,7 +312,6 @@ class TestRebaseManager:
         self.mock_git_ops.run_git_command.assert_called_once_with(
             [
                 "apply",
-                "--3way",
                 "--ignore-space-change",
                 "--whitespace=nowarn",
                 "/tmp/test_patch",
