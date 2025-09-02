@@ -36,15 +36,15 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
     │   Changes to Review │          Target Commits               │
     │   (Green border)    │          (Cyan border)                │
     │                     │                                       │
-    │ • file1.py:10-15   │  ○ commit abc123 Fix typo              │
-    │ • file2.js:5-8     │  ○ commit def456 Update logic          │
-    │ • file3.py:20-25   │  ○ commit ghi789 Refactor              │
+    │ • file1.py:10-15    │  ○ commit abc123 Fix typo             │
+    │ • file2.js:5-8      │  ○ commit def456 Update logic         │
+    │ • file3.py:20-25    │  ○ commit ghi789 Refactor             │
     │                     │                                       │
     ├─────────────────────┴───────────────────────────────────────┤
     │                     Preview                                 │
     │                   (White border)                            │
     │                                                             │
-    │  @@ -10,3 +10,3 @@                                         │
+    │  @@ -10,3 +10,3 @@                                          │
     │  -    old line                                              │
     │  +    new line                                              │
     │                                                             │
@@ -258,10 +258,11 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
     async def on_radio_changed(self, event: RadioSet.Changed) -> None:
         """Handle radio button selection in targets panel."""
         if event.radio_set.id == "targets-radio" and event.pressed:
-            # Find the commit info for the selected hash
-            selected_hash = event.pressed.value
-            if self.selected_mapping:
-                self.target_assignments[self.selected_mapping] = selected_hash
+            # Get the commit hash from the custom attribute
+            if hasattr(event.pressed, "commit_hash"):
+                selected_hash = event.pressed.commit_hash
+                if self.selected_mapping:
+                    self.target_assignments[self.selected_mapping] = selected_hash
 
     async def _handle_change_selection(self, index: int) -> None:
         """Handle selection of a change from the left panel."""
@@ -290,7 +291,7 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
 
         self.current_targets = self.commit_history_analyzer.get_commit_suggestions(
             strategy, mapping.hunk.file_path
-        )[:10]  # Limit to 10 for UI performance
+        )[:20]  # Limit to 20 for UI performance
 
         # Update the targets container - recreate RadioSet each time
         targets_container = self.query_one("#targets-container", Vertical)
@@ -300,7 +301,6 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
 
         # Create radio buttons for each commit
         radio_buttons = []
-        selected_radio_btn = None
         selected_value: Optional[str] = None
 
         for commit_info in self.current_targets:
@@ -326,24 +326,28 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
             subject = commit_info.subject
             commit_text = f"{commit_info.commit_hash[:7]} {subject}{confidence_text}"
 
-            # Create radio button with commit hash as value
-            radio_btn = RadioButton(commit_text, value=commit_info.commit_hash)
+            # Create radio button - always start unselected, let RadioSet manage selection
+            radio_btn = RadioButton(commit_text)
+            # Store commit hash as custom attribute for event handling
+            radio_btn.commit_hash = commit_info.commit_hash
+
             if is_auto_target:
                 radio_btn.add_class("auto-target")
 
-            # Determine if this should be the selected one and retain reference
+            # Determine if this should be the selected one and mark it
+            should_select = False
+
             # Priority 1: Existing user assignment (always takes precedence)
             if mapping in self.target_assignments:
                 if self.target_assignments[mapping] == commit_info.commit_hash:
-                    selected_radio_btn = radio_btn
-                    selected_value = commit_info.commit_hash
+                    should_select = True
             # Priority 2: Auto-target (if no user assignment exists)
-            elif (
-                not selected_radio_btn
-                and mapping not in self.target_assignments
-                and is_auto_target
-            ):
-                selected_radio_btn = radio_btn
+            elif mapping not in self.target_assignments and is_auto_target:
+                should_select = True
+
+            if should_select:
+                # Mark this button for post-mount selection
+                radio_btn._should_be_selected = True
                 selected_value = commit_info.commit_hash
 
             radio_buttons.append(radio_btn)
@@ -354,13 +358,43 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
         # Mount the RadioSet
         await targets_container.mount(targets_radio)
 
-        # Set selection after mounting using the retained RadioButton reference
-        if selected_radio_btn:
-            selected_radio_btn.focus()
-
+        # Apply selection after mounting if we have something to select
+        if selected_value is not None:
             # Record the selection in target_assignments if not already there
-            if mapping not in self.target_assignments and selected_value is not None:
+            if mapping not in self.target_assignments:
                 self.target_assignments[mapping] = selected_value
+
+            # Use call_after_refresh to ensure proper timing for selection
+            self.call_after_refresh(self._sync_radio_selection)
+
+    def _sync_radio_selection(self) -> None:
+        """Sync focus to selected RadioButton after mounting."""
+        try:
+            # Find the target RadioSet
+            targets_radio = self.query_one("#targets-radio", RadioSet)
+
+            # Find the button marked for selection
+            all_buttons = targets_radio.query(RadioButton).results()
+            target_button = None
+
+            for button in all_buttons:
+                if (
+                    hasattr(button, "_should_be_selected")
+                    and button._should_be_selected
+                ):
+                    target_button = button
+                    break
+
+            if target_button:
+                # Let RadioSet handle the selection properly
+                # target_button.pressed = target_button
+                target_button.value = False
+                target_button.focus()
+                target_button.value = True
+
+        except Exception:
+            # Log error but don't fail - selection is not critical for basic functionality
+            pass
 
     async def _update_preview_panel(self) -> None:
         """Update the preview panel with diff content for the selected change."""
