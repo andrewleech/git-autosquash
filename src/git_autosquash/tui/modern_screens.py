@@ -1,4 +1,4 @@
-"""Modern screen implementations with 3-panel layout matching the hero screenshot."""
+"""Screen implementations with 3-panel layout."""
 
 from typing import Any, Dict, List, Optional
 
@@ -27,7 +27,7 @@ from git_autosquash.commit_history_analyzer import (
 
 
 class ModernApprovalScreen(Screen[Dict[str, Any]]):
-    """Modern 3-panel approval screen matching the hero screenshot workflow.
+    """3-panel approval screen.
 
     Layout:
     ┌─────────────────────────────────────────────────────────────┐
@@ -68,9 +68,9 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
         Binding("k,up", "prev_change", "Previous Change", show=False),
     ]
 
-    # Modern layout CSS with proper bordered panels
+    # layout CSS with proper bordered panels
     CSS = """
-    /* Modern 3-panel layout */
+    /* 3-panel layout */
     #main-container {
         layout: vertical;
         height: 100%;
@@ -78,7 +78,7 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
 
     #panels-row {
         layout: horizontal;
-        height: 60%;
+        height: 1fr;
     }
 
     #changes-panel {
@@ -103,7 +103,7 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
     }
 
     #preview-panel {
-        height: 35%;
+        height: 1fr;
         margin: 1 0;
         border: round white;
         border-title-style: bold;
@@ -112,9 +112,10 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
     }
 
     #action-buttons {
-        height: 5%;
+        height: 3;
         layout: horizontal;
         align: center middle;
+        margin-bottom: 1;
     }
 
     #action-buttons Button {
@@ -185,7 +186,7 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
         commit_history_analyzer: CommitHistoryAnalyzer,
         **kwargs,
     ) -> None:
-        """Initialize modern approval screen.
+        """Initialize approval screen.
 
         Args:
             mappings: List of hunk to commit mappings to review
@@ -204,7 +205,7 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
         self.ignored_mappings: List[HunkTargetMapping] = []
 
     def compose(self) -> ComposeResult:
-        """Compose the modern 3-panel layout."""
+        """Compose the 3-panel layout."""
         yield Header()
 
         with Container(id="main-container"):
@@ -365,7 +366,8 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
                 self.target_assignments[mapping] = selected_value
 
             # Use call_after_refresh to ensure proper timing for selection
-            self.call_after_refresh(self._sync_radio_selection)
+            # self.call_after_refresh(self._sync_radio_selection)
+            self._sync_radio_selection()
 
     def _sync_radio_selection(self) -> None:
         """Sync focus to selected RadioButton after mounting."""
