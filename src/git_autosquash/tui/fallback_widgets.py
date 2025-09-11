@@ -132,6 +132,14 @@ class FallbackHunkMappingWidget(Widget):
         display: block;
     }
     
+    /* Visual separation for ignore option */
+    FallbackHunkMappingWidget RadioButton.ignore-option {
+        margin-bottom: 1;
+        padding-bottom: 1;
+        border-bottom: thick $warning-muted;
+        color: $warning;
+    }
+    
     FallbackHunkMappingWidget Horizontal {
         height: auto;
         margin: 0;
@@ -415,6 +423,14 @@ class FallbackHunkMappingWidget(Widget):
 
             # RadioSet with commit options using proper Textual patterns
             with RadioSet(id="target-selector"):
+                # Add "Ignore selected hunk" option at the top with visual separation
+                yield RadioButton(
+                    "🚫 Ignore selected hunk (keep in working tree)",
+                    id="ignore-hunk",
+                    value=False,
+                    classes="ignore-option",
+                )
+
                 # Add ALL commits but use CSS classes to control visibility
                 if self.all_commits:
                     target_hash = self.mapping.target_commit
@@ -475,18 +491,6 @@ class FallbackHunkMappingWidget(Widget):
                         value=not self.mapping.needs_user_selection,
                         classes="file-commit",
                     )
-
-            # Separate accept/ignore buttons below the commit list
-            with RadioSet(id="action-selector", classes="action-buttons"):
-                # Default to accept for auto-detected targets
-                default_accept = not self.mapping.needs_user_selection
-
-                yield RadioButton(
-                    "Accept selected commit", id="accept-action", value=default_accept
-                )
-                yield RadioButton(
-                    "Ignore (keep in working tree)", id="ignore-action", value=False
-                )
 
     def _format_hunk_range(self) -> str:
         """Format hunk line range for display."""
@@ -600,6 +604,24 @@ class FallbackHunkMappingWidget(Widget):
         self.selected = True
         self.post_message(self.Selected(self.mapping))
 
+        # Check if we need to deselect ignore-hunk when clicking elsewhere
+        try:
+            from textual.widgets import RadioSet, RadioButton
+
+            # If ignore is currently selected, clicking elsewhere should allow reselection
+            if self.ignored:
+                target_selector = self.query_one("#target-selector", RadioSet)
+                ignore_button = target_selector.query_one("#ignore-hunk", RadioButton)
+
+                # If user clicks elsewhere while ignore is selected, offer to deselect it
+                if ignore_button.value:
+                    ignore_button.value = False
+                    self.ignored = False
+                    self.post_message(self.IgnoreChanged(self.mapping, False))
+
+        except Exception:
+            pass  # Ignore errors in click handling
+
     @on(Checkbox.Changed, "#show-all-commits")
     def on_show_all_commits_changed(self, event: Checkbox.Changed) -> None:
         """Handle show all commits toggle by updating visibility."""
@@ -616,28 +638,33 @@ class FallbackHunkMappingWidget(Widget):
 
     @on(RadioSet.Changed)
     def on_radio_set_changed(self, event: RadioSet.Changed) -> None:
-        """Handle both commit selection and action selection."""
+        """Handle target selection including ignore option."""
         if not event.pressed:
             return
 
         if event.radio_set.id == "target-selector":
-            # Commit selection changed - get hash from button ID
             button_id = event.pressed.id or ""
-            commit_hash = self._get_commit_hash_from_button_id(button_id)
-            if commit_hash:
-                self._handle_commit_selection(commit_hash)
-        elif event.radio_set.id == "action-selector":
-            # Accept/ignore selection changed - use button ID
-            action_id = event.pressed.id or ""
-            if action_id == "accept-action":
-                self._handle_approve_selection()
-            elif action_id == "ignore-action":
+
+            if button_id == "ignore-hunk":
+                # Handle ignore selection
                 self._handle_ignore_selection()
+            else:
+                # Handle commit selection - get hash from button ID
+                commit_hash = self._get_commit_hash_from_button_id(button_id)
+                if commit_hash:
+                    self._handle_commit_selection(commit_hash)
+                    # Auto-approve when a commit is explicitly selected
+                    self._handle_approve_selection()
 
     def _handle_ignore_selection(self) -> None:
         """Handle ignore selection consistently."""
         self.ignored = True
         self.approved = False
+
+        # Clear the target assignment when ignoring
+        self.mapping.target_commit = None
+        self.mapping.needs_user_selection = False
+
         self.post_message(self.IgnoreChanged(self.mapping, True))
         self.post_message(self.ApprovalChanged(self.mapping, False))
 
@@ -645,6 +672,7 @@ class FallbackHunkMappingWidget(Widget):
         """Handle approve selection for existing target."""
         self.approved = True
         self.ignored = False
+
         self.post_message(self.ApprovalChanged(self.mapping, True))
         self.post_message(self.IgnoreChanged(self.mapping, False))
 
@@ -654,6 +682,22 @@ class FallbackHunkMappingWidget(Widget):
         self.mapping.needs_user_selection = False
         self.post_message(self.TargetSelected(self.mapping, commit_hash))
         # Don't automatically approve - user must explicitly choose accept or ignore
+
+    def select_ignore_hunk(self) -> None:
+        """Programmatically select the ignore-hunk radio button."""
+        try:
+            from textual.widgets import RadioSet, RadioButton
+
+            target_selector = self.query_one("#target-selector", RadioSet)
+            ignore_button = target_selector.query_one("#ignore-hunk", RadioButton)
+
+            # Use the focus-then-value pattern for proper selection
+            ignore_button.value = False  # Reset first
+            ignore_button.focus()  # Set focus
+            ignore_button.value = True  # Then select
+
+        except (AttributeError, ValueError):
+            pass
 
     def watch_selected(self, selected: bool) -> None:
         """React to selection changes."""

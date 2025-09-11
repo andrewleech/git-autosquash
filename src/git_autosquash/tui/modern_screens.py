@@ -49,7 +49,7 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
     │  +    new line                                              │
     │                                                             │
     ├─────────────────────────────────────────────────────────────┤
-    │            [Ignore Selected] [Continue] [Cancel]            │
+    │                    [Continue] [Cancel]                     │
     └─────────────────────────────────────────────────────────────┘
 
     Workflow:
@@ -63,7 +63,6 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
     BINDINGS = [
         Binding("enter", "continue", "Continue", priority=True),
         Binding("escape", "cancel", "Cancel", priority=True),
-        Binding("i", "ignore_selected", "Ignore Selected", priority=False),
         Binding("j,down", "next_change", "Next Change", show=False),
         Binding("k,up", "prev_change", "Previous Change", show=False),
     ]
@@ -171,6 +170,17 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
         color: $success;
         text-style: bold;
     }
+    
+    /* Ignore option styling */
+    #targets-container RadioButton.ignore-option {
+        color: $warning;
+        height: 2;
+        margin-bottom: 1;
+        padding: 0 1;
+        border-bottom: thick $warning-muted;
+        text-style: bold;
+        text-wrap: wrap;
+    }
 
     /* Preview panel styling */
     #diff-preview {
@@ -227,7 +237,6 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
 
             # Action buttons
             with Horizontal(id="action-buttons"):
-                yield Button("Ignore Selected", variant="default", id="ignore-btn")
                 yield Button("Continue", variant="success", id="continue-btn")
                 yield Button("Cancel", variant="default", id="cancel-btn")
 
@@ -247,12 +256,13 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
         # Auto-select first change if available
         if self.mappings:
             changes_list.index = 0
-            await self._handle_change_selection(0)
+            if changes_list.index is not None:
+                await self._handle_change_selection(changes_list.index)
 
     @on(ListView.Highlighted)
     async def on_list_highlighted(self, event: ListView.Highlighted) -> None:
         """Handle list item highlighting."""
-        if event.list_view.id == "changes-list":
+        if event.list_view.id == "changes-list" and event.list_view.index is not None:
             await self._handle_change_selection(event.list_view.index)
 
     @on(RadioSet.Changed)
@@ -263,7 +273,19 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
             if hasattr(event.pressed, "commit_hash"):
                 selected_hash = event.pressed.commit_hash
                 if self.selected_mapping:
-                    self.target_assignments[self.selected_mapping] = selected_hash
+                    if selected_hash == "ignore-hunk":
+                        # Handle ignore selection
+                        if self.selected_mapping not in self.ignored_mappings:
+                            self.ignored_mappings.append(self.selected_mapping)
+                        # Remove from target assignments if present
+                        if self.selected_mapping in self.target_assignments:
+                            del self.target_assignments[self.selected_mapping]
+                    else:
+                        # Handle commit selection
+                        self.target_assignments[self.selected_mapping] = selected_hash
+                        # Remove from ignored if present
+                        if self.selected_mapping in self.ignored_mappings:
+                            self.ignored_mappings.remove(self.selected_mapping)
 
     async def _handle_change_selection(self, index: int) -> None:
         """Handle selection of a change from the left panel."""
@@ -303,6 +325,19 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
         # Create radio buttons for each commit
         radio_buttons = []
         selected_value: Optional[str] = None
+
+        # Add ignore option at the top
+        ignore_btn = RadioButton("🚫 Ignore (keep in working tree)")
+        # Store commit hash as custom attribute for event handling (same pattern as commits)
+        ignore_btn.commit_hash = "ignore-hunk"
+        ignore_btn.add_class("ignore-option")
+
+        # Check if this hunk is already ignored
+        if mapping in self.ignored_mappings:
+            ignore_btn._should_be_selected = True
+            selected_value = "ignore-hunk"
+
+        radio_buttons.append(ignore_btn)
 
         for commit_info in self.current_targets:
             # Check if this is the automatic blame target
@@ -361,8 +396,11 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
 
         # Apply selection after mounting if we have something to select
         if selected_value is not None:
-            # Record the selection in target_assignments if not already there
-            if mapping not in self.target_assignments:
+            # Only record in target_assignments if it's not the ignore option
+            if (
+                selected_value != "ignore-hunk"
+                and mapping not in self.target_assignments
+            ):
                 self.target_assignments[mapping] = selected_value
 
             # Use call_after_refresh to ensure proper timing for selection
@@ -450,14 +488,6 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
         """Cancel the operation."""
         self.dismiss(False)
 
-    def action_ignore_selected(self) -> None:
-        """Ignore the currently selected change."""
-        if self.selected_mapping and self.selected_mapping not in self.ignored_mappings:
-            self.ignored_mappings.append(self.selected_mapping)
-            # Remove from target assignments if present
-            if self.selected_mapping in self.target_assignments:
-                del self.target_assignments[self.selected_mapping]
-
     def action_next_change(self) -> None:
         """Navigate to next change."""
         changes_list = self.query_one("#changes-list", ListView)
@@ -480,8 +510,6 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
             self.action_continue()
         elif event.button.id == "cancel-btn":
             self.action_cancel()
-        elif event.button.id == "ignore-btn":
-            self.action_ignore_selected()
 
 
 class ChangeListItem(ListItem):

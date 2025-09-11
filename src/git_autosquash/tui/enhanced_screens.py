@@ -167,6 +167,7 @@ class EnhancedApprovalScreen(Screen[Union[bool, Dict[str, List[HunkTargetMapping
                     "Approve All & Continue", variant="success", id="approve-all"
                 )
                 yield Button("Continue with Selected", variant="primary", id="continue")
+                yield Button("Deselect All", variant="default", id="deselect-all")
                 yield Button("Cancel", variant="default", id="cancel")
 
         yield Footer()
@@ -446,6 +447,39 @@ class EnhancedApprovalScreen(Screen[Union[bool, Dict[str, List[HunkTargetMapping
 
         self._update_progress()
 
+    def action_deselect_all(self) -> None:
+        """Clear all radio button selections and reset state."""
+        try:
+            # Clear UIStateController state
+            self.state_controller.clear_all()
+
+            # Clear radio button selections in all widgets
+            for widget in self.hunk_widgets:
+                self._clear_widget_selections(widget)
+
+            self._update_progress()
+
+        except Exception as e:
+            self.log.error(f"Error during deselect all: {e}")
+
+    def _clear_widget_selections(self, widget) -> None:
+        """Clear radio button selections in a single widget."""
+        try:
+            from textual.widgets import RadioSet
+
+            # Clear target selector radio buttons including ignore-hunk option
+            target_selector = widget.query_one("#target-selector", RadioSet)
+            for radio_button in target_selector.query("RadioButton"):
+                if radio_button.value:  # Only clear if currently selected
+                    radio_button.value = False
+
+            # Reset widget reactive state
+            widget.approved = False
+            widget.ignored = False
+
+        except Exception as e:
+            self.log.error(f"Error clearing widget selections: {e}")
+
     @on(Button.Pressed)
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
@@ -453,6 +487,8 @@ class EnhancedApprovalScreen(Screen[Union[bool, Dict[str, List[HunkTargetMapping
             self.action_approve_all()
         elif event.button.id == "continue":
             self.action_continue()
+        elif event.button.id == "deselect-all":
+            self.action_deselect_all()
         elif event.button.id == "cancel":
             self.action_cancel()
 
