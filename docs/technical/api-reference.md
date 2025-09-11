@@ -118,10 +118,10 @@ for mapping in mappings:
 ### Custom TUI Integration
 
 ```python
-from git_autosquash.tui.app import AutoSquashApp
+from git_autosquash.tui.modern_app import ModernAutoSquashApp
 
-# Create custom TUI with your mappings
-app = AutoSquashApp(mappings)
+# Create custom TUI with your mappings  
+app = ModernAutoSquashApp(mappings, commit_analyzer)
 approved = app.run()
 
 if approved and app.approved_mappings:

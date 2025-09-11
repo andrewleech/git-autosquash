@@ -21,8 +21,7 @@ Instead of creating a parallel TUI implementation, enhance the existing `Enhance
 ### Phase 1: Add Layout Toggle
 ```python
 # main.py - Simple boolean flag
-parser.add_argument('--modern-layout', action='store_true', 
-                   help='Use 3-panel modern layout (experimental)')
+# COMPLETED: Modern layout is now the default - no CLI flag needed
 
 # enhanced_app.py - Pass flag to app
 class EnhancedAutoSquashApp(App[bool]):
@@ -143,8 +142,7 @@ CONSOLIDATED_CSS = f"""
 ### 1. `/src/git_autosquash/main.py`
 ```python
 # Add CLI argument
-parser.add_argument('--modern-layout', action='store_true',
-                   help='Use experimental 3-panel layout')
+# COMPLETED: Modern layout is now the default interface
 
 # Pass to enhanced app
 app = EnhancedAutoSquashApp(mappings, commit_analyzer, 
@@ -211,8 +209,7 @@ class DiffPreview(Widget):
 # Test existing layout (default)
 uv run python -m git_autosquash.main
 
-# Test new layout (experimental)
-uv run python -m git_autosquash.main --modern-layout
+# COMPLETED: Modern layout is now the default - no flag needed
 ```
 
 ### 2. **Regression Prevention**

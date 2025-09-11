@@ -524,7 +524,7 @@ import pytest
 from textual.app import App
 from textual.widgets import Button
 
-from git_autosquash.tui.widgets import HunkMappingWidget, DiffViewer
+# NOTE: Legacy widgets removed - use modern interface components
 
 class TestHunkMappingWidget:
     """Test hunk mapping widget behavior."""
@@ -593,8 +593,9 @@ class TestDiffViewer:
 ### Screen Testing
 
 ```python
-from git_autosquash.tui.screens import ApprovalScreen
-from git_autosquash.tui.app import AutoSquashApp
+# NOTE: Legacy interfaces removed - use modern_app and modern_screens
+from git_autosquash.tui.modern_app import ModernAutoSquashApp
+from git_autosquash.tui.modern_screens import ModernSelectionScreen
 
 class TestApprovalScreen:
     """Test approval screen interactions."""
