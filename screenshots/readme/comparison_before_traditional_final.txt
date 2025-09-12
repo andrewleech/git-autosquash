@@ -1,5 +1,5 @@
- M src/auth.py
-               M src/dashboard.py
-                                  M src/utils.py
-                                                 M tests/test_auth.py
-                                                                     ?? config.json
+ M config.json
+               M src/auth.py
+                             M src/dashboard.py
+                                                M src/utils.py
+                                                               M tests/test_auth.py

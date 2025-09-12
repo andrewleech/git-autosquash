@@ -24,7 +24,9 @@ class ScreenshotTestRepo:
             repo_path: Optional path for repository. If None, creates temporary directory.
         """
         if repo_path is None:
-            self.temp_dir: Optional[str] = tempfile.mkdtemp(prefix="git-autosquash-screenshots-")
+            self.temp_dir: Optional[str] = tempfile.mkdtemp(
+                prefix="git-autosquash-screenshots-"
+            )
             self.repo_path = Path(self.temp_dir)
         else:
             self.repo_path = repo_path
@@ -53,6 +55,12 @@ class ScreenshotTestRepo:
 
         # Create meaningful commit history
         self._create_commit_history()
+
+        # Create feature branch for working changes
+        self.git_ops.run_git_command(["checkout", "-b", "feature/improvements"])
+
+        # Add a couple feature commits first
+        self._add_feature_commits()
 
         # Add working directory changes for demonstration
         self._add_working_changes()
@@ -438,6 +446,54 @@ def validate_phone(phone: str) -> bool:
         )
 
         utils_file.write_text(content)
+
+    def _add_feature_commits(self) -> None:
+        """Add some feature commits to the feature branch that can be targets for autosquash."""
+
+        # Feature commit 1: Add configuration system
+        config_content = """{
+    "database": {
+        "host": "localhost",
+        "port": 5432,
+        "name": "app_db"
+    },
+    "logging": {
+        "level": "INFO",
+        "file": "app.log"
+    },
+    "auth": {
+        "session_timeout": 3600,
+        "password_min_length": 8
+    }
+}"""
+        config_file = self.repo_path / "config.json"
+        config_file.write_text(config_content)
+        self.git_ops.run_git_command(["add", "config.json"])
+        self.git_ops.run_git_command(
+            ["commit", "-m", "Add application configuration system"]
+        )
+
+        # Feature commit 2: Add some logging functionality
+        auth_file = self.repo_path / "src" / "auth.py"
+        content = auth_file.read_text()
+
+        # Add logging import and setup
+        content = content.replace(
+            "import hashlib\nimport secrets",
+            "import hashlib\nimport secrets\nimport logging\n\nlogger = logging.getLogger(__name__)",
+        )
+
+        # Add logging to validation function
+        content = content.replace(
+            "def validate_login(self, email: str, password: str) -> bool:",
+            'def validate_login(self, email: str, password: str) -> bool:\n        logger.info(f"Login attempt for {email}")',
+        )
+
+        auth_file.write_text(content)
+        self.git_ops.run_git_command(["add", "src/auth.py"])
+        self.git_ops.run_git_command(
+            ["commit", "-m", "Add logging to authentication module"]
+        )
 
     def _add_working_changes(self) -> None:
         """Add working directory changes that demonstrate git-autosquash functionality."""

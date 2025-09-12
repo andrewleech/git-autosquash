@@ -1,3 +1,12 @@
-Error: Could not find merge base with main/master (current state: on branch main)
-                                                                                 Suggestion: Ensure your branch is based
- on main/master
+Current branch: feature/improvements
+                                    Merge base: 176e06cf07fe53dc95a9bf15a61bea354a1c35de
+                                                                                        Working tree status: staged=True
+, unstaged=True, clean=False
+
+                            Mixed staged and unstaged changes detected.
+                                                                       Choose an option:
+                                                                                          a) Process all changes (staged
+ + unstaged)
+              s) Stash unstaged changes and process only staged
+                                                                 q) Quit
+                                                                        Your choice [a/s/q]:

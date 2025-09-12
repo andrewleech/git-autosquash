@@ -84,7 +84,12 @@ class RealScreenshotGenerator:
             screenshots = await self.pyte_capture.capture_app_flow(
                 app_command=["git-autosquash"],
                 interactions=[
-                    {"type": "delay", "duration": 2.0},  # Let analysis complete
+                    {"type": "delay", "duration": 1.5},  # Wait for choice prompt
+                    {"type": "key", "key": "a"},  # Choose "Process all changes"
+                    {
+                        "type": "delay",
+                        "duration": 5.0,
+                    },  # Let TUI fully load and analysis complete
                 ],
                 scenario_name="hero_screenshot",
             )
@@ -156,7 +161,7 @@ class RealScreenshotGenerator:
 
             # Step 5: Show git log after successful operation
             # First actually run the operation
-            execution = await self.pyte_capture.capture_app_flow(
+            await self.pyte_capture.capture_app_flow(
                 app_command=["git-autosquash"],
                 interactions=[
                     {"type": "delay", "duration": 2.0},
