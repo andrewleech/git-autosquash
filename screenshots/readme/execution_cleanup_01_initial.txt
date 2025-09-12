@@ -1,5 +1,5 @@
 Current branch: feature/improvements
-                                    Merge base: 3418cbbe1fcf329f542a19db8d2f057059998281
+                                    Merge base: 22a41c834d97750e759f7f2355ba8924de17c368
                                                                                         Working tree status: staged=True
 , unstaged=True, clean=False
 

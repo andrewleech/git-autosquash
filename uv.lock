@@ -289,6 +289,7 @@ wheels = [
 name = "git-autosquash"
 source = { editable = "." }
 dependencies = [
+    { name = "pytest-textual-snapshot" },
     { name = "textual" },
 ]
 
@@ -314,7 +315,10 @@ docs = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "textual", specifier = ">=5.3.0" }]
+requires-dist = [
+    { name = "pytest-textual-snapshot", specifier = ">=1.1.0" },
+    { name = "textual", specifier = ">=5.3.0" },
+]
 
 [package.metadata.requires-dev]
 dev = [

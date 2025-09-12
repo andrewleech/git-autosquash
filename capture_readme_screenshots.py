@@ -15,7 +15,7 @@ from typing import List, Dict
 # Add current directory to path for local imports
 sys.path.insert(0, str(Path(__file__).parent))
 
-from tests.pyte_screenshot_capture import PyteScreenshotCapture
+# PyteScreenshotCapture replaced with working PexpectScreenshotCapture
 from scripts.screenshot_test_repo import (
     create_screenshot_repository,
     ScreenshotTestRepo,
@@ -34,8 +34,15 @@ class RealScreenshotGenerator:
         self.output_dir = output_dir
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Use larger terminal for better screenshot quality
-        self.pyte_capture = PyteScreenshotCapture(output_dir, terminal_size=(120, 40))
+        # Use working pexpect capture system for real TUI screenshots
+        import sys
+
+        sys.path.append(str(Path(__file__).parent / "tests"))
+        from pexpect_screenshot_capture import PexpectScreenshotCapture
+
+        self.pexpect_capture = PexpectScreenshotCapture(
+            output_dir, terminal_size=(120, 40)
+        )
         self.test_repos: List[ScreenshotTestRepo] = []
 
     def cleanup(self) -> None:
@@ -81,13 +88,16 @@ class RealScreenshotGenerator:
 
         try:
             # Capture initial git-autosquash screen
-            screenshots = await self.pyte_capture.capture_app_flow(
+            screenshots = await self.pexpect_capture.capture_app_flow(
                 app_command=["git-autosquash"],
                 interactions=[
-                    {"type": "delay", "duration": 1.5},  # Wait for choice prompt
-                    {"type": "key", "key": "a"},  # Choose "Process all changes"
+                    {"type": "wait", "duration": 1.5},  # Wait for choice prompt
                     {
-                        "type": "delay",
+                        "type": "key",
+                        "key": "a\n",
+                    },  # Choose "Process all changes" + Enter
+                    {
+                        "type": "wait",
                         "duration": 5.0,
                     },  # Let TUI fully load and analysis complete
                 ],
@@ -109,18 +119,21 @@ class RealScreenshotGenerator:
 
         try:
             # Step 1: Show git status (before)
-            step1 = await self.pyte_capture.capture_app_flow(
+            step1 = await self.pexpect_capture.capture_app_flow(
                 app_command=["git", "status"],
-                interactions=[{"type": "delay", "duration": 0.5}],
+                interactions=[{"type": "wait", "duration": 0.5}],
                 scenario_name="workflow_step_01",
             )
             screenshots.extend(step1)
 
             # Step 2: Launch git-autosquash and show analysis
-            step2 = await self.pyte_capture.capture_app_flow(
+            step2 = await self.pexpect_capture.capture_app_flow(
                 app_command=["git-autosquash"],
                 interactions=[
-                    {"type": "delay", "duration": 2.0},  # Let analysis complete
+                    {"type": "wait", "duration": 1.5},  # Wait for choice prompt
+                    {"type": "key", "key": "a"},  # Choose "Process all changes"
+                    {"type": "key", "key": "enter"},  # Press Enter to confirm
+                    {"type": "wait", "duration": 2.0},  # Let analysis complete
                     {"type": "key", "key": "q"},  # Quit to capture analysis screen
                 ],
                 scenario_name="workflow_step_02",
@@ -128,15 +141,18 @@ class RealScreenshotGenerator:
             screenshots.extend(step2)
 
             # Step 3: Show interactive review with some selections
-            step3 = await self.pyte_capture.capture_app_flow(
+            step3 = await self.pexpect_capture.capture_app_flow(
                 app_command=["git-autosquash"],
                 interactions=[
-                    {"type": "delay", "duration": 2.0},  # Analysis
+                    {"type": "wait", "duration": 1.5},  # Wait for choice prompt
+                    {"type": "key", "key": "a"},  # Choose "Process all changes"
+                    {"type": "key", "key": "enter"},  # Press Enter to confirm
+                    {"type": "wait", "duration": 2.0},  # Analysis
                     {"type": "key", "key": "space"},  # Toggle first hunk
-                    {"type": "delay", "duration": 0.5},
+                    {"type": "wait", "duration": 0.5},
                     {"type": "key", "key": "down"},  # Move to next hunk
                     {"type": "key", "key": "space"},  # Toggle second hunk
-                    {"type": "delay", "duration": 0.5},
+                    {"type": "wait", "duration": 0.5},
                     {"type": "key", "key": "q"},  # Quit to capture state
                 ],
                 scenario_name="workflow_step_03",
@@ -144,15 +160,18 @@ class RealScreenshotGenerator:
             screenshots.extend(step3)
 
             # Step 4: Show execution confirmation
-            step4 = await self.pyte_capture.capture_app_flow(
+            step4 = await self.pexpect_capture.capture_app_flow(
                 app_command=["git-autosquash"],
                 interactions=[
-                    {"type": "delay", "duration": 2.0},  # Analysis
+                    {"type": "wait", "duration": 1.5},  # Wait for choice prompt
+                    {"type": "key", "key": "a"},  # Choose "Process all changes"
+                    {"type": "key", "key": "enter"},  # Press Enter to confirm
+                    {"type": "wait", "duration": 2.0},  # Analysis
                     {"type": "key", "key": "space"},  # Approve first
                     {"type": "key", "key": "down"},
                     {"type": "key", "key": "space"},  # Approve second
                     {"type": "key", "key": "enter"},  # Confirm
-                    {"type": "delay", "duration": 0.5},  # Show confirmation
+                    {"type": "wait", "duration": 0.5},  # Show confirmation
                     {"type": "text", "text": "n"},  # Say no to avoid actual rebase
                 ],
                 scenario_name="workflow_step_04",
@@ -161,24 +180,27 @@ class RealScreenshotGenerator:
 
             # Step 5: Show git log after successful operation
             # First actually run the operation
-            await self.pyte_capture.capture_app_flow(
+            await self.pexpect_capture.capture_app_flow(
                 app_command=["git-autosquash"],
                 interactions=[
-                    {"type": "delay", "duration": 2.0},
+                    {"type": "wait", "duration": 1.5},  # Wait for choice prompt
+                    {"type": "key", "key": "a"},  # Choose "Process all changes"
+                    {"type": "key", "key": "enter"},  # Press Enter to confirm
+                    {"type": "wait", "duration": 2.0},
                     {"type": "key", "key": "space"},  # Approve first
                     {"type": "key", "key": "down"},
                     {"type": "key", "key": "space"},  # Approve second
                     {"type": "key", "key": "enter"},
                     {"type": "text", "text": "y"},  # Confirm execution
-                    {"type": "delay", "duration": 3.0},  # Let rebase complete
+                    {"type": "wait", "duration": 3.0},  # Let rebase complete
                 ],
                 scenario_name="workflow_step_05_execution",
             )
 
             # Then show the cleaned git log
-            step5 = await self.pyte_capture.capture_app_flow(
+            step5 = await self.pexpect_capture.capture_app_flow(
                 app_command=["git", "log", "--oneline", "-10"],
-                interactions=[{"type": "delay", "duration": 0.5}],
+                interactions=[{"type": "wait", "duration": 0.5}],
                 scenario_name="workflow_step_05",
             )
             screenshots.extend(step5)
@@ -199,12 +221,15 @@ class RealScreenshotGenerator:
         os.chdir(repo.repo_path)
 
         try:
-            smart_targeting = await self.pyte_capture.capture_app_flow(
+            smart_targeting = await self.pexpect_capture.capture_app_flow(
                 app_command=["git-autosquash"],
                 interactions=[
-                    {"type": "delay", "duration": 2.5},  # Let full analysis complete
+                    {"type": "wait", "duration": 1.5},  # Wait for choice prompt
+                    {"type": "key", "key": "a"},  # Choose "Process all changes"
+                    {"type": "key", "key": "enter"},  # Press Enter to confirm
+                    {"type": "wait", "duration": 2.5},  # Let full analysis complete
                     {"type": "key", "key": "tab"},  # Switch to target panel
-                    {"type": "delay", "duration": 0.5},
+                    {"type": "wait", "duration": 0.5},
                     {"type": "key", "key": "q"},
                 ],
                 scenario_name="feature_smart_targeting",
@@ -220,16 +245,19 @@ class RealScreenshotGenerator:
         os.chdir(repo2.repo_path)
 
         try:
-            interactive_tui = await self.pyte_capture.capture_app_flow(
+            interactive_tui = await self.pexpect_capture.capture_app_flow(
                 app_command=["git-autosquash"],
                 interactions=[
-                    {"type": "delay", "duration": 2.0},
+                    {"type": "wait", "duration": 1.5},  # Wait for choice prompt
+                    {"type": "key", "key": "a"},  # Choose "Process all changes"
+                    {"type": "key", "key": "enter"},  # Press Enter to confirm
+                    {"type": "wait", "duration": 2.0},
                     {"type": "key", "key": "down"},  # Navigate
                     {"type": "key", "key": "down"},
                     {"type": "key", "key": "space"},  # Toggle approval
                     {"type": "key", "key": "up"},
                     {"type": "key", "key": "space"},  # Toggle another
-                    {"type": "delay", "duration": 0.5},
+                    {"type": "wait", "duration": 0.5},
                     {"type": "key", "key": "q"},
                 ],
                 scenario_name="feature_interactive_tui",
@@ -245,10 +273,13 @@ class RealScreenshotGenerator:
         os.chdir(repo3.repo_path)
 
         try:
-            safety_first = await self.pyte_capture.capture_app_flow(
+            safety_first = await self.pexpect_capture.capture_app_flow(
                 app_command=["git-autosquash"],
                 interactions=[
-                    {"type": "delay", "duration": 2.0},  # Show initial unapproved state
+                    {"type": "wait", "duration": 1.5},  # Wait for choice prompt
+                    {"type": "key", "key": "a"},  # Choose "Process all changes"
+                    {"type": "key", "key": "enter"},  # Press Enter to confirm
+                    {"type": "wait", "duration": 2.0},  # Show initial unapproved state
                     {"type": "key", "key": "q"},
                 ],
                 scenario_name="feature_safety_first",
@@ -272,26 +303,29 @@ class RealScreenshotGenerator:
 
         try:
             # Show messy git status
-            before_traditional = await self.pyte_capture.capture_app_flow(
+            before_traditional = await self.pexpect_capture.capture_app_flow(
                 app_command=["git", "status", "--short"],
-                interactions=[{"type": "delay", "duration": 0.5}],
+                interactions=[{"type": "wait", "duration": 0.5}],
                 scenario_name="comparison_before_traditional",
             )
             screenshots.extend(before_traditional)
 
             # Show git diff to emphasize the mess
-            before_diff = await self.pyte_capture.capture_app_flow(
+            before_diff = await self.pexpect_capture.capture_app_flow(
                 app_command=["git", "diff", "--stat"],
-                interactions=[{"type": "delay", "duration": 0.5}],
+                interactions=[{"type": "wait", "duration": 0.5}],
                 scenario_name="comparison_before_diff",
             )
             screenshots.extend(before_diff)
 
             # After: Run git-autosquash and show clean result
-            await self.pyte_capture.capture_app_flow(
+            await self.pexpect_capture.capture_app_flow(
                 app_command=["git-autosquash"],
                 interactions=[
-                    {"type": "delay", "duration": 2.0},
+                    {"type": "wait", "duration": 1.5},  # Wait for choice prompt
+                    {"type": "key", "key": "a"},  # Choose "Process all changes"
+                    {"type": "key", "key": "enter"},  # Press Enter to confirm
+                    {"type": "wait", "duration": 2.0},
                     {"type": "key", "key": "space"},  # Approve first
                     {"type": "key", "key": "down"},
                     {"type": "key", "key": "space"},  # Approve second
@@ -299,15 +333,15 @@ class RealScreenshotGenerator:
                     {"type": "key", "key": "space"},  # Approve third
                     {"type": "key", "key": "enter"},
                     {"type": "text", "text": "y"},  # Execute
-                    {"type": "delay", "duration": 4.0},  # Let rebase complete
+                    {"type": "wait", "duration": 4.0},  # Let rebase complete
                 ],
                 scenario_name="execution_cleanup",
             )
 
             # Show clean git log
-            after_autosquash = await self.pyte_capture.capture_app_flow(
+            after_autosquash = await self.pexpect_capture.capture_app_flow(
                 app_command=["git", "log", "--oneline", "--graph", "-8"],
-                interactions=[{"type": "delay", "duration": 0.5}],
+                interactions=[{"type": "wait", "duration": 0.5}],
                 scenario_name="comparison_after_autosquash",
             )
             screenshots.extend(after_autosquash)
@@ -329,15 +363,18 @@ class RealScreenshotGenerator:
 
         try:
             # New file fallback (config.json has no git history)
-            new_file_fallback = await self.pyte_capture.capture_app_flow(
+            new_file_fallback = await self.pexpect_capture.capture_app_flow(
                 app_command=["git-autosquash"],
                 interactions=[
-                    {"type": "delay", "duration": 2.5},  # Let analysis find fallbacks
+                    {"type": "wait", "duration": 1.5},  # Wait for choice prompt
+                    {"type": "key", "key": "a"},  # Choose "Process all changes"
+                    {"type": "key", "key": "enter"},  # Press Enter to confirm
+                    {"type": "wait", "duration": 2.5},  # Let analysis find fallbacks
                     {"type": "key", "key": "down"},  # Navigate to fallback hunk
                     {"type": "key", "key": "down"},
                     {"type": "key", "key": "down"},
                     {"type": "key", "key": "down"},
-                    {"type": "delay", "duration": 0.5},  # Show fallback state
+                    {"type": "wait", "duration": 0.5},  # Show fallback state
                     {"type": "key", "key": "q"},
                 ],
                 scenario_name="fallback_new_file_fallback",
@@ -345,15 +382,18 @@ class RealScreenshotGenerator:
             screenshots.extend(new_file_fallback)
 
             # Manual override demonstration
-            manual_override = await self.pyte_capture.capture_app_flow(
+            manual_override = await self.pexpect_capture.capture_app_flow(
                 app_command=["git-autosquash"],
                 interactions=[
-                    {"type": "delay", "duration": 2.0},
+                    {"type": "wait", "duration": 1.5},  # Wait for choice prompt
+                    {"type": "key", "key": "a"},  # Choose "Process all changes"
+                    {"type": "key", "key": "enter"},  # Press Enter to confirm
+                    {"type": "wait", "duration": 2.0},
                     {"type": "key", "key": "down"},  # Go to a hunk
                     {"type": "key", "key": "tab"},  # Switch to targets
                     {"type": "key", "key": "down"},  # Navigate targets
                     {"type": "key", "key": "up"},
-                    {"type": "delay", "duration": 0.5},  # Show manual selection
+                    {"type": "wait", "duration": 0.5},  # Show manual selection
                     {"type": "key", "key": "q"},
                 ],
                 scenario_name="fallback_manual_override",

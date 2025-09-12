@@ -56,76 +56,68 @@ class PyteScreenshotCapture:
         stream = pyte.Stream(screen)
 
         try:
-            # Start the application in a subprocess
+            # Use ptyprocess for proper terminal emulation
+            import ptyprocess
+
+            # Start the application with a PTY
             env = os.environ.copy()
             env["TERM"] = "xterm-256color"
             env["COLUMNS"] = str(self.terminal_size[0])
             env["LINES"] = str(self.terminal_size[1])
 
-            process = await asyncio.create_subprocess_exec(
-                *app_command,
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
+            # Create PTY process
+            pty_process = ptyprocess.PtyProcess.spawn(
+                app_command,
                 env=env,
+                dimensions=(self.terminal_size[1], self.terminal_size[0]),
             )
 
             # Initial capture after startup
-            await asyncio.sleep(0.5)  # Let app initialize
+            await asyncio.sleep(1.0)  # Let app initialize
 
-            # Read initial output
+            # Read initial output from PTY
             try:
-                if process.stdout is not None:
-                    stdout_data = await asyncio.wait_for(
-                        process.stdout.read(8192), timeout=1.0
-                    )
-                else:
-                    stdout_data = b""
-                if stdout_data:
-                    stream.feed(stdout_data.decode("utf-8", errors="replace"))
-                    screenshot_path = await self._capture_screen(
-                        screen, f"{scenario_name}_01_initial"
-                    )
-                    screenshots.append(screenshot_path)
-            except asyncio.TimeoutError:
-                pass
+                if pty_process.isalive():
+                    # ptyprocess doesn't have timeout, use read() directly
+                    output = pty_process.read()
+                    if output:
+                        stream.feed(output)
+                        screenshot_path = await self._capture_screen(
+                            screen, f"{scenario_name}_01_initial"
+                        )
+                        screenshots.append(screenshot_path)
+            except Exception as e:
+                print(f"Error reading initial output: {e}")
 
             # Simulate interactions if provided
             if interactions:
                 for i, interaction in enumerate(interactions, 2):
-                    await self._simulate_interaction(process, interaction)
-                    await asyncio.sleep(0.3)  # Wait for response
+                    await self._simulate_pty_interaction(pty_process, interaction)
+                    await asyncio.sleep(0.5)  # Wait for response
 
                     # Capture output after interaction
                     try:
-                        if process.stdout is not None:
-                            stdout_data = await asyncio.wait_for(
-                                process.stdout.read(8192), timeout=1.0
-                            )
-                        else:
-                            stdout_data = b""
-                        if stdout_data:
-                            stream.feed(stdout_data.decode("utf-8", errors="replace"))
-                            screenshot_path = await self._capture_screen(
-                                screen, f"{scenario_name}_{i:02d}_interaction_{i - 1}"
-                            )
-                            screenshots.append(screenshot_path)
-                    except asyncio.TimeoutError:
-                        pass
+                        if pty_process.isalive():
+                            output = pty_process.read()
+                            if output:
+                                stream.feed(output)
+                                screenshot_path = await self._capture_screen(
+                                    screen,
+                                    f"{scenario_name}_{i:02d}_interaction_{i - 1}",
+                                )
+                                screenshots.append(screenshot_path)
+                    except Exception as e:
+                        print(f"Error reading interaction output: {e}")
 
             # Final capture
-            await asyncio.sleep(0.2)
+            await asyncio.sleep(0.5)
             try:
-                if process.stdout is not None:
-                    stdout_data = await asyncio.wait_for(
-                        process.stdout.read(8192), timeout=1.0
-                    )
-                else:
-                    stdout_data = b""
-                if stdout_data:
-                    stream.feed(stdout_data.decode("utf-8", errors="replace"))
-            except asyncio.TimeoutError:
-                pass
+                if pty_process.isalive():
+                    output = pty_process.read()
+                    if output:
+                        stream.feed(output)
+            except Exception as e:
+                print(f"Error reading final output: {e}")
 
             screenshot_path = await self._capture_screen(
                 screen, f"{scenario_name}_final"
@@ -134,13 +126,13 @@ class PyteScreenshotCapture:
 
             # Cleanup
             try:
-                if process.stdin is not None:
-                    process.stdin.write(b"q\n")  # Try to quit gracefully
-                    await process.stdin.drain()
-                await asyncio.wait_for(process.wait(), timeout=2.0)
-            except Exception:
-                process.terminate()
-                await process.wait()
+                if pty_process.isalive():
+                    pty_process.write(b"q\n")  # Try to quit gracefully
+                    await asyncio.sleep(1.0)
+                    if pty_process.isalive():
+                        pty_process.terminate()
+            except Exception as e:
+                print(f"Error during cleanup: {e}")
 
         except Exception as e:
             print(f"Error capturing app flow: {e}")
@@ -171,6 +163,29 @@ class PyteScreenshotCapture:
                 else:
                     process.stdin.write(key.encode("utf-8"))
                 await process.stdin.drain()
+
+        elif interaction_type == "wait":
+            duration = interaction.get("duration", 0.5)
+            await asyncio.sleep(duration)
+
+    async def _simulate_pty_interaction(self, pty_process, interaction: Dict[str, Any]):
+        """Simulate user interaction with the PTY process."""
+        interaction_type = interaction.get("type", "key")
+
+        if interaction_type == "key":
+            key = interaction.get("key", "")
+            if key == "enter":
+                pty_process.write(b"\n")
+            elif key == "space":
+                pty_process.write(b" ")
+            elif key == "tab":
+                pty_process.write(b"\t")
+            elif key == "escape":
+                pty_process.write(b"\x1b")
+            elif key == "q":
+                pty_process.write(b"q")
+            else:
+                pty_process.write(key.encode("utf-8"))
 
         elif interaction_type == "wait":
             duration = interaction.get("duration", 0.5)
