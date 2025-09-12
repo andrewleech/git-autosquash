@@ -365,6 +365,56 @@ class RealScreenshotGenerator:
 
         return screenshots
 
+    def copy_final_screenshots_to_base_names(self):
+        """Copy _final.png screenshots to base names expected by README."""
+        print("\n📋 Copying screenshots to README-compatible base names...")
+
+        import shutil
+
+        # Map of expected base names (what README references)
+        expected_screenshots = [
+            "hero_screenshot",
+            "feature_smart_targeting",
+            "feature_interactive_tui",
+            "feature_safety_first",
+            "workflow_step_01",
+            "workflow_step_02",
+            "workflow_step_03",
+            "workflow_step_04",
+            "workflow_step_05",
+            "workflow_step_05_execution",
+            "comparison_before_traditional",
+            "comparison_before_diff",
+            "comparison_after_autosquash",
+            "execution_cleanup",
+            "fallback_new_file_fallback",
+            "fallback_manual_override",
+        ]
+
+        # Directories to update
+        docs_screenshots_dir = Path("docs/screenshots/readme")
+        docs_screenshots_dir.mkdir(parents=True, exist_ok=True)
+
+        copies_made = 0
+        for base_name in expected_screenshots:
+            final_file = self.output_dir / f"{base_name}_final.png"
+
+            if final_file.exists():
+                # Copy to screenshots/readme/ (main location)
+                base_file = self.output_dir / f"{base_name}.png"
+                shutil.copy2(final_file, base_file)
+
+                # Copy to docs/screenshots/readme/ (docs location)
+                docs_file = docs_screenshots_dir / f"{base_name}.png"
+                shutil.copy2(final_file, docs_file)
+
+                print(f"  ✓ {base_name}.png (screenshots + docs)")
+                copies_made += 1
+            else:
+                print(f"  ⚠️  Missing {base_name}_final.png")
+
+        print(f"📸 Copied {copies_made} screenshots to base names")
+
 
 async def main():
     """Generate all README screenshots using real application."""
@@ -388,6 +438,9 @@ async def main():
         print(f"\n🖼️  PNG Screenshots ({len(png_files)}):")
         for png_file in sorted(png_files):
             print(f"  - {png_file.name}")
+
+        # Copy final screenshots to base names expected by README
+        generator.copy_final_screenshots_to_base_names()
 
         print("\n🎉 Real application screenshots generated successfully!")
 
