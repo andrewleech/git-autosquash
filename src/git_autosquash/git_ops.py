@@ -216,3 +216,53 @@ class GitOps:
                 stdout="",
                 stderr=str(wrapped),
             )
+
+    def run_git_command_with_input(
+        self, args: list[str], input_text: str, env: dict[str, str] | None = None
+    ) -> subprocess.CompletedProcess[str]:
+        """Run a git command with stdin input and return the complete result.
+
+        Args:
+            args: Git command arguments (without 'git')
+            input_text: Text to provide as stdin to the command
+            env: Optional environment variables
+
+        Returns:
+            CompletedProcess with stdout, stderr, and return code
+        """
+        cmd = ["git"] + args
+        try:
+            result = subprocess.run(
+                cmd,
+                cwd=self.repo_path,
+                input=input_text,
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=300,  # 5 minute timeout
+            )
+            return result
+        except subprocess.TimeoutExpired as e:
+            return subprocess.CompletedProcess(
+                args=cmd,
+                returncode=124,  # timeout exit code
+                stdout=e.stdout.decode() if e.stdout else "",
+                stderr=f"Command timed out after 300 seconds: {e}",
+            )
+        except (OSError, PermissionError, FileNotFoundError) as e:
+            # File system or permission errors
+            return subprocess.CompletedProcess(
+                args=cmd,
+                returncode=1,
+                stdout="",
+                stderr=f"System error: {e}",
+            )
+        except Exception as e:
+            # Unexpected errors - wrap for better reporting
+            wrapped = handle_unexpected_error(e, f"git command: {' '.join(cmd)}")
+            return subprocess.CompletedProcess(
+                args=cmd,
+                returncode=1,
+                stdout="",
+                stderr=str(wrapped),
+            )

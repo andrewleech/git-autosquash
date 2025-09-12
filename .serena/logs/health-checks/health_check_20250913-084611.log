@@ -1,0 +1,41 @@
+INFO  2025-09-13 08:46:11,908 serena.cli:health_check:550 - Starting health check for project: /home/corona/git-autosquash
+INFO  2025-09-13 08:46:11,908 serena.cli:health_check:554 - Creating SerenaAgent with disabled dashboard...
+INFO  2025-09-13 08:46:11,926 serena.agent:__init__:204 - Starting Serena server (version=0.1.4-7a5e9a1c-dirty, process id=1829931, parent process id=1703535)
+INFO  2025-09-13 08:46:11,926 serena.agent:__init__:205 - Configuration file: None
+INFO  2025-09-13 08:46:11,926 serena.agent:__init__:206 - Available projects: 
+INFO  2025-09-13 08:46:11,927 serena.agent:__init__:207 - Loaded tools (36): read_file, create_text_file, list_dir, find_file, replace_regex, delete_lines, replace_lines, insert_at_line, search_for_pattern, restart_language_server, get_symbols_overview, find_symbol, find_referencing_symbols, replace_symbol_body, insert_after_symbol, insert_before_symbol, write_memory, read_memory, list_memories, delete_memory, execute_shell_command, activate_project, remove_project, switch_modes, get_current_config, check_onboarding_performed, onboarding, think_about_collected_information, think_about_task_adherence, think_about_whether_you_are_done, summarize_changes, prepare_for_new_conversation, initial_instructions, jet_brains_find_symbol, jet_brains_find_referencing_symbols, jet_brains_get_symbols_overview
+INFO  2025-09-13 08:46:11,927 serena.config.serena_config:apply:106 - SerenaAgentContext[name='desktop-app'] included 1 tools: switch_modes
+INFO  2025-09-13 08:46:11,929 serena.agent:__init__:221 - Number of exposed tools: 26
+INFO  2025-09-13 08:46:11,958 serena.agent:_update_active_tools:401 - Active tools (26): activate_project, check_onboarding_performed, create_text_file, delete_memory, execute_shell_command, find_file, find_referencing_symbols, find_symbol, get_current_config, get_symbols_overview, insert_after_symbol, insert_before_symbol, list_dir, list_memories, onboarding, prepare_for_new_conversation, read_file, read_memory, replace_regex, replace_symbol_body, search_for_pattern, switch_modes, think_about_collected_information, think_about_task_adherence, think_about_whether_you_are_done, write_memory
+INFO  2025-09-13 08:46:11,962 serena.util.file_system:start:329 - Loading of .gitignore files starting ...
+INFO  2025-09-13 08:46:11,962 serena.util.file_system:_load_gitignore_files:143 - Processing .gitignore file: /home/corona/git-autosquash/.gitignore
+INFO  2025-09-13 08:46:11,964 serena.util.file_system:_load_gitignore_files:143 - Processing .gitignore file: /home/corona/git-autosquash/.serena/.gitignore
+INFO  2025-09-13 08:46:11,964 serena.util.file_system:_load_gitignore_files:143 - Processing .gitignore file: /home/corona/git-autosquash/.ruff_cache/.gitignore
+INFO  2025-09-13 08:46:11,970 serena.util.file_system:stop:336 - Loading of .gitignore files completed in 0.009 seconds
+INFO  2025-09-13 08:46:11,972 serena.agent:load_project_from_path_or_name:476 - Added new project git-autosquash for path /home/corona/git-autosquash
+INFO  2025-09-13 08:46:11,972 serena.agent:_activate_project:441 - Activating git-autosquash at /home/corona/git-autosquash
+INFO  2025-09-13 08:46:11,972 serena.agent:_update_active_tools:401 - Active tools (26): activate_project, check_onboarding_performed, create_text_file, delete_memory, execute_shell_command, find_file, find_referencing_symbols, find_symbol, get_current_config, get_symbols_overview, insert_after_symbol, insert_before_symbol, list_dir, list_memories, onboarding, prepare_for_new_conversation, read_file, read_memory, replace_regex, replace_symbol_body, search_for_pattern, switch_modes, think_about_collected_information, think_about_task_adherence, think_about_whether_you_are_done, write_memory
+INFO  2025-09-13 08:46:11,973 serena.agent:issue_task:420 - Scheduling Task-1[init_language_server]
+INFO  2025-09-13 08:46:11,973 serena.agent:start:329 - Task-1[init_language_server] starting ...
+INFO  2025-09-13 08:46:11,973 serena.agent:start:329 - Language server initialization starting ...
+INFO  2025-09-13 08:46:11,973 serena.project:create_language_server:299 - Creating language server instance for /home/corona/git-autosquash.
+INFO  2025-09-13 08:46:11,973 serena.cli:health_check:557 - SerenaAgent created successfully
+INFO  2025-09-13 08:46:11,974 serena.cli:health_check:560 - Searching for analyzable files...
+INFO  2025-09-13 08:46:12,094 serena.cli:health_check:569 - Found analyzable file: capture_readme_screenshots.py
+INFO  2025-09-13 08:46:12,094 serena.cli:health_check:587 - Testing GetSymbolsOverviewTool on file: capture_readme_screenshots.py
+INFO  2025-09-13 08:46:12,094 serena.agent:issue_task:420 - Scheduling Task-2[<lambda>]
+INFO  2025-09-13 08:46:12,159 serena.agent:reset_language_server:593 - Starting the language server for git-autosquash
+INFO  2025-09-13 08:46:12,160 solidlsp:start:1728 - Starting language server with language python for /home/corona/git-autosquash
+INFO  2025-09-13 08:46:12,160 solidlsp:_start_server:172 - Starting pyright-langserver server process
+INFO  2025-09-13 08:46:12,160 solidlsp.ls_handler:start:189 - Starting language server process via command: python -m pyright.langserver --stdio
+INFO  2025-09-13 08:46:12,163 solidlsp:_start_server:178 - Sending initialize request from LSP client to pyright server and awaiting response
+INFO  2025-09-13 08:46:12,163 solidlsp.ls_handler:_read_ls_process_stderr:387 - /bin/sh: 1: python: not found
+
+INFO  2025-09-13 08:46:12,163 solidlsp.ls_handler:_read_ls_process_stdout:362 - Language server stdout reader thread has terminated
+ERROR 2025-09-13 08:46:12,163 solidlsp.ls_handler:_read_ls_process_stderr:391 - Language server stderr reader thread terminated unexpectedly
+ERROR 2025-09-13 08:46:12,163 solidlsp.ls_handler:_read_ls_process_stdout:366 - LanguageServerTerminatedException: Language server stdout read process terminated unexpectedly
+INFO  2025-09-13 08:46:12,164 solidlsp.ls_handler:_cancel_pending_requests:451 - Cancelling 1 pending language server requests
+INFO  2025-09-13 08:46:12,164 solidlsp.ls_handler:_cancel_pending_requests:453 - Cancelling Request[status='pending', method='initialize', request_id=1]
+ERROR 2025-09-13 08:46:12,165 serena.agent:__exit__:342 - Language server initialization failed after 0.191 seconds
+ERROR 2025-09-13 08:46:12,165 serena.agent:__exit__:342 - Task-1[init_language_server] failed after 0.192 seconds
+INFO  2025-09-13 08:46:12,165 serena.agent:start:329 - Task-2[<lambda>] starting ...

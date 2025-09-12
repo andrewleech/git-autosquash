@@ -6,7 +6,7 @@ import sys
 from typing import List
 
 from git_autosquash import __version__
-from git_autosquash.hunk_target_resolver import HunkTargetResolver
+from git_autosquash.hunk_target_resolver import HunkTargetResolver, HunkTargetMapping
 from git_autosquash.exceptions import (
     ErrorReporter,
     GitAutoSquashError,
@@ -253,8 +253,43 @@ def _execute_rebase(approved_mappings, git_ops, merge_base, resolver) -> bool:
         return False
 
 
-def main() -> None:
-    """Main entry point for git-autosquash command."""
+def _get_user_choice_for_uncommitted_changes() -> str:
+    """Get user choice for handling uncommitted changes.
+
+    Returns:
+        User's choice: 'continue' or other
+    """
+    print("Choose an option:")
+    print("  c) Continue (changes will be temporarily stashed)")
+    print("  q) Quit")
+
+    while True:
+        choice = input("Your choice [c/q]: ").lower().strip()
+        if choice == "c":
+            return "continue"
+        elif choice == "q":
+            return "quit"
+        else:
+            print("Please enter 'c' to continue or 'q' to quit")
+
+
+def _display_automatic_mappings(mappings: List[HunkTargetMapping]) -> None:
+    """Display automatic mappings to the user.
+
+    Args:
+        mappings: List of automatic mappings to display
+    """
+    print(f"\nFound {len(mappings)} hunks with automatic blame-identified targets:")
+    for mapping in mappings:
+        commit_summary = (
+            mapping.target_commit[:8] if mapping.target_commit else "unknown"
+        )
+        print(f"  → {mapping.hunk.file_path}: {commit_summary}")
+    print()
+
+
+def setup_argument_parser() -> argparse.ArgumentParser:
+    """Set up and return the command line argument parser."""
     parser = argparse.ArgumentParser(
         prog="git-autosquash",
         description="Automatically squash changes back into historical commits",
@@ -283,114 +318,253 @@ def main() -> None:
 
     add_strategy_subcommands(subparsers)
 
-    args = parser.parse_args()
+    return parser
 
-    # Handle strategy subcommands
-    if hasattr(args, "func"):
-        sys.exit(args.func(args))
 
-    try:
-        git_ops = GitOps()
+def validate_git_environment(git_ops: GitOps) -> str:
+    """Validate git environment and return current branch.
 
-        # Phase 1: Check git availability
-        if not git_ops.is_git_available():
-            error = RepositoryStateError(
-                "Git is not installed or not available in PATH",
-                recovery_suggestion="Please install git and ensure it's available in your PATH environment variable",
-            )
-            ErrorReporter.report_error(error)
-            sys.exit(1)
+    Args:
+        git_ops: GitOps instance
 
-        # Phase 2: Validate git repository
-        if not git_ops.is_git_repo():
-            error = RepositoryStateError(
-                "Not in a git repository",
-                recovery_suggestion="Run this command from within a git repository",
-            )
-            ErrorReporter.report_error(error)
-            sys.exit(1)
+    Returns:
+        Current branch name
 
-        current_branch = git_ops.get_current_branch()
-        if not current_branch:
-            error = RepositoryStateError(
-                "Not on a branch (detached HEAD)",
-                recovery_suggestion="Switch to a branch with 'git checkout <branch-name>'",
-            )
-            ErrorReporter.report_error(error)
-            sys.exit(1)
-
-        merge_base = git_ops.get_merge_base_with_main(current_branch)
-        if not merge_base:
-            error = RepositoryStateError(
-                "Could not find merge base with main/master",
-                current_state=f"on branch {current_branch}",
-                recovery_suggestion="Ensure your branch is based on main/master",
-            )
-            ErrorReporter.report_error(error)
-            sys.exit(1)
-
-        # Check if there are commits to work with
-        if not git_ops.has_commits_since_merge_base(merge_base):
-            error = RepositoryStateError(
-                "No commits found on current branch since merge base",
-                current_state=f"merge base: {merge_base}",
-                recovery_suggestion="Make some commits on your branch before running git-autosquash",
-            )
-            ErrorReporter.report_error(error)
-            sys.exit(1)
-
-        # Analyze working tree status
-        status = git_ops.get_working_tree_status()
-        print(f"Current branch: {current_branch}")
-        print(f"Merge base: {merge_base}")
-        print(
-            f"Working tree status: staged={status['has_staged']}, unstaged={status['has_unstaged']}, clean={status['is_clean']}"
+    Raises:
+        SystemExit: If validation fails
+    """
+    # Check git availability
+    if not git_ops.is_git_available():
+        error = RepositoryStateError(
+            "Git is not installed or not available in PATH",
+            recovery_suggestion="Please install git and ensure it's available in your PATH environment variable",
         )
+        ErrorReporter.report_error(error)
+        sys.exit(1)
 
-        # Handle mixed staged/unstaged state
-        if status["has_staged"] and status["has_unstaged"]:
-            print("\nMixed staged and unstaged changes detected.")
-            print("Choose an option:")
-            print("  a) Process all changes (staged + unstaged)")
-            print("  s) Stash unstaged changes and process only staged")
-            print("  q) Quit")
+    # Validate git repository
+    if not git_ops.is_git_repo():
+        error = RepositoryStateError(
+            "Not in a git repository",
+            recovery_suggestion="Please run this command from within a git repository directory",
+        )
+        ErrorReporter.report_error(error)
+        sys.exit(1)
 
-            choice = input("Your choice [a/s/q]: ").lower().strip()
-            if choice == "q":
-                print("Operation cancelled")
-                sys.exit(0)
-            elif choice == "s":
-                print("Stash-only mode selected (not yet implemented)")
-            elif choice == "a":
-                print("Process-all mode selected")
-            else:
-                print("Invalid choice, defaulting to process all")
-        elif status["is_clean"]:
-            print("Working tree is clean, will reset HEAD~1 and process those changes")
-        elif status["has_staged"]:
-            print("Processing staged changes")
+    # Get current branch
+    current_branch = git_ops.get_current_branch()
+    if not current_branch:
+        error = RepositoryStateError(
+            "Not on a branch (detached HEAD)",
+            recovery_suggestion="Please checkout a branch before using git-autosquash",
+        )
+        ErrorReporter.report_error(error)
+        sys.exit(1)
+
+    return current_branch
+
+
+def get_merge_base(git_ops: GitOps, current_branch: str) -> str:
+    """Get merge base with main branch.
+
+    Args:
+        git_ops: GitOps instance
+        current_branch: Current branch name
+
+    Returns:
+        Merge base commit hash
+
+    Raises:
+        SystemExit: If merge base not found
+    """
+    merge_base = git_ops.get_merge_base_with_main(current_branch)
+    if not merge_base:
+        error = RepositoryStateError(
+            "Could not find merge base with main/master branch",
+            recovery_suggestion="Ensure you have a main or master branch, and your current branch shares history with it",
+        )
+        ErrorReporter.report_error(error)
+        sys.exit(1)
+
+    return merge_base
+
+
+def check_repository_state(git_ops: GitOps, merge_base: str) -> None:
+    """Check repository state and handle uncommitted changes.
+
+    Args:
+        git_ops: GitOps instance
+        merge_base: Merge base commit hash
+
+    Raises:
+        SystemExit: If repository state is invalid
+    """
+    # Check for commits to work with
+    if not git_ops.has_commits_since_merge_base(merge_base):
+        error = RepositoryStateError(
+            "No commits to process since merge base",
+            recovery_suggestion="Make some commits on your branch before running git-autosquash",
+        )
+        ErrorReporter.report_error(error)
+        sys.exit(1)
+
+    # Check working tree status
+    status = git_ops.get_working_tree_status()
+
+    if not status["is_clean"]:
+        print(
+            "⚠️  Working tree has uncommitted changes. These will be temporarily stashed during operation."
+        )
+        if not status.get("has_staged", False) and not status.get(
+            "has_unstaged", False
+        ):
+            # This shouldn't happen if is_clean is False, but handle it gracefully
+            pass
         else:
-            print("Processing unstaged changes")
+            choice = _get_user_choice_for_uncommitted_changes()
+            if choice != "continue":
+                print("Operation cancelled.")
+                sys.exit(0)
 
-        # Phase 3: Parse hunks and analyze blame
-        print("\nAnalyzing changes and finding target commits...")
 
-        hunk_parser = HunkParser(git_ops)
-        hunks = hunk_parser.get_diff_hunks(line_by_line=args.line_by_line)
+def process_hunks_and_mappings(
+    git_ops: GitOps, merge_base: str, line_by_line: bool
+) -> tuple[List[HunkTargetMapping], List[HunkTargetMapping]]:
+    """Process hunks and create target mappings.
 
-        if not hunks:
-            print("No changes found to process", file=sys.stderr)
-            sys.exit(1)
+    Args:
+        git_ops: GitOps instance
+        merge_base: Merge base commit hash
+        line_by_line: Whether to use line-by-line splitting
 
-        print(f"Found {len(hunks)} hunks to process")
+    Returns:
+        Tuple of (automatic_mappings, fallback_mappings)
 
-        # Analyze hunks with enhanced blame and fallback analysis
-        resolver = HunkTargetResolver(git_ops, merge_base)
-        mappings = resolver.resolve_targets(hunks)
+    Raises:
+        SystemExit: If no hunks found
+    """
+    # Parse hunks from git diff
+    hunk_parser = HunkParser(git_ops)
+    hunks = hunk_parser.get_diff_hunks(line_by_line)
 
-        # Categorize mappings into automatic and fallback
-        automatic_mappings = [m for m in mappings if not m.needs_user_selection]
-        fallback_mappings = [m for m in mappings if m.needs_user_selection]
+    if not hunks:
+        print("No hunks found to process.")
+        sys.exit(0)
+
+    # Resolve target commits for hunks
+    resolver = HunkTargetResolver(git_ops, merge_base)
+    mappings = resolver.resolve_targets(hunks)
+
+    # Separate automatic mappings from those requiring user input
+    automatic_mappings = [m for m in mappings if not m.needs_user_selection]
+    fallback_mappings = [m for m in mappings if m.needs_user_selection]
+
+    return automatic_mappings, fallback_mappings
+
+
+def handle_automatic_mappings(
+    automatic_mappings: List[HunkTargetMapping], auto_accept: bool, git_ops: GitOps
+) -> tuple[List[HunkTargetMapping], List[HunkTargetMapping]]:
+    """Handle automatic mappings and return approved/ignored lists.
+
+    Args:
+        automatic_mappings: List of automatic mappings
+        auto_accept: Whether to auto-accept all mappings
+
+    Returns:
+        Tuple of (approved_mappings, ignored_mappings)
+    """
+    if not automatic_mappings:
+        return [], []
+
+    if auto_accept:
+        print(
+            f"\n✓ Auto-accepting {len(automatic_mappings)} hunks with blame-identified targets"
+        )
+        for mapping in automatic_mappings:
+            commit_summary = (
+                mapping.target_commit[:8] if mapping.target_commit else "unknown"
+            )
+            print(f"  → {mapping.hunk.file_path}: {commit_summary}")
+        print()
+        return automatic_mappings, []
+    else:
+        # Show automatic mappings and ask for confirmation
+        _display_automatic_mappings(automatic_mappings)
+        success = _apply_ignored_hunks(automatic_mappings, git_ops)
+        if success:
+            print("✓ Successfully applied automatic mappings")
+            return [], []
+        else:
+            print("✗ Failed to apply some automatic mappings")
+            return [], automatic_mappings
+
+
+def run_interactive_ui(
+    fallback_mappings: List[HunkTargetMapping], git_ops: GitOps, merge_base: str
+) -> bool:
+    """Run the interactive TUI for user selections.
+
+    Args:
+        fallback_mappings: Mappings requiring user input
+        git_ops: GitOps instance
+        merge_base: Merge base commit hash
+
+    Returns:
+        True if user approved changes, False if cancelled
+    """
+    try:
+        from git_autosquash.commit_history_analyzer import CommitHistoryAnalyzer
+        from git_autosquash.tui.modern_app import ModernAutoSquashApp
+
+        commit_analyzer = CommitHistoryAnalyzer(git_ops, merge_base)
+
+        # Launch the modern TUI app
+        app = ModernAutoSquashApp(fallback_mappings, commit_analyzer)
+        approved = app.run()
+
+        if approved:
+            result = _apply_ignored_hunks(app.approved_mappings, git_ops)
+            if result:
+                print("✓ Successfully applied selected hunks")
+                return True
+            else:
+                print("✗ Failed to apply some hunks")
+                return False
+        else:
+            print("Operation cancelled by user.")
+            return False
+
+    except Exception as e:
+        if "Cancelled by user" in str(e):
+            ErrorReporter.report_error(UserCancelledError("TUI cancelled by user"))
+        else:
+            error = handle_unexpected_error(e, "TUI execution")
+            ErrorReporter.report_error(error)
+        return False
+
+
+def main() -> None:
+    """Main entry point for git-autosquash command."""
+    try:
+        # Phase 1: Parse command line arguments
+        parser = setup_argument_parser()
+        args = parser.parse_args()
+
+        # Handle strategy subcommands
+        if hasattr(args, "func"):
+            sys.exit(args.func(args))
+
+        # Phase 2: Initialize git operations and validate environment
+        git_ops = GitOps()
+        current_branch = validate_git_environment(git_ops)
+        merge_base = get_merge_base(git_ops, current_branch)
+        check_repository_state(git_ops, merge_base)
+
+        # Phase 3: Process hunks and create mappings
+        automatic_mappings, fallback_mappings = process_hunks_and_mappings(
+            git_ops, merge_base, args.line_by_line
+        )
 
         print(f"Found target commits for {len(automatic_mappings)} hunks")
         if fallback_mappings:
@@ -398,254 +572,46 @@ def main() -> None:
                 f"Found {len(fallback_mappings)} hunks requiring manual target selection"
             )
 
-        # If we have no automatic targets and no fallbacks, something is wrong
-        if not mappings:
-            print("No hunks found to process", file=sys.stderr)
-            sys.exit(1)
+        # Phase 4: Handle user interaction
+        success = False
 
-        # Phase 4: User approval - either auto-accept or interactive TUI
         if args.auto_accept:
-            # Auto-accept mode: accept all hunks with automatic blame targets
-            approved_mappings = []
-            ignored_mappings = []
-
-            print(f"\nAuto-accept mode: Processing {len(mappings)} hunks...")
-
-            for mapping in mappings:
-                if mapping.target_commit and not mapping.needs_user_selection:
-                    # This hunk has an automatic blame-identified target
-                    approved_mappings.append(mapping)
-                    commit_summary = resolver.get_commit_summary(mapping.target_commit)
-                    print(
-                        f"✓ Auto-accepted: {mapping.hunk.file_path} → {commit_summary}"
-                    )
-                else:
-                    # This hunk needs manual selection, leave in working tree
-                    ignored_mappings.append(mapping)
-                    if mapping.needs_user_selection:
-                        print(
-                            f"⚠ Left in working tree: {mapping.hunk.file_path} (needs manual selection)"
-                        )
-                    else:
-                        print(
-                            f"⚠ Left in working tree: {mapping.hunk.file_path} (no target found)"
-                        )
-
-            print(
-                f"\nAuto-accepted {len(approved_mappings)} hunks with automatic targets"
+            # Auto-accept mode: process only automatic mappings
+            approved_mappings, ignored_mappings = handle_automatic_mappings(
+                automatic_mappings, auto_accept=True, git_ops=git_ops
             )
-            if ignored_mappings:
-                print(f"Left {len(ignored_mappings)} hunks in working tree")
 
-            # Execute the rebase for approved hunks
+            # Add fallback mappings to ignored list (they can't be auto-accepted)
+            ignored_mappings.extend(fallback_mappings)
+
             if approved_mappings:
                 success = _execute_rebase(
-                    approved_mappings, git_ops, merge_base, resolver
+                    approved_mappings,
+                    git_ops,
+                    merge_base,
+                    HunkTargetResolver(git_ops, merge_base),
                 )
-                if not success:
-                    print("✗ Squash operation was aborted or failed.")
-                    return
             else:
-                success = True  # No rebase needed, just apply ignored hunks
-
-            # Apply ignored hunks back to working tree
-            if success and ignored_mappings:
-                print(
-                    f"\nApplying {len(ignored_mappings)} ignored hunks back to working tree..."
-                )
-                ignore_success = _apply_ignored_hunks(ignored_mappings, git_ops)
-                if ignore_success:
-                    print("✓ Ignored hunks have been restored to working tree")
-                else:
-                    print(
-                        "⚠️  Some ignored hunks could not be restored - check working tree status"
-                    )
-
-            # Report final results for auto-accept mode
-            if success:
-                if approved_mappings and ignored_mappings:
-                    print(
-                        "✓ Operation completed! Changes squashed to commits and ignored hunks restored to working tree."
-                    )
-                elif approved_mappings:
-                    print("✓ Squash operation completed successfully!")
-                    print("Your changes have been distributed to their target commits.")
-                elif ignored_mappings:
-                    print("✓ Ignored hunks have been restored to working tree.")
-            else:
-                print("✗ Operation failed.")
+                success = True  # No rebase needed
 
         else:
-            # Interactive TUI mode
-            print("\nLaunching enhanced interactive approval interface...")
+            # Interactive mode: combine all mappings for user review
+            all_mappings = automatic_mappings + fallback_mappings
 
-            try:
-                # Create commit history analyzer for fallback suggestions
-                from git_autosquash.commit_history_analyzer import CommitHistoryAnalyzer
+            if all_mappings:
+                success = run_interactive_ui(all_mappings, git_ops, merge_base)
+            else:
+                print("No hunks found to process.")
+                success = True
 
-                commit_analyzer = CommitHistoryAnalyzer(git_ops, merge_base)
-
-                # Use modern 3-panel TUI layout
-                from git_autosquash.tui.modern_app import ModernAutoSquashApp
-
-                app = ModernAutoSquashApp(mappings, commit_analyzer)
-
-                approved = app.run()
-
-                if approved and (app.approved_mappings or app.ignored_mappings):
-                    approved_mappings = app.approved_mappings
-                    ignored_mappings = app.ignored_mappings
-
-                    print(
-                        f"\nUser selected {len(approved_mappings)} hunks for squashing"
-                    )
-                    if ignored_mappings:
-                        print(
-                            f"User selected {len(ignored_mappings)} hunks to ignore (keep in working tree)"
-                        )
-
-                    # Phase 4 - Execute the interactive rebase for approved hunks
-                    if approved_mappings:
-                        print("\nExecuting interactive rebase for approved hunks...")
-                        success = _execute_rebase(
-                            approved_mappings, git_ops, merge_base, resolver
-                        )
-
-                        if not success:
-                            print("✗ Squash operation was aborted or failed.")
-                            return
-                    else:
-                        success = True  # No rebase needed, just apply ignored hunks
-
-                    # Phase 5 - Apply ignored hunks back to working tree
-                    if success and ignored_mappings:
-                        print(
-                            f"\nApplying {len(ignored_mappings)} ignored hunks back to working tree..."
-                        )
-                        ignore_success = _apply_ignored_hunks(ignored_mappings, git_ops)
-                        if ignore_success:
-                            print("✓ Ignored hunks have been restored to working tree")
-                        else:
-                            print(
-                                "⚠️  Some ignored hunks could not be restored - check working tree status"
-                            )
-
-                    if success:
-                        if approved_mappings and ignored_mappings:
-                            print(
-                                "✓ Operation completed! Changes squashed to commits and ignored hunks restored to working tree."
-                            )
-                        elif approved_mappings:
-                            print("✓ Squash operation completed successfully!")
-                            print(
-                                "Your changes have been distributed to their target commits."
-                            )
-                        elif ignored_mappings:
-                            print("✓ Ignored hunks have been restored to working tree.")
-                    else:
-                        print("✗ Operation failed.")
-
-                else:
-                    print("\nOperation cancelled by user or no hunks selected")
-
-            except ImportError as e:
-                print(f"\nTextual TUI not available: {e}")
-                print("Falling back to simple text-based approval...")
-                result = _simple_approval_fallback(mappings, resolver, commit_analyzer)
-
-                approved_mappings = result["approved"]
-                ignored_mappings = result["ignored"]
-
-                if approved_mappings:
-                    print(f"\nApproved {len(approved_mappings)} hunks for squashing")
-                    if ignored_mappings:
-                        print(
-                            f"Selected {len(ignored_mappings)} hunks to ignore (keep in working tree)"
-                        )
-
-                    # Phase 4 - Execute the interactive rebase
-                    print("\nExecuting interactive rebase...")
-                    success = _execute_rebase(
-                        approved_mappings, git_ops, merge_base, resolver
-                    )
-
-                    if success:
-                        print("✓ Squash operation completed successfully!")
-                        print(
-                            "Your changes have been distributed to their target commits."
-                        )
-
-                        # Apply ignored hunks back to working tree
-                        if ignored_mappings:
-                            print(
-                                f"\nApplying {len(ignored_mappings)} ignored hunks back to working tree..."
-                            )
-                            ignore_success = _apply_ignored_hunks(
-                                ignored_mappings, git_ops
-                            )
-                            if ignore_success:
-                                print(
-                                    "✓ Ignored hunks have been restored to working tree"
-                                )
-                            else:
-                                print(
-                                    "⚠️  Some ignored hunks could not be restored - check working tree status"
-                                )
-                    else:
-                        print("✗ Squash operation was aborted or failed.")
-                else:
-                    print("\nOperation cancelled")
-
-            except Exception as e:
-                print(f"\nTUI encountered an error: {e}")
-                print("Falling back to simple text-based approval...")
-                result = _simple_approval_fallback(mappings, resolver, commit_analyzer)
-
-                approved_mappings = result["approved"]
-                ignored_mappings = result["ignored"]
-
-                if approved_mappings:
-                    print(f"\nApproved {len(approved_mappings)} hunks for squashing")
-                    if ignored_mappings:
-                        print(
-                            f"Selected {len(ignored_mappings)} hunks to ignore (keep in working tree)"
-                        )
-
-                    # Phase 4 - Execute the interactive rebase
-                    print("\nExecuting interactive rebase...")
-                    success = _execute_rebase(
-                        approved_mappings, git_ops, merge_base, resolver
-                    )
-
-                    if success:
-                        print("✓ Squash operation completed successfully!")
-                        print(
-                            "Your changes have been distributed to their target commits."
-                        )
-
-                        # Apply ignored hunks back to working tree
-                        if ignored_mappings:
-                            print(
-                                f"\nApplying {len(ignored_mappings)} ignored hunks back to working tree..."
-                            )
-                            ignore_success = _apply_ignored_hunks(
-                                ignored_mappings, git_ops
-                            )
-                            if ignore_success:
-                                print(
-                                    "✓ Ignored hunks have been restored to working tree"
-                                )
-                            else:
-                                print(
-                                    "⚠️  Some ignored hunks could not be restored - check working tree status"
-                                )
-                    else:
-                        print("✗ Squash operation was aborted or failed.")
-                else:
-                    print("\nOperation cancelled")
+        # Phase 5: Report results
+        if success:
+            print("✓ Operation completed successfully!")
+        else:
+            print("✗ Operation failed or was cancelled.")
+            sys.exit(1)
 
     except GitAutoSquashError as e:
-        # Our custom exceptions with user-friendly messages
         ErrorReporter.report_error(e)
         sys.exit(1)
     except KeyboardInterrupt:
@@ -653,14 +619,12 @@ def main() -> None:
         ErrorReporter.report_error(cancel_error)
         sys.exit(130)
     except (subprocess.SubprocessError, FileNotFoundError) as e:
-        # Git/system operation failures
         wrapped = handle_unexpected_error(
             e, "git operation", "Check git installation and repository state"
         )
         ErrorReporter.report_error(wrapped)
         sys.exit(1)
     except Exception as e:
-        # Catch-all for unexpected errors
         wrapped = handle_unexpected_error(e, "git-autosquash execution")
         ErrorReporter.report_error(wrapped)
         sys.exit(1)

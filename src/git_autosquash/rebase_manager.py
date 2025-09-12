@@ -559,23 +559,25 @@ class RebaseManager:
             Rebase todo content
         """
         # Get commits from target_commit^ to HEAD
-        result = self.git_ops.run_git_command([
-            "rev-list", "--reverse", f"{target_commit}^..HEAD"
-        ])
-        
+        result = self.git_ops.run_git_command(
+            ["rev-list", "--reverse", f"{target_commit}^..HEAD"]
+        )
+
         if result.returncode != 0:
             # Fallback to simple edit if rev-list fails
             return f"edit {target_commit}\n"
-        
-        commit_list = [line.strip() for line in result.stdout.strip().split('\n') if line.strip()]
-        
+
+        commit_list = [
+            line.strip() for line in result.stdout.strip().split("\n") if line.strip()
+        ]
+
         todo_lines = []
         for commit_hash in commit_list:
             if commit_hash == target_commit:
                 todo_lines.append(f"edit {commit_hash}")
             else:
                 todo_lines.append(f"pick {commit_hash}")
-        
+
         return "\n".join(todo_lines) + "\n"
 
     def _create_corrected_hunk(
@@ -821,23 +823,30 @@ class RebaseManager:
         """Continue the interactive rebase, handling empty commits."""
         max_retries = 10  # Prevent infinite loops
         retry_count = 0
-        
+
         while retry_count < max_retries:
             result = self.git_ops.run_git_command(["rebase", "--continue"])
-            
+
             if result.returncode == 0:
                 # Rebase completed successfully
                 return
-            
+
             # Check if this is an empty commit that should be skipped
-            if ("The previous cherry-pick is now empty" in result.stderr or 
-                "nothing to commit, working tree clean" in result.stderr):
+            if (
+                "The previous cherry-pick is now empty" in result.stderr
+                or "nothing to commit, working tree clean" in result.stderr
+            ):
                 print("DEBUG: Skipping empty commit during rebase")
                 skip_result = self.git_ops.run_git_command(["rebase", "--skip"])
                 if skip_result.returncode == 0:
                     # Check if rebase is complete
-                    status_result = self.git_ops.run_git_command(["status", "--porcelain=v1"])
-                    if status_result.returncode == 0 and not self.is_rebase_in_progress():
+                    status_result = self.git_ops.run_git_command(
+                        ["status", "--porcelain=v1"]
+                    )
+                    if (
+                        status_result.returncode == 0
+                        and not self.is_rebase_in_progress()
+                    ):
                         return  # Rebase completed
                     retry_count += 1
                     continue
@@ -856,7 +865,7 @@ class RebaseManager:
                     raise subprocess.SubprocessError(
                         f"Failed to continue rebase: {result.stderr}"
                     )
-        
+
         raise subprocess.SubprocessError(
             f"Rebase failed after {max_retries} attempts to handle empty commits"
         )

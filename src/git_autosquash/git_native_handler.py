@@ -1,14 +1,14 @@
 """Git-native handler for ignore functionality using hybrid stash approach."""
 
-import logging
 from pathlib import Path
 from typing import List, Optional
 
 from git_autosquash.hunk_target_resolver import HunkTargetMapping
 from git_autosquash.git_ops import GitOps
+from git_autosquash.strategy_base import CliStrategy
 
 
-class GitNativeIgnoreHandler:
+class GitNativeIgnoreHandler(CliStrategy):
     """Enhanced ignore handler using git native operations for backup/restore.
 
     This implementation combines the reliability of git's native stash operations
@@ -21,8 +21,30 @@ class GitNativeIgnoreHandler:
         Args:
             git_ops: GitOps instance for git command execution
         """
-        self.git_ops = git_ops
-        self.logger = logging.getLogger(__name__)
+        super().__init__(git_ops)
+
+    @property
+    def strategy_name(self) -> str:
+        """Get the name of this strategy for logging and identification."""
+        return "index"
+
+    @property
+    def requires_worktree_support(self) -> bool:
+        """Whether this strategy requires git worktree support."""
+        return False
+
+    def is_available(self) -> bool:
+        """Check if this strategy is available in the current environment.
+
+        Returns:
+            True if strategy can be used
+        """
+        try:
+            # Check if git stash is available (should be in all git versions)
+            result = self.git_ops.run_git_command(["stash", "--help"])
+            return result.returncode == 0
+        except Exception:
+            return False
 
     def apply_ignored_hunks(self, ignored_mappings: List[HunkTargetMapping]) -> bool:
         """Apply ignored hunks with native git backup/restore.
@@ -89,21 +111,23 @@ class GitNativeIgnoreHandler:
         """
         self.logger.debug("Creating comprehensive backup stash")
 
-        success, stash_output = self.git_ops._run_git_command(
-            "stash",
-            "push",
-            "--include-untracked",
-            "--message",
-            "git-autosquash-comprehensive-backup",
+        result = self.git_ops.run_git_command(
+            [
+                "stash",
+                "push",
+                "--include-untracked",
+                "--message",
+                "git-autosquash-comprehensive-backup",
+            ]
         )
 
-        if success:
+        if result.returncode == 0:
             # Extract stash reference - typically "stash@{0}" after creation
             stash_ref = "stash@{0}"
             self.logger.debug(f"Created backup stash: {stash_ref}")
             return stash_ref
         else:
-            self.logger.error(f"Failed to create backup stash: {stash_output}")
+            self.logger.error(f"Failed to create backup stash: {result.stderr}")
             return None
 
     def _validate_file_paths(self, ignored_mappings: List[HunkTargetMapping]) -> bool:
@@ -217,24 +241,24 @@ class GitNativeIgnoreHandler:
                 self._restore_index_state(original_index)
 
                 # Apply patch to working tree using git apply
-                success, error_msg = self.git_ops._run_git_command_with_input(
-                    "apply", "--check", input_text=patch_content
+                result = self.git_ops.run_git_command_with_input(
+                    ["apply", "--check"], patch_content
                 )
 
-                if not success:
-                    self.logger.error(f"Patch validation failed: {error_msg}")
+                if result.returncode != 0:
+                    self.logger.error(f"Patch validation failed: {result.stderr}")
                     return False
 
-                success, error_msg = self.git_ops._run_git_command_with_input(
-                    "apply", input_text=patch_content
+                result = self.git_ops.run_git_command_with_input(
+                    ["apply"], patch_content
                 )
 
-                if success:
+                if result.returncode == 0:
                     self.logger.debug("Git-native patch application successful")
                     return True
                 else:
                     self.logger.error(
-                        f"Git-native patch application failed: {error_msg}"
+                        f"Git-native patch application failed: {result.stderr}"
                     )
                     return False
 
@@ -256,9 +280,9 @@ class GitNativeIgnoreHandler:
         """
         try:
             # Get current index tree hash
-            success, tree_hash = self.git_ops._run_git_command("write-tree")
-            if success:
-                return True, tree_hash.strip()
+            result = self.git_ops.run_git_command(["write-tree"])
+            if result.returncode == 0:
+                return True, result.stdout.strip()
             else:
                 self.logger.error("Failed to capture index tree state")
                 return False, ""
@@ -279,8 +303,8 @@ class GitNativeIgnoreHandler:
             if not tree_hash:
                 return False
 
-            success, _ = self.git_ops._run_git_command("read-tree", tree_hash)
-            if success:
+            result = self.git_ops.run_git_command(["read-tree", tree_hash])
+            if result.returncode == 0:
                 self.logger.debug(f"Index restored to tree {tree_hash[:8]}")
                 return True
             else:
@@ -306,16 +330,16 @@ class GitNativeIgnoreHandler:
                 return False
 
             # Apply patch to index only (--cached)
-            success, error_msg = self.git_ops._run_git_command_with_input(
-                "apply", "--cached", input_text=hunk_patch
+            result = self.git_ops.run_git_command_with_input(
+                ["apply", "--cached"], hunk_patch
             )
 
-            if success:
+            if result.returncode == 0:
                 self.logger.debug(f"Staged hunk for {hunk.file_path} to index")
                 return True
             else:
                 self.logger.warning(
-                    f"Failed to stage hunk for {hunk.file_path}: {error_msg}"
+                    f"Failed to stage hunk for {hunk.file_path}: {result.stderr}"
                 )
                 return False
 
@@ -360,13 +384,13 @@ class GitNativeIgnoreHandler:
             Patch content, or None if generation failed
         """
         try:
-            success, patch_content = self.git_ops._run_git_command("diff", "--cached")
+            result = self.git_ops.run_git_command(["diff", "--cached"])
 
-            if success and patch_content.strip():
+            if result.returncode == 0 and result.stdout.strip():
                 self.logger.debug(
-                    f"Generated patch from index ({len(patch_content)} bytes)"
+                    f"Generated patch from index ({len(result.stdout)} bytes)"
                 )
-                return patch_content
+                return result.stdout
             else:
                 self.logger.warning("No staged changes found to generate patch")
                 return None
@@ -386,26 +410,26 @@ class GitNativeIgnoreHandler:
         """
         try:
             # Get current file hash
-            success, current_hash = self.git_ops._run_git_command(
-                "hash-object", file_path
-            )
+            current_result = self.git_ops.run_git_command(["hash-object", file_path])
 
             # Get HEAD version hash
-            success_head, head_hash = self.git_ops._run_git_command(
-                "rev-parse", f"HEAD:{file_path}"
+            head_result = self.git_ops.run_git_command(
+                ["rev-parse", f"HEAD:{file_path}"]
             )
 
             # Get file mode
-            success_mode, mode_info = self.git_ops._run_git_command(
-                "ls-files", "--stage", file_path
+            mode_result = self.git_ops.run_git_command(
+                ["ls-files", "--stage", file_path]
             )
 
-            if success and success_mode:
+            if current_result.returncode == 0 and mode_result.returncode == 0:
                 # Extract mode from ls-files output (format: mode hash stage filename)
-                mode = mode_info.split()[0] if mode_info else "100644"
+                mode = mode_result.stdout.split()[0] if mode_result.stdout else "100644"
                 return {
-                    "old_hash": head_hash.strip() if success_head else "0" * 40,
-                    "new_hash": current_hash.strip(),
+                    "old_hash": head_result.stdout.strip()
+                    if head_result.returncode == 0
+                    else "0" * 40,
+                    "new_hash": current_result.stdout.strip(),
                     "mode": mode,
                 }
             else:
@@ -427,13 +451,13 @@ class GitNativeIgnoreHandler:
         """
         self.logger.info(f"Restoring working tree from stash: {stash_ref}")
 
-        success, output = self.git_ops._run_git_command("stash", "pop", stash_ref)
+        result = self.git_ops.run_git_command(["stash", "pop", stash_ref])
 
-        if success:
+        if result.returncode == 0:
             self.logger.info("✓ Working tree restored from backup")
             return True
         else:
-            self.logger.error(f"Failed to restore from stash: {output}")
+            self.logger.error(f"Failed to restore from stash: {result.stderr}")
             # Try alternative restore method
             return self._force_restore_from_stash(stash_ref)
 
@@ -449,21 +473,19 @@ class GitNativeIgnoreHandler:
         self.logger.warning("Attempting force restore using checkout method")
 
         # Reset working tree to clean state first
-        success, _ = self.git_ops._run_git_command("reset", "--hard", "HEAD")
-        if not success:
+        result = self.git_ops.run_git_command(["reset", "--hard", "HEAD"])
+        if result.returncode != 0:
             self.logger.error("Failed to reset working tree")
             return False
 
         # Apply stash changes using checkout
-        success, output = self.git_ops._run_git_command(
-            "checkout", stash_ref, "--", "."
-        )
+        result = self.git_ops.run_git_command(["checkout", stash_ref, "--", "."])
 
-        if success:
+        if result.returncode == 0:
             self.logger.info("✓ Force restore completed")
             return True
         else:
-            self.logger.error(f"Force restore failed: {output}")
+            self.logger.error(f"Force restore failed: {result.stderr}")
             return False
 
     def _cleanup_stash(self, stash_ref: str) -> None:
@@ -474,12 +496,14 @@ class GitNativeIgnoreHandler:
         """
         self.logger.debug(f"Cleaning up backup stash: {stash_ref}")
 
-        success, output = self.git_ops._run_git_command("stash", "drop", stash_ref)
+        result = self.git_ops.run_git_command(["stash", "drop", stash_ref])
 
-        if success:
+        if result.returncode == 0:
             self.logger.debug("✓ Backup stash cleaned up")
         else:
-            self.logger.warning(f"Failed to clean up stash {stash_ref}: {output}")
+            self.logger.warning(
+                f"Failed to clean up stash {stash_ref}: {result.stderr}"
+            )
             self.logger.warning("Stash may need manual cleanup with: git stash drop")
 
     def get_stash_info(self) -> List[dict]:
@@ -488,13 +512,13 @@ class GitNativeIgnoreHandler:
         Returns:
             List of dictionaries with stash information
         """
-        success, output = self.git_ops._run_git_command("stash", "list")
+        result = self.git_ops.run_git_command(["stash", "list"])
 
-        if not success:
+        if result.returncode != 0:
             return []
 
         stashes = []
-        for line in output.split("\n"):
+        for line in result.stdout.split("\n"):
             if line.strip():
                 # Parse stash line format: stash@{0}: WIP on branch: message
                 parts = line.split(": ", 2)

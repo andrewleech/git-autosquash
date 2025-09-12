@@ -11,7 +11,7 @@ The application follows a layered architecture with three main execution strateg
 2. **GitNativeCompleteHandler** (src/git_autosquash/git_native_complete_handler.py) - Full rebase completion with reflog safety
 3. **GitWorktreeHandler** (src/git_autosquash/git_worktree_handler.py) - Isolated worktree operations for complex scenarios
 
-Each strategy extends **CliStrategy** base class and implements the execution flow differently based on complexity and safety requirements.
+Each strategy is implemented as an independent handler class with the GitNativeCompleteHandler orchestrating strategy selection and fallback based on complexity and safety requirements.
 
 ### Key Component Interactions
 
@@ -24,9 +24,14 @@ main.py (entry point)
   │   ├── FallbackTargetProvider
   │   └── FileConsistencyTracker
   ├── TUI Components (Textual interface)
-  │   ├── EnhancedApp (fallback scenarios)
-  │   └── AutoSquashApp (standard flow)
+  │   ├── ModernAutoSquashApp (3-panel workflow)
+  │   ├── ModernApprovalScreen (main UI screen)
+  │   ├── UIStateController (state management)
+  │   └── UI Controllers (widget management)
   └── Strategy Execution (rebase management)
+      ├── GitNativeCompleteHandler (orchestrator)
+      ├── GitNativeIgnoreHandler (index strategy)
+      └── GitWorktreeIgnoreHandler (worktree strategy)
 ```
 
 ### Performance & Security Infrastructure
