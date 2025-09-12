@@ -549,6 +549,35 @@ class RebaseManager:
 
         return hunk_lines
 
+    def _generate_rebase_todo(self, target_commit: str) -> str:
+        """Generate rebase todo list with target commit marked for editing and commits after it as pick.
+
+        Args:
+            target_commit: Commit to mark for editing
+
+        Returns:
+            Rebase todo content
+        """
+        # Get commits from target_commit^ to HEAD
+        result = self.git_ops.run_git_command([
+            "rev-list", "--reverse", f"{target_commit}^..HEAD"
+        ])
+        
+        if result.returncode != 0:
+            # Fallback to simple edit if rev-list fails
+            return f"edit {target_commit}\n"
+        
+        commit_list = [line.strip() for line in result.stdout.strip().split('\n') if line.strip()]
+        
+        todo_lines = []
+        for commit_hash in commit_list:
+            if commit_hash == target_commit:
+                todo_lines.append(f"edit {commit_hash}")
+            else:
+                todo_lines.append(f"pick {commit_hash}")
+        
+        return "\n".join(todo_lines) + "\n"
+
     def _create_corrected_hunk(
         self, hunk: DiffHunk, file_lines: List[str], file_path: str
     ) -> List[str]:
@@ -667,8 +696,8 @@ class RebaseManager:
         Returns:
             True if rebase started successfully
         """
-        # Create rebase todo that marks target commit for editing
-        todo_content = f"edit {target_commit}\n"
+        # Create rebase todo that marks target commit for editing and picks all others
+        todo_content = self._generate_rebase_todo(target_commit)
 
         # Write todo to temporary file
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
@@ -680,7 +709,7 @@ class RebaseManager:
             env = os.environ.copy()
             env["GIT_SEQUENCE_EDITOR"] = f"cp {todo_file}"
 
-            # Start interactive rebase
+            # Start interactive rebase from target commit to include commits after it
             result = self.git_ops.run_git_command(
                 ["rebase", "-i", f"{target_commit}^"], env=env
             )
@@ -789,19 +818,48 @@ class RebaseManager:
                 )
 
     def _continue_rebase(self) -> None:
-        """Continue the interactive rebase."""
-        result = self.git_ops.run_git_command(["rebase", "--continue"])
-        if result.returncode != 0:
-            # Check for conflicts
-            conflicted_files = self._get_conflicted_files()
-            if conflicted_files:
-                raise RebaseConflictError(
-                    f"Rebase conflicts detected: {result.stderr}", conflicted_files
-                )
+        """Continue the interactive rebase, handling empty commits."""
+        max_retries = 10  # Prevent infinite loops
+        retry_count = 0
+        
+        while retry_count < max_retries:
+            result = self.git_ops.run_git_command(["rebase", "--continue"])
+            
+            if result.returncode == 0:
+                # Rebase completed successfully
+                return
+            
+            # Check if this is an empty commit that should be skipped
+            if ("The previous cherry-pick is now empty" in result.stderr or 
+                "nothing to commit, working tree clean" in result.stderr):
+                print("DEBUG: Skipping empty commit during rebase")
+                skip_result = self.git_ops.run_git_command(["rebase", "--skip"])
+                if skip_result.returncode == 0:
+                    # Check if rebase is complete
+                    status_result = self.git_ops.run_git_command(["status", "--porcelain=v1"])
+                    if status_result.returncode == 0 and not self.is_rebase_in_progress():
+                        return  # Rebase completed
+                    retry_count += 1
+                    continue
+                else:
+                    raise subprocess.SubprocessError(
+                        f"Failed to skip empty commit: {skip_result.stderr}"
+                    )
             else:
-                raise subprocess.SubprocessError(
-                    f"Failed to continue rebase: {result.stderr}"
-                )
+                # Check for conflicts
+                conflicted_files = self._get_conflicted_files()
+                if conflicted_files:
+                    raise RebaseConflictError(
+                        f"Rebase conflicts detected: {result.stderr}", conflicted_files
+                    )
+                else:
+                    raise subprocess.SubprocessError(
+                        f"Failed to continue rebase: {result.stderr}"
+                    )
+        
+        raise subprocess.SubprocessError(
+            f"Rebase failed after {max_retries} attempts to handle empty commits"
+        )
 
     def _abort_rebase(self) -> None:
         """Abort the current rebase."""
