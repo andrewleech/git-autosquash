@@ -372,8 +372,9 @@ class RealScreenshotGenerator:
         import shutil
 
         # Map of expected base names (what README references)
+        # Note: hero_screenshot is manually maintained with diagnostic image
         expected_screenshots = [
-            "hero_screenshot",
+            # "hero_screenshot",  # Skip - manually maintained with real TUI interface
             "feature_smart_targeting",
             "feature_interactive_tui",
             "feature_safety_first",
