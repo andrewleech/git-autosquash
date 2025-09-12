@@ -1,0 +1,14 @@
+git-autosquash - Applying Changes
+
+✅ Backing up current state...
+✅ Starting interactive rebase...
+🔄 Squashing src/auth.py:45-52 → abc1234
+🔄 Squashing src/dashboard.py:15-23 → def5678
+✅ Rebase completed successfully!
+
+📊 Summary:
+  - 2 hunks squashed into historical commits  
+  - 2 hunks left as working directory changes
+  - 0 conflicts encountered
+  
+✨ Your git history has been cleaned up!

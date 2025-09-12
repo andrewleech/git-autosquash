@@ -1075,31 +1075,13 @@
 <h2 id="your-first-git-autosquash-session">Your First git-autosquash Session<a class="headerlink" href="#your-first-git-autosquash-session" title="Permanent link">&para;</a></h2>
 <h3 id="step-1-set-up-a-test-scenario">Step 1: Set Up a Test Scenario<a class="headerlink" href="#step-1-set-up-a-test-scenario" title="Permanent link">&para;</a></h3>
 <p>Let's create a realistic scenario. We'll assume you've been working on a feature and made several changes:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Check your current status</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>git<span class="w"> </span>status
-</span></code></pre></div>
-<p>You might see something like:
-<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>On branch feature/user-dashboard
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>Changes not staged for commit:
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>  modified:   src/auth/login.py
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>  modified:   src/ui/components.py
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>  modified:   src/utils/helpers.py
-</span></code></pre></div></p>
+<p><img alt="Git Status Check" src="../../screenshots/readme/workflow_step_01.png" /></p>
 <h3 id="step-2-run-git-autosquash">Step 2: Run git-autosquash<a class="headerlink" href="#step-2-run-git-autosquash" title="Permanent link">&para;</a></h3>
 <p>Simply run the command:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>git-autosquash
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>git-autosquash
 </span></code></pre></div>
-<p>You'll see initial analysis output:
-<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>Current branch: feature/user-dashboard
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>Merge base: a1b2c3d4
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>Working tree status: staged=False, unstaged=True, clean=False
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>Analyzing changes and finding target commits...
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>Found 7 hunks to process
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>Found target commits for 5 hunks
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>
-</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>Launching interactive approval interface...
-</span></code></pre></div></p>
+<p>You'll see initial analysis output:</p>
+<p><img alt="Analysis and Launch" src="../../screenshots/readme/workflow_step_02.png" /></p>
 <div class="admonition info">
 <p class="admonition-title">What's Happening?</p>
 <ul>
@@ -1111,18 +1093,7 @@
 </div>
 <h3 id="step-3-navigate-the-tui-interface">Step 3: Navigate the TUI Interface<a class="headerlink" href="#step-3-navigate-the-tui-interface" title="Permanent link">&para;</a></h3>
 <p>The TUI opens with three main sections:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>┌─ Hunk Mappings ────────────────────┐┌─ Diff Viewer ─────────────────────┐
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>│ ✓ src/auth/login.py @@ -23,3 +23,4 ││ @@ -23,3 +23,4 @@                   │
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>│   → abc1234 Fix validation bug     ││  def validate_user(username):       │
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>│   (high confidence)                ││      if not username:               │
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>│   □ Include in squash               ││ +        return False               │
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>│                                    ││      # ... rest of function         │
-</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>│ ✓ src/ui/components.py @@ -45,2... ││                                     │
-</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>│   → def5678 Add button styling     │├─────────────────────────────────────┤
-</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>│   (medium confidence)              ││ Progress: 0/5 approved (0%)         │
-</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>│   □ Include in squash               │└─────────────────────────────────────┘
-</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>└────────────────────────────────────┘
-</span></code></pre></div>
+<p><img alt="TUI Interface Overview" src="../../screenshots/readme/feature_interactive_tui.png" /></p>
 <h3 id="step-4-review-and-approve-changes">Step 4: Review and Approve Changes<a class="headerlink" href="#step-4-review-and-approve-changes" title="Permanent link">&para;</a></h3>
 <p>For each hunk mapping:</p>
 <ol>
@@ -1148,25 +1119,15 @@
 </ul>
 <h3 id="step-5-execute-the-squash">Step 5: Execute the Squash<a class="headerlink" href="#step-5-execute-the-squash" title="Permanent link">&para;</a></h3>
 <p>After approving the changes you want, press <strong>Enter</strong> to execute:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>User approved 3 hunks for squashing
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>Executing interactive rebase...
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>Distributing 3 hunks to their target commits:
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>  1 hunk → abc1234 Fix validation bug (7 minutes ago)
-</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>  2 hunks → def5678 Add button styling (2 hours ago)
-</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>
-</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>Starting rebase operation...
-</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>✓ Squash operation completed successfully!
-</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>Your changes have been distributed to their target commits.
-</span></code></pre></div>
+<p><img alt="Execution Progress" src="../../screenshots/readme/workflow_step_05.png" /></p>
 <h3 id="step-6-verify-the-results">Step 6: Verify the Results<a class="headerlink" href="#step-6-verify-the-results" title="Permanent link">&para;</a></h3>
 <p>Check your git history to see the changes:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># View the updated commits</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>git<span class="w"> </span>log<span class="w"> </span>--oneline<span class="w"> </span>-10
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="c1"># Check specific commit changes</span>
-</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>git<span class="w"> </span>show<span class="w"> </span>abc1234
-</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>git<span class="w"> </span>show<span class="w"> </span>def5678
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># View the updated commits</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>git<span class="w"> </span>log<span class="w"> </span>--oneline<span class="w"> </span>-10
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># Check specific commit changes</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>git<span class="w"> </span>show<span class="w"> </span>abc1234
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>git<span class="w"> </span>show<span class="w"> </span>def5678
 </span></code></pre></div>
 <p>You'll see that your changes have been incorporated into the appropriate historical commits!</p>
 <h2 id="understanding-the-process">Understanding the Process<a class="headerlink" href="#understanding-the-process" title="Permanent link">&para;</a></h2>
@@ -1217,14 +1178,14 @@
 1. Pauses the rebase at the conflicted commit
 2. Shows you exactly which files have conflicts
 3. Provides clear instructions for resolution:
-   <div class="language-text highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>⚠️ Rebase conflicts detected:
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>  src/auth/login.py
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
-</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>To resolve conflicts:
-</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>1. Edit the conflicted files to resolve conflicts
-</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>2. Stage the resolved files: git add &lt;files&gt;
-</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>3. Continue the rebase: git rebase --continue
-</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>4. Or abort the rebase: git rebase --abort
+   <div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>⚠️ Rebase conflicts detected:
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>  src/auth/login.py
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>To resolve conflicts:
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>1. Edit the conflicted files to resolve conflicts
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>2. Stage the resolved files: git add &lt;files&gt;
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>3. Continue the rebase: git rebase --continue
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>4. Or abort the rebase: git rebase --abort
 </span></code></pre></div></p>
 <h3 id="can-i-undo-the-changes">"Can I undo the changes?"<a class="headerlink" href="#can-i-undo-the-changes" title="Permanent link">&para;</a></h3>
 <p>If you need to undo a completed git-autosquash operation:</p>

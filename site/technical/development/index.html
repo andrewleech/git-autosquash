@@ -640,6 +640,59 @@
 </nav>
 </li>
 <li class="md-nav__item">
+<a class="md-nav__link" href="#documentation-screenshot-system">
+<span class="md-ellipsis">
+      Documentation Screenshot System
+    </span>
+</a>
+<nav aria-label="Documentation Screenshot System" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#screenshot-categories">
+<span class="md-ellipsis">
+      Screenshot Categories
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#generating-screenshots">
+<span class="md-ellipsis">
+      Generating Screenshots
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#screenshot-implementation">
+<span class="md-ellipsis">
+      Screenshot Implementation
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#screenshot-specifications">
+<span class="md-ellipsis">
+      Screenshot Specifications
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#updating-screenshots">
+<span class="md-ellipsis">
+      Updating Screenshots
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#screenshot-naming-convention">
+<span class="md-ellipsis">
+      Screenshot Naming Convention
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
 <a class="md-nav__link" href="#release-process">
 <span class="md-ellipsis">
       Release Process
@@ -1136,17 +1189,75 @@
 </span><span id="__span-21-9"><a href="#__codelineno-21-9" id="__codelineno-21-9" name="__codelineno-21-9"></a><span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 </span><span id="__span-21-10"><a href="#__codelineno-21-10" id="__codelineno-21-10" name="__codelineno-21-10"></a><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"Debug information here"</span><span class="p">)</span>
 </span></code></pre></div>
+<h2 id="documentation-screenshot-system">Documentation Screenshot System<a class="headerlink" href="#documentation-screenshot-system" title="Permanent link">¶</a></h2>
+<p>git-autosquash includes a comprehensive screenshot capture system for documentation and marketing materials. The system generates authentic terminal screenshots by running the real git-autosquash application on realistic test repositories using pyte terminal emulation.</p>
+<h3 id="screenshot-categories">Screenshot Categories<a class="headerlink" href="#screenshot-categories" title="Permanent link">¶</a></h3>
+<p>The system generates authentic screenshots organized into categories:</p>
+<ul>
+<li><strong>Hero Screenshot</strong>: Main visual showing the actual git-autosquash TUI</li>
+<li><strong>Workflow Steps (6)</strong>: Complete user journey from git status to completion using real git commands</li>
+<li><strong>Feature Demonstrations (3)</strong>: Smart targeting, interactive TUI, safety features captured from actual application</li>
+<li><strong>Comparison Views (3)</strong>: Before/after git history visualization using real git repositories</li>
+<li><strong>Fallback Scenarios (2)</strong>: New files, manual override captured from realistic scenarios</li>
+</ul>
+<h3 id="generating-screenshots">Generating Screenshots<a class="headerlink" href="#generating-screenshots" title="Permanent link">¶</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-22-1"><a href="#__codelineno-22-1" id="__codelineno-22-1" name="__codelineno-22-1"></a><span class="c1"># Generate all documentation screenshots using real application</span>
+</span><span id="__span-22-2"><a href="#__codelineno-22-2" id="__codelineno-22-2" name="__codelineno-22-2"></a>python3<span class="w"> </span>capture_readme_screenshots.py
+</span><span id="__span-22-3"><a href="#__codelineno-22-3" id="__codelineno-22-3" name="__codelineno-22-3"></a>
+</span><span id="__span-22-4"><a href="#__codelineno-22-4" id="__codelineno-22-4" name="__codelineno-22-4"></a><span class="c1"># Screenshots saved to screenshots/readme/ as PNG files</span>
+</span></code></pre></div>
+<h3 id="screenshot-implementation">Screenshot Implementation<a class="headerlink" href="#screenshot-implementation" title="Permanent link">¶</a></h3>
+<p>The screenshot system uses pyte terminal emulator to capture real application output:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-23-1"><a href="#__codelineno-23-1" id="__codelineno-23-1" name="__codelineno-23-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">capture_readme_screenshots</span><span class="w"> </span><span class="kn">import</span> <span class="n">RealScreenshotGenerator</span>
+</span><span id="__span-23-2"><a href="#__codelineno-23-2" id="__codelineno-23-2" name="__codelineno-23-2"></a>
+</span><span id="__span-23-3"><a href="#__codelineno-23-3" id="__codelineno-23-3" name="__codelineno-23-3"></a><span class="c1"># Initialize generator</span>
+</span><span id="__span-23-4"><a href="#__codelineno-23-4" id="__codelineno-23-4" name="__codelineno-23-4"></a><span class="n">generator</span> <span class="o">=</span> <span class="n">RealScreenshotGenerator</span><span class="p">()</span>
+</span><span id="__span-23-5"><a href="#__codelineno-23-5" id="__codelineno-23-5" name="__codelineno-23-5"></a>
+</span><span id="__span-23-6"><a href="#__codelineno-23-6" id="__codelineno-23-6" name="__codelineno-23-6"></a><span class="c1"># Generate all screenshots using real git-autosquash</span>
+</span><span id="__span-23-7"><a href="#__codelineno-23-7" id="__codelineno-23-7" name="__codelineno-23-7"></a><span class="k">await</span> <span class="n">generator</span><span class="o">.</span><span class="n">generate_all_screenshots</span><span class="p">()</span>
+</span></code></pre></div>
+<p>The system creates realistic git repositories with:
+- Meaningful Python project structure (auth, dashboard, tests, utils)
+- 7 commits with realistic history
+- Working directory changes that demonstrate git-autosquash functionality
+- Files with and without git history for fallback scenarios</p>
+<h3 id="screenshot-specifications">Screenshot Specifications<a class="headerlink" href="#screenshot-specifications" title="Permanent link">¶</a></h3>
+<ul>
+<li><strong>Terminal Size</strong>: 120 columns × 40 rows</li>
+<li><strong>Background</strong>: Dark terminal theme (12, 12, 12)</li>
+<li><strong>Font</strong>: Monospace (DejaVu Sans Mono, Monaco, or Consola)</li>
+<li><strong>Capture Method</strong>: pyte terminal emulator with real application interaction</li>
+<li><strong>Image Format</strong>: PNG with lossless compression</li>
+</ul>
+<h3 id="updating-screenshots">Updating Screenshots<a class="headerlink" href="#updating-screenshots" title="Permanent link">¶</a></h3>
+<p>When TUI interface or workflow changes, regenerate screenshots:</p>
+<ol>
+<li><strong>Modify interaction sequences</strong> in <code>capture_readme_screenshots.py</code></li>
+<li><strong>Update test repository structure</strong> in <code>scripts/screenshot_test_repo.py</code> if needed</li>
+<li><strong>Run generation script</strong> to capture new real application screenshots</li>
+<li><strong>Verify all expected screenshots</strong> were generated correctly</li>
+</ol>
+<h3 id="screenshot-naming-convention">Screenshot Naming Convention<a class="headerlink" href="#screenshot-naming-convention" title="Permanent link">¶</a></h3>
+<p>Screenshots follow consistent naming patterns:</p>
+<ul>
+<li><code>hero_screenshot.png</code> - Main application screenshot</li>
+<li><code>workflow_step_XX.png</code> - Numbered workflow steps (01-06)  </li>
+<li><code>feature_*.png</code> - Feature demonstration screenshots</li>
+<li><code>comparison_*.png</code> - Before/after comparison views</li>
+<li><code>fallback_*.png</code> - Edge case and fallback scenarios</li>
+</ul>
+<p>This system ensures documentation remains visually current as the application evolves.</p>
 <h2 id="release-process">Release Process<a class="headerlink" href="#release-process" title="Permanent link">¶</a></h2>
 <h3 id="version-management">Version Management<a class="headerlink" href="#version-management" title="Permanent link">¶</a></h3>
 <p>Uses <code>setuptools-scm</code> for automatic versioning from git tags:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-22-1"><a href="#__codelineno-22-1" id="__codelineno-22-1" name="__codelineno-22-1"></a><span class="c1"># Check current version</span>
-</span><span id="__span-22-2"><a href="#__codelineno-22-2" id="__codelineno-22-2" name="__codelineno-22-2"></a>git-autosquash<span class="w"> </span>--version
-</span><span id="__span-22-3"><a href="#__codelineno-22-3" id="__codelineno-22-3" name="__codelineno-22-3"></a>
-</span><span id="__span-22-4"><a href="#__codelineno-22-4" id="__codelineno-22-4" name="__codelineno-22-4"></a><span class="c1"># Create release</span>
-</span><span id="__span-22-5"><a href="#__codelineno-22-5" id="__codelineno-22-5" name="__codelineno-22-5"></a>git<span class="w"> </span>tag<span class="w"> </span>v1.2.3
-</span><span id="__span-22-6"><a href="#__codelineno-22-6" id="__codelineno-22-6" name="__codelineno-22-6"></a>git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>v1.2.3
-</span><span id="__span-22-7"><a href="#__codelineno-22-7" id="__codelineno-22-7" name="__codelineno-22-7"></a>
-</span><span id="__span-22-8"><a href="#__codelineno-22-8" id="__codelineno-22-8" name="__codelineno-22-8"></a><span class="c1"># Version automatically derived from tag</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-24-1"><a href="#__codelineno-24-1" id="__codelineno-24-1" name="__codelineno-24-1"></a><span class="c1"># Check current version</span>
+</span><span id="__span-24-2"><a href="#__codelineno-24-2" id="__codelineno-24-2" name="__codelineno-24-2"></a>git-autosquash<span class="w"> </span>--version
+</span><span id="__span-24-3"><a href="#__codelineno-24-3" id="__codelineno-24-3" name="__codelineno-24-3"></a>
+</span><span id="__span-24-4"><a href="#__codelineno-24-4" id="__codelineno-24-4" name="__codelineno-24-4"></a><span class="c1"># Create release</span>
+</span><span id="__span-24-5"><a href="#__codelineno-24-5" id="__codelineno-24-5" name="__codelineno-24-5"></a>git<span class="w"> </span>tag<span class="w"> </span>v1.2.3
+</span><span id="__span-24-6"><a href="#__codelineno-24-6" id="__codelineno-24-6" name="__codelineno-24-6"></a>git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>v1.2.3
+</span><span id="__span-24-7"><a href="#__codelineno-24-7" id="__codelineno-24-7" name="__codelineno-24-7"></a>
+</span><span id="__span-24-8"><a href="#__codelineno-24-8" id="__codelineno-24-8" name="__codelineno-24-8"></a><span class="c1"># Version automatically derived from tag</span>
 </span></code></pre></div>
 <h3 id="release-workflow">Release Workflow<a class="headerlink" href="#release-workflow" title="Permanent link">¶</a></h3>
 <ol>
@@ -1158,8 +1269,8 @@
 </li>
 <li>
 <p><strong>Create Release</strong>:
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-23-1"><a href="#__codelineno-23-1" id="__codelineno-23-1" name="__codelineno-23-1"></a>git<span class="w"> </span>tag<span class="w"> </span>-a<span class="w"> </span>v1.2.3<span class="w"> </span>-m<span class="w"> </span><span class="s2">"Release version 1.2.3"</span>
-</span><span id="__span-23-2"><a href="#__codelineno-23-2" id="__codelineno-23-2" name="__codelineno-23-2"></a>git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>v1.2.3
+   <div class="language-bash highlight"><pre><span></span><code><span id="__span-25-1"><a href="#__codelineno-25-1" id="__codelineno-25-1" name="__codelineno-25-1"></a>git<span class="w"> </span>tag<span class="w"> </span>-a<span class="w"> </span>v1.2.3<span class="w"> </span>-m<span class="w"> </span><span class="s2">"Release version 1.2.3"</span>
+</span><span id="__span-25-2"><a href="#__codelineno-25-2" id="__codelineno-25-2" name="__codelineno-25-2"></a>git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>v1.2.3
 </span></code></pre></div></p>
 </li>
 <li>
@@ -1172,9 +1283,9 @@
 </li>
 <li>
 <p><strong>Verify Release</strong>:
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-24-1"><a href="#__codelineno-24-1" id="__codelineno-24-1" name="__codelineno-24-1"></a><span class="c1"># Test installation from PyPI</span>
-</span><span id="__span-24-2"><a href="#__codelineno-24-2" id="__codelineno-24-2" name="__codelineno-24-2"></a>pipx<span class="w"> </span>install<span class="w"> </span>git-autosquash<span class="o">==</span><span class="m">1</span>.2.3
-</span><span id="__span-24-3"><a href="#__codelineno-24-3" id="__codelineno-24-3" name="__codelineno-24-3"></a>git-autosquash<span class="w"> </span>--version
+   <div class="language-bash highlight"><pre><span></span><code><span id="__span-26-1"><a href="#__codelineno-26-1" id="__codelineno-26-1" name="__codelineno-26-1"></a><span class="c1"># Test installation from PyPI</span>
+</span><span id="__span-26-2"><a href="#__codelineno-26-2" id="__codelineno-26-2" name="__codelineno-26-2"></a>pipx<span class="w"> </span>install<span class="w"> </span>git-autosquash<span class="o">==</span><span class="m">1</span>.2.3
+</span><span id="__span-26-3"><a href="#__codelineno-26-3" id="__codelineno-26-3" name="__codelineno-26-3"></a>git-autosquash<span class="w"> </span>--version
 </span></code></pre></div></p>
 </li>
 </ol>

@@ -516,65 +516,63 @@ logger.debug("Debug information here")
 
 ## Documentation Screenshot System
 
-git-autosquash includes a comprehensive screenshot capture system for documentation and marketing materials. The system generates consistent, professional-looking terminal screenshots without requiring actual git repositories.
+git-autosquash includes a comprehensive screenshot capture system for documentation and marketing materials. The system generates authentic terminal screenshots by running the real git-autosquash application on realistic test repositories using pyte terminal emulation.
 
 ### Screenshot Categories
 
-The system generates 18 screenshots organized into categories:
+The system generates authentic screenshots organized into categories:
 
-- **Hero Screenshot**: Main visual for README and website landing
-- **Workflow Steps (6)**: Complete user journey from git status to completion
-- **Feature Demonstrations (5)**: Smart targeting, interactive TUI, safety features, conflict resolution, progress tracking  
-- **Comparison Views (2)**: Before/after git history visualization
-- **Fallback Scenarios (3)**: New files, ambiguous blame, manual override capabilities
+- **Hero Screenshot**: Main visual showing the actual git-autosquash TUI
+- **Workflow Steps (6)**: Complete user journey from git status to completion using real git commands
+- **Feature Demonstrations (3)**: Smart targeting, interactive TUI, safety features captured from actual application
+- **Comparison Views (3)**: Before/after git history visualization using real git repositories
+- **Fallback Scenarios (2)**: New files, manual override captured from realistic scenarios
 
 ### Generating Screenshots
 
 ```bash
-# Generate all documentation screenshots
-uv run python capture_readme_screenshots.py
+# Generate all documentation screenshots using real application
+python3 capture_readme_screenshots.py
 
-# Test screenshot generation system
-uv run pytest tests/test_tui_screenshot_integration.py -v
-
-# Screenshots saved to screenshots/readme/
+# Screenshots saved to screenshots/readme/ as PNG files
 ```
 
 ### Screenshot Implementation
 
-The screenshot system uses PIL/Pillow to create PNG images from text representations:
+The screenshot system uses pyte terminal emulator to capture real application output:
 
 ```python
-from capture_readme_screenshots import ReadmeScreenshotGenerator
+from capture_readme_screenshots import RealScreenshotGenerator
 
 # Initialize generator
-generator = ReadmeScreenshotGenerator()
+generator = RealScreenshotGenerator()
 
-# Generate specific screenshot categories
-generator.generate_hero_screenshot()
-generator.generate_workflow_screenshots()
-generator.generate_feature_screenshots()
+# Generate all screenshots using real git-autosquash
+await generator.generate_all_screenshots()
 ```
+
+The system creates realistic git repositories with:
+- Meaningful Python project structure (auth, dashboard, tests, utils)
+- 7 commits with realistic history
+- Working directory changes that demonstrate git-autosquash functionality
+- Files with and without git history for fallback scenarios
 
 ### Screenshot Specifications
 
-- **Terminal Size**: 120 columns × 35 rows
-- **Background**: Dark terminal theme (#1a1a1a)
-- **Color Coding**: 
-  - Green (#00ff00): Success states and positive actions
-  - Yellow (#ffff00): Warnings and important notices
-  - Orange (#ff8000): User prompts and questions
-  - Cyan (#00ffff): Commands and technical information
-- **Font**: Monospace (DejaVu Sans Mono or system equivalent)
+- **Terminal Size**: 120 columns × 40 rows
+- **Background**: Dark terminal theme (12, 12, 12)
+- **Font**: Monospace (DejaVu Sans Mono, Monaco, or Consola)
+- **Capture Method**: pyte terminal emulator with real application interaction
+- **Image Format**: PNG with lossless compression
 
 ### Updating Screenshots
 
 When TUI interface or workflow changes, regenerate screenshots:
 
-1. **Modify screenshot definitions** in `capture_readme_screenshots.py`
-2. **Update text representations** to match new interface
-3. **Run generation script** to create new PNG files
-4. **Update documentation** references if filenames change
+1. **Modify interaction sequences** in `capture_readme_screenshots.py`
+2. **Update test repository structure** in `scripts/screenshot_test_repo.py` if needed
+3. **Run generation script** to capture new real application screenshots
+4. **Verify all expected screenshots** were generated correctly
 
 ### Screenshot Naming Convention
 

@@ -862,9 +862,9 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#can-i-use-git-autosquash-without-pipx" class="md-nav__link">
+  <a href="#can-i-use-git-autosquash-without-uv" class="md-nav__link">
     <span class="md-ellipsis">
-      Can I use git-autosquash without pipx?
+      Can I use git-autosquash without uv?
     </span>
   </a>
   
@@ -943,6 +943,24 @@
   <a href="#what-does-the-confidence-level-mean" class="md-nav__link">
     <span class="md-ellipsis">
       What does the confidence level mean?
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-is-the-ignore-feature-and-when-should-i-use-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      What is the "ignore" feature and when should I use it?
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#can-i-mix-squash-and-ignore-operations" class="md-nav__link">
+    <span class="md-ellipsis">
+      Can I mix squash and ignore operations?
     </span>
   </a>
   
@@ -1191,6 +1209,7 @@
 <h2 id="general-questions">General Questions<a class="headerlink" href="#general-questions" title="Permanent link">&para;</a></h2>
 <h3 id="what-is-git-autosquash">What is git-autosquash?<a class="headerlink" href="#what-is-git-autosquash" title="Permanent link">&para;</a></h3>
 <p>git-autosquash is a tool that automatically organizes your uncommitted changes by squashing them back into the historical commits where those code sections were last modified. Instead of creating messy "fix typo" or "address review feedback" commits, it integrates improvements directly into the commits they logically belong to.</p>
+<p>Additionally, git-autosquash provides an "ignore" feature that lets you selectively extract changes from commits back to your working tree - useful for uncommitting accidentally committed changes.</p>
 <h3 id="how-is-this-different-from-git-rebase-autosquash">How is this different from <code>git rebase --autosquash</code>?<a class="headerlink" href="#how-is-this-different-from-git-rebase-autosquash" title="Permanent link">&para;</a></h3>
 <p><code>git rebase --autosquash</code> requires you to manually create fixup/squash commits first, then run the rebase. git-autosquash analyzes your working directory changes and automatically determines which historical commits they should be squashed into using git blame analysis.</p>
 <h3 id="is-git-autosquash-safe-to-use">Is git-autosquash safe to use?<a class="headerlink" href="#is-git-autosquash-safe-to-use" title="Permanent link">&para;</a></h3>
@@ -1215,21 +1234,28 @@
 </span></code></pre></div>
 <h2 id="installation-and-setup">Installation and Setup<a class="headerlink" href="#installation-and-setup" title="Permanent link">&para;</a></h2>
 <h3 id="how-do-i-install-git-autosquash">How do I install git-autosquash?<a class="headerlink" href="#how-do-i-install-git-autosquash" title="Permanent link">&para;</a></h3>
-<p>The recommended installation method is using pipx:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pipx<span class="w"> </span>install<span class="w"> </span>git-autosquash
+<p>The recommended installation method is using uv:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>git-autosquash
 </span></code></pre></div>
 <p>For other installation methods, see the <a href="../../user-guide/getting-started/">Getting Started Guide</a>.</p>
-<h3 id="can-i-use-git-autosquash-without-pipx">Can I use git-autosquash without pipx?<a class="headerlink" href="#can-i-use-git-autosquash-without-pipx" title="Permanent link">&para;</a></h3>
-<p>Yes, you can install with regular pip:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pip<span class="w"> </span>install<span class="w"> </span>git-autosquash
+<h3 id="can-i-use-git-autosquash-without-uv">Can I use git-autosquash without uv?<a class="headerlink" href="#can-i-use-git-autosquash-without-uv" title="Permanent link">&para;</a></h3>
+<p>Yes, you can install with pipx or pip:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># With pipx (isolated environment)</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>pipx<span class="w"> </span>install<span class="w"> </span>git-autosquash
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># With pip (basic installation)</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>pip<span class="w"> </span>install<span class="w"> </span>git-autosquash
 </span></code></pre></div>
-<p>However, pipx is recommended because it isolates git-autosquash in its own environment, preventing conflicts with other Python packages.</p>
+<p>However, uv is recommended because it's the fastest Python package manager with built-in tool isolation, preventing conflicts with other Python packages.</p>
 <h3 id="how-do-i-update-git-autosquash">How do I update git-autosquash?<a class="headerlink" href="#how-do-i-update-git-autosquash" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># With pipx (recommended)</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>pipx<span class="w"> </span>upgrade<span class="w"> </span>git-autosquash
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># With uv (recommended)</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>uv<span class="w"> </span>tool<span class="w"> </span>upgrade<span class="w"> </span>git-autosquash
 </span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># With pip</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>pip<span class="w"> </span>install<span class="w"> </span>--upgrade<span class="w"> </span>git-autosquash
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># With pipx</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>pipx<span class="w"> </span>upgrade<span class="w"> </span>git-autosquash
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># With pip</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>pip<span class="w"> </span>install<span class="w"> </span>--upgrade<span class="w"> </span>git-autosquash
 </span></code></pre></div>
 <h3 id="does-git-autosquash-work-on-windows">Does git-autosquash work on Windows?<a class="headerlink" href="#does-git-autosquash-work-on-windows" title="Permanent link">&para;</a></h3>
 <p>Yes, git-autosquash works on Windows, macOS, and Linux. However, Windows users may need:
@@ -1278,6 +1304,24 @@
 <li><strong>Low (Red)</strong>: Mixed blame results - might be incorrect, review carefully</li>
 </ul>
 <p>Low confidence often means changes affect code from multiple commits and might be better as a new commit.</p>
+<h3 id="what-is-the-ignore-feature-and-when-should-i-use-it">What is the "ignore" feature and when should I use it?<a class="headerlink" href="#what-is-the-ignore-feature-and-when-should-i-use-it" title="Permanent link">&para;</a></h3>
+<p>The ignore feature allows you to selectively extract changes from commits back to your working tree. When you mark a hunk as "ignore", it gets removed from the commit history and restored to your working directory after the rebase completes.</p>
+<p><strong>Use ignore when:</strong>
+- You accidentally committed code that shouldn't be committed (debug prints, temporary changes)
+- You want to extract part of a commit to work on it further before recommitting
+- You need to separate concerns within a commit</p>
+<p><strong>In the TUI:</strong>
+- Use radio buttons to select <strong>"Ignore (keep in working tree)"</strong> for each hunk
+- Use <code>i</code> key to toggle all hunks to ignore mode
+- Use <code>Space</code> key to cycle through states for the current hunk</p>
+<p>The workflow becomes: <strong>Squash</strong> → commits, <strong>Skip</strong> → leave unchanged, <strong>Ignore</strong> → extract to working tree.</p>
+<h3 id="can-i-mix-squash-and-ignore-operations">Can I mix squash and ignore operations?<a class="headerlink" href="#can-i-mix-squash-and-ignore-operations" title="Permanent link">&para;</a></h3>
+<p>Yes! You can squash some hunks into commits while ignoring others. git-autosquash will:</p>
+<ol>
+<li>First perform the interactive rebase to squash approved hunks into their target commits</li>
+<li>Then restore ignored hunks back to your working tree</li>
+</ol>
+<p>This gives you complete control over organizing both your commit history and working directory state.</p>
 <h2 id="technical-questions">Technical Questions<a class="headerlink" href="#technical-questions" title="Permanent link">&para;</a></h2>
 <h3 id="can-git-autosquash-handle-merge-conflicts">Can git-autosquash handle merge conflicts?<a class="headerlink" href="#can-git-autosquash-handle-merge-conflicts" title="Permanent link">&para;</a></h3>
 <p>Yes, but conflicts require manual resolution. When conflicts occur:</p>

@@ -1,0 +1,21 @@
+git-autosquash - Ambiguous Target Resolution
+
+⚠️  MULTIPLE POSSIBLE TARGETS for src/utils.py:45-50
+
+Git blame shows mixed history:
+Line 45: abc1234 "Add utility functions"    (60% match)
+Line 46: abc1234 "Add utility functions"    (60% match)  
+Line 47: def5678 "Refactor utilities"       (40% match)
+Line 48: def5678 "Refactor utilities"       (40% match)
+
+┌─ Target Options ───────────────────────────────────────┐
+│ ◯ abc1234 "Add utility functions" (3 weeks ago)       │
+│   └─ Lines 45-46 originated here                      │
+│                                                        │
+│ ◯ def5678 "Refactor utilities" (1 week ago)           │
+│   └─ Lines 47-48 last modified here                   │ 
+│                                                        │
+│ ◯ Skip this hunk (leave in working directory)         │
+└────────────────────────────────────────────────────────┘
+
+Select target: [1/2/3]

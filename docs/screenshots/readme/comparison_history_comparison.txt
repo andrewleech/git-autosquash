@@ -1,0 +1,14 @@
+Side-by-Side History Comparison
+
+BEFORE git-autosquash:          │  AFTER git-autosquash:
+                               │
+* Fix lint and review feedback │  
+* Add dashboard feature        │  * Add dashboard feature (enhanced)
+* Fix failing auth tests       │  * Add user authentication (complete)  
+* Address PR feedback          │  * Add utility functions (refined)
+* Add user authentication      │  * Initial project setup
+* Fix more lint issues         │  
+* Add utility functions        │  Clean, logical progression! 
+* Initial project setup        │  Each commit = complete feature
+                               │
+Cluttered, hard to follow      │  

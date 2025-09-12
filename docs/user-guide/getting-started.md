@@ -19,7 +19,7 @@ Before starting, make sure you have:
 
 Let's create a realistic scenario. We'll assume you've been working on a feature and made several changes:
 
-![Git Status Check](../../screenshots/readme/workflow_step_01.png)
+![Git Status Check](../screenshots/readme/workflow_step_01.png)
 
 ### Step 2: Run git-autosquash
 
@@ -31,7 +31,7 @@ git-autosquash
 
 You'll see initial analysis output:
 
-![Analysis and Launch](../../screenshots/readme/workflow_step_02.png)
+![Analysis and Launch](../screenshots/readme/workflow_step_02.png)
 
 !!! info "What's Happening?"
     - git-autosquash analyzes your branch and finds the merge base with main/master
@@ -43,7 +43,7 @@ You'll see initial analysis output:
 
 The TUI opens with three main sections:
 
-![TUI Interface Overview](../../screenshots/readme/feature_interactive_tui.png)
+![TUI Interface Overview](../screenshots/readme/feature_interactive_tui.png)
 
 ### Step 4: Review and Approve Changes
 
@@ -70,7 +70,7 @@ For each hunk mapping:
 
 After approving the changes you want, press **Enter** to execute:
 
-![Execution Progress](../../screenshots/readme/workflow_step_05.png)
+![Execution Progress](../screenshots/readme/workflow_step_05.png)
 
 ### Step 6: Verify the Results
 

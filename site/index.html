@@ -241,6 +241,17 @@
       ✨ Key Features
     </span>
 </a>
+<nav aria-label="✨ Key Features" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#feature-demonstrations">
+<span class="md-ellipsis">
+      Feature Demonstrations
+    </span>
+</a>
+</li>
+</ul>
+</nav>
 </li>
 <li class="md-nav__item">
 <a class="md-nav__link" href="#quick-start">
@@ -280,6 +291,31 @@
       📋 Example Workflow
     </span>
 </a>
+<nav aria-label="📋 Example Workflow" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#before-messy-history">
+<span class="md-ellipsis">
+      Before: Messy History
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#the-git-autosquash-process">
+<span class="md-ellipsis">
+      The git-autosquash Process
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#after-clean-history">
+<span class="md-ellipsis">
+      After: Clean History
+    </span>
+</a>
+</li>
+</ul>
+</nav>
 </li>
 <li class="md-nav__item">
 <a class="md-nav__link" href="#use-cases">
@@ -381,7 +417,9 @@
 <a href="https://badge.fury.io/py/git-autosquash"><img alt="PyPI version" src="https://badge.fury.io/py/git-autosquash.svg"/></a>
 <a href="https://www.python.org/downloads/"><img alt="Python 3.12+" src="https://img.shields.io/badge/python-3.12+-blue.svg"/></a></p>
 <p><strong>Automatically squash changes back into historical commits where they belong.</strong></p>
-<p>git-autosquash is a powerful tool that analyzes your working directory changes and automatically distributes them back to the commits where those code sections were last modified. It uses git blame analysis and provides an interactive approval workflow to ensure safe, precise commit history management.</p>
+<p>git-autosquash is a powerful tool that analyzes your working directory changes and automatically distributes them back to the commits where those code sections were last modified. Instead of creating noisy "fix lint errors", "cleanup tests", or "address review feedback" commits, it uses git blame analysis to intelligently squash improvements back into their logical historical commits.</p>
+<p><img alt="git-autosquash Interactive TUI" src="screenshots/readme/hero_screenshot.png"/></p>
+<p><strong>Common scenario</strong>: You've been working on a feature branch and now need to fix lint errors, test failures, or code review feedback. Rather than committing all fixes into a final "cleanup" commit, git-autosquash lets you push each fix back to the original commit that introduced the issue, maintaining clean and logical git history.</p>
 <div class="admonition info">
 <p class="admonition-title">Project Status</p>
 <p>git-autosquash is actively developed and functional. All core features are implemented: git analysis, blame-based targeting, interactive TUI, and rebase execution. The tool is ready for daily use with comprehensive testing and error handling.</p>
@@ -395,20 +433,36 @@
 <li><strong>📊 Progress Tracking</strong>: Real-time feedback with detailed commit summaries</li>
 <li><strong>🔄 Rollback Support</strong>: Automatic cleanup and restoration on errors or interruption</li>
 </ul>
+<h3 id="feature-demonstrations">Feature Demonstrations<a class="headerlink" href="#feature-demonstrations" title="Permanent link">¶</a></h3>
+<details class="example">
+<summary>🎯 Smart Targeting with Git Blame Analysis</summary>
+<p><img alt="Smart Targeting" src="screenshots/readme/feature_smart_targeting.png"/></p>
+<p>git-autosquash analyzes git blame to understand exactly which commits last modified each line of code, providing high-confidence targeting for your changes.</p>
+</details>
+<details class="example">
+<summary>🖥️ Interactive Terminal Interface</summary>
+<p><img alt="Interactive TUI" src="screenshots/readme/feature_interactive_tui.png"/></p>
+<p>Full keyboard navigation with syntax highlighting, real-time previews, and intuitive controls make reviewing changes efficient and clear.</p>
+</details>
+<details class="example">
+<summary>🔒 Safety-First Approach</summary>
+<p><img alt="Safety First" src="screenshots/readme/feature_safety_first.png"/></p>
+<p>All changes start unapproved by default. Full git reflog integration and backup creation ensure you can always recover if something goes wrong.</p>
+</details>
 <h2 id="quick-start">🚀 Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">¶</a></h2>
 <h3 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">¶</a></h3>
-<div class="tabbed-set tabbed-alternate" data-tabs="1:3"><input checked="checked" id="installation-pipx-recommended" name="__tabbed_1" type="radio"><input id="installation-pip" name="__tabbed_1" type="radio"><input id="installation-uv" name="__tabbed_1" type="radio"><div class="tabbed-labels"><label for="installation-pipx-recommended">pipx (Recommended)</label><label for="installation-pip">pip</label><label for="installation-uv">uv</label></div>
+<div class="tabbed-set tabbed-alternate" data-tabs="1:3"><input checked="checked" id="installation-uv-recommended" name="__tabbed_1" type="radio"><input id="installation-pipx" name="__tabbed_1" type="radio"><input id="installation-pip" name="__tabbed_1" type="radio"><div class="tabbed-labels"><label for="installation-uv-recommended">uv (Recommended)</label><label for="installation-pipx">pipx</label><label for="installation-pip">pip</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a href="#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a>pipx<span class="w"> </span>install<span class="w"> </span>git-autosquash
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a href="#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>git-autosquash
 </span></code></pre></div>
 </div>
 <div class="tabbed-block">
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a href="#__codelineno-1-1" id="__codelineno-1-1" name="__codelineno-1-1"></a>pip<span class="w"> </span>install<span class="w"> </span>git-autosquash
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a href="#__codelineno-1-1" id="__codelineno-1-1" name="__codelineno-1-1"></a>pipx<span class="w"> </span>install<span class="w"> </span>git-autosquash
 </span></code></pre></div>
 </div>
 <div class="tabbed-block">
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a href="#__codelineno-2-1" id="__codelineno-2-1" name="__codelineno-2-1"></a>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>git-autosquash
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a href="#__codelineno-2-1" id="__codelineno-2-1" name="__codelineno-2-1"></a>pip<span class="w"> </span>install<span class="w"> </span>git-autosquash
 </span></code></pre></div>
 </div>
 </div>
@@ -440,28 +494,34 @@
     J -.-&gt; K[User Fixes Conflicts]
     K --&gt; G</code></pre>
 <h2 id="example-workflow">📋 Example Workflow<a class="headerlink" href="#example-workflow" title="Permanent link">¶</a></h2>
-<p>Imagine you've been working on a feature and made several changes across different files. Some of these changes are bug fixes that should go back to earlier commits, while others are new feature additions.</p>
+<p>Here's what a typical git-autosquash session looks like:</p>
+<h3 id="before-messy-history">Before: Messy History<a class="headerlink" href="#before-messy-history" title="Permanent link">¶</a></h3>
+<p><img alt="Before Traditional Approach" src="screenshots/readme/comparison_before_traditional.png"/></p>
+<h3 id="the-git-autosquash-process">The git-autosquash Process<a class="headerlink" href="#the-git-autosquash-process" title="Permanent link">¶</a></h3>
+<p>The workflow transforms cluttered history into clean, logical commits through these steps:</p>
 <div class="admonition example">
-<p class="admonition-title">Typical Scenario</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a href="#__codelineno-4-1" id="__codelineno-4-1" name="__codelineno-4-1"></a>$<span class="w"> </span>git<span class="w"> </span>status
-</span><span id="__span-4-2"><a href="#__codelineno-4-2" id="__codelineno-4-2" name="__codelineno-4-2"></a>On<span class="w"> </span>branch<span class="w"> </span>feature/user-auth
-</span><span id="__span-4-3"><a href="#__codelineno-4-3" id="__codelineno-4-3" name="__codelineno-4-3"></a>Changes<span class="w"> </span>not<span class="w"> </span>staged<span class="w"> </span><span class="k">for</span><span class="w"> </span>commit:
-</span><span id="__span-4-4"><a href="#__codelineno-4-4" id="__codelineno-4-4" name="__codelineno-4-4"></a><span class="w">  </span>modified:<span class="w">   </span>src/auth/login.py<span class="w">      </span><span class="c1"># Bug fix for validation</span>
-</span><span id="__span-4-5"><a href="#__codelineno-4-5" id="__codelineno-4-5" name="__codelineno-4-5"></a><span class="w">  </span>modified:<span class="w">   </span>src/auth/session.py<span class="w">    </span><span class="c1"># Performance improvement  </span>
-</span><span id="__span-4-6"><a href="#__codelineno-4-6" id="__codelineno-4-6" name="__codelineno-4-6"></a><span class="w">  </span>modified:<span class="w">   </span>src/ui/dashboard.py<span class="w">    </span><span class="c1"># New feature code</span>
-</span><span id="__span-4-7"><a href="#__codelineno-4-7" id="__codelineno-4-7" name="__codelineno-4-7"></a>
-</span><span id="__span-4-8"><a href="#__codelineno-4-8" id="__codelineno-4-8" name="__codelineno-4-8"></a>$<span class="w"> </span>git-autosquash
-</span><span id="__span-4-9"><a href="#__codelineno-4-9" id="__codelineno-4-9" name="__codelineno-4-9"></a>Current<span class="w"> </span>branch:<span class="w"> </span>feature/user-auth
-</span><span id="__span-4-10"><a href="#__codelineno-4-10" id="__codelineno-4-10" name="__codelineno-4-10"></a>Merge<span class="w"> </span>base:<span class="w"> </span>abc123def
-</span><span id="__span-4-11"><a href="#__codelineno-4-11" id="__codelineno-4-11" name="__codelineno-4-11"></a>
-</span><span id="__span-4-12"><a href="#__codelineno-4-12" id="__codelineno-4-12" name="__codelineno-4-12"></a>Analyzing<span class="w"> </span>changes<span class="w"> </span>and<span class="w"> </span>finding<span class="w"> </span>target<span class="w"> </span>commits...
-</span><span id="__span-4-13"><a href="#__codelineno-4-13" id="__codelineno-4-13" name="__codelineno-4-13"></a>Found<span class="w"> </span><span class="m">3</span><span class="w"> </span>hunks<span class="w"> </span>to<span class="w"> </span>process
-</span><span id="__span-4-14"><a href="#__codelineno-4-14" id="__codelineno-4-14" name="__codelineno-4-14"></a>Found<span class="w"> </span>target<span class="w"> </span>commits<span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="m">3</span><span class="w"> </span>hunks
-</span><span id="__span-4-15"><a href="#__codelineno-4-15" id="__codelineno-4-15" name="__codelineno-4-15"></a>
-</span><span id="__span-4-16"><a href="#__codelineno-4-16" id="__codelineno-4-16" name="__codelineno-4-16"></a>Launching<span class="w"> </span>interactive<span class="w"> </span>approval<span class="w"> </span>interface...
-</span></code></pre></div>
+<p class="admonition-title">Step 1: Check Status</p>
+<p><img alt="Workflow Step 1" src="screenshots/readme/workflow_step_01.png"/></p>
+<p>See what changes need organizing</p>
 </div>
-<p>The TUI will show you exactly which changes can go back to which commits, with confidence levels and clear diff visualization.</p>
+<div class="admonition example">
+<p class="admonition-title">Step 2: Launch Analysis</p>
+<p><img alt="Workflow Step 2" src="screenshots/readme/workflow_step_02.png"/></p>
+<p>git-autosquash analyzes your changes</p>
+</div>
+<div class="admonition example">
+<p class="admonition-title">Step 3: Review Results</p>
+<p><img alt="Workflow Step 3" src="screenshots/readme/workflow_step_03.png"/></p>
+<p>See confidence levels and proposed targets</p>
+</div>
+<div class="admonition example">
+<p class="admonition-title">Step 4: Interactive Review</p>
+<p><img alt="Workflow Step 4" src="screenshots/readme/workflow_step_04.png"/></p>
+<p>Approve or modify the suggestions</p>
+</div>
+<h3 id="after-clean-history">After: Clean History<a class="headerlink" href="#after-clean-history" title="Permanent link">¶</a></h3>
+<p><img alt="After git-autosquash" src="screenshots/readme/comparison_after_autosquash.png"/></p>
+<p>The TUI shows you exactly which changes can go back to which commits, with confidence levels and clear diff visualization.</p>
 <h2 id="use-cases">🎯 Use Cases<a class="headerlink" href="#use-cases" title="Permanent link">¶</a></h2>
 <ul>
 <li><strong>Bug fixes</strong>: Automatically squash fixes back to the commits that introduced bugs</li>
@@ -469,6 +529,7 @@
 <li><strong>Code cleanup</strong>: Move formatting and style changes to appropriate historical points</li>
 <li><strong>Feature development</strong>: Separate bug fixes from new features during development</li>
 <li><strong>Commit message fixes</strong>: Clean up commit history by moving changes to better locations</li>
+<li><strong>Selective uncommit</strong>: Extract accidentally committed code back to working tree while preserving clean history</li>
 </ul>
 <h2 id="safety-features">🛡️ Safety Features<a class="headerlink" href="#safety-features" title="Permanent link">¶</a></h2>
 <p>git-autosquash is designed with safety as the top priority:</p>

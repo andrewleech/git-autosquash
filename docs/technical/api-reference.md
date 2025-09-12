@@ -58,31 +58,31 @@ Command-line interface and entry point for git-autosquash.
 
 ## TUI Components
 
-### AutoSquashApp
+### ModernAutoSquashApp
 
 Main Textual application for the interactive approval workflow.
 
-::: git_autosquash.tui.app
+::: git_autosquash.tui.modern_app
     options:
       show_root_heading: true
       show_source: true
       heading_level: 4
 
-### ApprovalScreen
+### ModernScreens
 
-Interactive screen for reviewing and approving hunk to commit mappings.
+Interactive screens for reviewing and approving hunk to commit mappings.
 
-::: git_autosquash.tui.screens
+::: git_autosquash.tui.modern_screens
     options:
       show_root_heading: true
       show_source: true
       heading_level: 4
 
-### Widgets
+### UI Controllers
 
-Custom widgets for the TUI interface.
+Controllers for managing TUI state and interactions.
 
-::: git_autosquash.tui.widgets
+::: git_autosquash.tui.ui_controllers
     options:
       show_root_heading: true
       show_source: true

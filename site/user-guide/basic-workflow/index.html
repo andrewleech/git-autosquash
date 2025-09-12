@@ -368,6 +368,13 @@
     </span>
 </a>
 </li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#scenario-extracting-accidentally-committed-changes">
+<span class="md-ellipsis">
+      Scenario: Extracting Accidentally Committed Changes
+    </span>
+</a>
+</li>
 </ul>
 </nav>
 </li>
@@ -665,14 +672,19 @@
 <td>Move between hunk mappings</td>
 </tr>
 <tr>
-<td>Toggle approval</td>
+<td>Cycle states</td>
 <td>Space</td>
-<td>Approve/reject current mapping</td>
+<td>Cycle current hunk: skip → squash → ignore → skip</td>
 </tr>
 <tr>
-<td>Toggle all</td>
+<td>Toggle squash all</td>
 <td>a</td>
-<td>Approve or reject all mappings</td>
+<td>Toggle all hunks between squash and skip</td>
+</tr>
+<tr>
+<td>Toggle ignore all</td>
+<td>i</td>
+<td>Toggle all hunks between ignore and skip</td>
 </tr>
 <tr>
 <td>Execute</td>
@@ -734,6 +746,28 @@
 2. Resolve conflicts (remove <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code>, <code>=======</code>, <code>&gt;&gt;&gt;&gt;&gt;&gt;&gt;</code> markers)
 3. Stage resolved files: <code>git add src/auth/login.py</code>
 4. Continue: <code>git rebase --continue</code></p>
+<h3 id="scenario-extracting-accidentally-committed-changes">Scenario: Extracting Accidentally Committed Changes<a class="headerlink" href="#scenario-extracting-accidentally-committed-changes" title="Permanent link">¶</a></h3>
+<p><strong>Scenario</strong>: You committed debug code or temporary changes that should be removed from history but kept in your working tree for further development.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a href="#__codelineno-5-1" id="__codelineno-5-1" name="__codelineno-5-1"></a><span class="c1"># You have commits with mixed changes</span>
+</span><span id="__span-5-2"><a href="#__codelineno-5-2" id="__codelineno-5-2" name="__codelineno-5-2"></a>git<span class="w"> </span>log<span class="w"> </span>--oneline<span class="w"> </span>-3
+</span><span id="__span-5-3"><a href="#__codelineno-5-3" id="__codelineno-5-3" name="__codelineno-5-3"></a><span class="c1"># abc1234 Add user dashboard feature  </span>
+</span><span id="__span-5-4"><a href="#__codelineno-5-4" id="__codelineno-5-4" name="__codelineno-5-4"></a><span class="c1"># def5678 Fix authentication bug</span>
+</span><span id="__span-5-5"><a href="#__codelineno-5-5" id="__codelineno-5-5" name="__codelineno-5-5"></a><span class="c1"># ghi9012 Add admin panel</span>
+</span><span id="__span-5-6"><a href="#__codelineno-5-6" id="__codelineno-5-6" name="__codelineno-5-6"></a>
+</span><span id="__span-5-7"><a href="#__codelineno-5-7" id="__codelineno-5-7" name="__codelineno-5-7"></a><span class="c1"># Some of these commits contain debug prints or temporary code</span>
+</span><span id="__span-5-8"><a href="#__codelineno-5-8" id="__codelineno-5-8" name="__codelineno-5-8"></a><span class="c1"># that you want to extract back to working directory</span>
+</span><span id="__span-5-9"><a href="#__codelineno-5-9" id="__codelineno-5-9" name="__codelineno-5-9"></a>
+</span><span id="__span-5-10"><a href="#__codelineno-5-10" id="__codelineno-5-10" name="__codelineno-5-10"></a>git-autosquash
+</span></code></pre></div>
+<p><strong>In the TUI</strong>:
+1. For each hunk containing debug/temporary code: Select <strong>"Ignore (keep in working tree)"</strong>
+2. For legitimate changes: Select <strong>"Skip"</strong> (leave in commits) or <strong>"Squash"</strong> (organize better)
+3. Execute the operation</p>
+<p><strong>Result</strong>: 
+- Debug code gets extracted to your working directory
+- Clean commits remain in history
+- You can now properly commit or discard the extracted code</p>
+<p>This is essentially a selective "uncommit" operation - much more precise than <code>git reset</code>.</p>
 <h2 id="branch-management">Branch Management<a class="headerlink" href="#branch-management" title="Permanent link">¶</a></h2>
 <h3 id="safe-branch-practices">Safe Branch Practices<a class="headerlink" href="#safe-branch-practices" title="Permanent link">¶</a></h3>
 <p><strong>✅ Good practices</strong>:
@@ -755,14 +789,14 @@
 </ol>
 </div>
 <h3 id="branch-cleanup-after-success">Branch Cleanup After Success<a class="headerlink" href="#branch-cleanup-after-success" title="Permanent link">¶</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a href="#__codelineno-5-1" id="__codelineno-5-1" name="__codelineno-5-1"></a><span class="c1"># After successful git-autosquash</span>
-</span><span id="__span-5-2"><a href="#__codelineno-5-2" id="__codelineno-5-2" name="__codelineno-5-2"></a>git<span class="w"> </span>log<span class="w"> </span>--oneline<span class="w"> </span>-10<span class="w">  </span><span class="c1"># Verify the results look good</span>
-</span><span id="__span-5-3"><a href="#__codelineno-5-3" id="__codelineno-5-3" name="__codelineno-5-3"></a>
-</span><span id="__span-5-4"><a href="#__codelineno-5-4" id="__codelineno-5-4" name="__codelineno-5-4"></a><span class="c1"># If satisfied, you might want to:</span>
-</span><span id="__span-5-5"><a href="#__codelineno-5-5" id="__codelineno-5-5" name="__codelineno-5-5"></a>git<span class="w"> </span>push<span class="w"> </span>--force-with-lease<span class="w"> </span>origin<span class="w"> </span>feature/oauth-integration
-</span><span id="__span-5-6"><a href="#__codelineno-5-6" id="__codelineno-5-6" name="__codelineno-5-6"></a>
-</span><span id="__span-5-7"><a href="#__codelineno-5-7" id="__codelineno-5-7" name="__codelineno-5-7"></a><span class="c1"># Or continue with more development</span>
-</span><span id="__span-5-8"><a href="#__codelineno-5-8" id="__codelineno-5-8" name="__codelineno-5-8"></a>git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">"Add OAuth provider configuration"</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a href="#__codelineno-6-1" id="__codelineno-6-1" name="__codelineno-6-1"></a><span class="c1"># After successful git-autosquash</span>
+</span><span id="__span-6-2"><a href="#__codelineno-6-2" id="__codelineno-6-2" name="__codelineno-6-2"></a>git<span class="w"> </span>log<span class="w"> </span>--oneline<span class="w"> </span>-10<span class="w">  </span><span class="c1"># Verify the results look good</span>
+</span><span id="__span-6-3"><a href="#__codelineno-6-3" id="__codelineno-6-3" name="__codelineno-6-3"></a>
+</span><span id="__span-6-4"><a href="#__codelineno-6-4" id="__codelineno-6-4" name="__codelineno-6-4"></a><span class="c1"># If satisfied, you might want to:</span>
+</span><span id="__span-6-5"><a href="#__codelineno-6-5" id="__codelineno-6-5" name="__codelineno-6-5"></a>git<span class="w"> </span>push<span class="w"> </span>--force-with-lease<span class="w"> </span>origin<span class="w"> </span>feature/oauth-integration
+</span><span id="__span-6-6"><a href="#__codelineno-6-6" id="__codelineno-6-6" name="__codelineno-6-6"></a>
+</span><span id="__span-6-7"><a href="#__codelineno-6-7" id="__codelineno-6-7" name="__codelineno-6-7"></a><span class="c1"># Or continue with more development</span>
+</span><span id="__span-6-8"><a href="#__codelineno-6-8" id="__codelineno-6-8" name="__codelineno-6-8"></a>git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">"Add OAuth provider configuration"</span>
 </span></code></pre></div>
 <h2 id="performance-tips">Performance Tips<a class="headerlink" href="#performance-tips" title="Permanent link">¶</a></h2>
 <h3 id="large-repositories">Large Repositories<a class="headerlink" href="#large-repositories" title="Permanent link">¶</a></h3>
@@ -774,27 +808,27 @@
 <li>Consider using <code>--line-by-line</code> for very precise control</li>
 </ul>
 <h3 id="optimizing-for-speed">Optimizing for Speed<a class="headerlink" href="#optimizing-for-speed" title="Permanent link">¶</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a href="#__codelineno-6-1" id="__codelineno-6-1" name="__codelineno-6-1"></a><span class="c1"># For large changesets, line-by-line can be more precise</span>
-</span><span id="__span-6-2"><a href="#__codelineno-6-2" id="__codelineno-6-2" name="__codelineno-6-2"></a>git-autosquash<span class="w"> </span>--line-by-line
-</span><span id="__span-6-3"><a href="#__codelineno-6-3" id="__codelineno-6-3" name="__codelineno-6-3"></a>
-</span><span id="__span-6-4"><a href="#__codelineno-6-4" id="__codelineno-6-4" name="__codelineno-6-4"></a><span class="c1"># Standard mode is faster for most cases</span>
-</span><span id="__span-6-5"><a href="#__codelineno-6-5" id="__codelineno-6-5" name="__codelineno-6-5"></a>git-autosquash
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a href="#__codelineno-7-1" id="__codelineno-7-1" name="__codelineno-7-1"></a><span class="c1"># For large changesets, line-by-line can be more precise</span>
+</span><span id="__span-7-2"><a href="#__codelineno-7-2" id="__codelineno-7-2" name="__codelineno-7-2"></a>git-autosquash<span class="w"> </span>--line-by-line
+</span><span id="__span-7-3"><a href="#__codelineno-7-3" id="__codelineno-7-3" name="__codelineno-7-3"></a>
+</span><span id="__span-7-4"><a href="#__codelineno-7-4" id="__codelineno-7-4" name="__codelineno-7-4"></a><span class="c1"># Standard mode is faster for most cases</span>
+</span><span id="__span-7-5"><a href="#__codelineno-7-5" id="__codelineno-7-5" name="__codelineno-7-5"></a>git-autosquash
 </span></code></pre></div>
 <h2 id="integration-with-git-workflows">Integration with Git Workflows<a class="headerlink" href="#integration-with-git-workflows" title="Permanent link">¶</a></h2>
 <h3 id="pre-push-hook">Pre-Push Hook<a class="headerlink" href="#pre-push-hook" title="Permanent link">¶</a></h3>
 <p>You can integrate git-autosquash into your workflow with git hooks:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a href="#__codelineno-7-1" id="__codelineno-7-1" name="__codelineno-7-1"></a><span class="ch">#!/bin/bash</span>
-</span><span id="__span-7-2"><a href="#__codelineno-7-2" id="__codelineno-7-2" name="__codelineno-7-2"></a><span class="c1"># .git/hooks/pre-push</span>
-</span><span id="__span-7-3"><a href="#__codelineno-7-3" id="__codelineno-7-3" name="__codelineno-7-3"></a>
-</span><span id="__span-7-4"><a href="#__codelineno-7-4" id="__codelineno-7-4" name="__codelineno-7-4"></a><span class="nb">echo</span><span class="w"> </span><span class="s2">"Checking if working directory needs git-autosquash..."</span>
-</span><span id="__span-7-5"><a href="#__codelineno-7-5" id="__codelineno-7-5" name="__codelineno-7-5"></a><span class="k">if</span><span class="w"> </span>!<span class="w"> </span>git<span class="w"> </span>diff<span class="w"> </span>--quiet<span class="p">;</span><span class="w"> </span><span class="k">then</span>
-</span><span id="__span-7-6"><a href="#__codelineno-7-6" id="__codelineno-7-6" name="__codelineno-7-6"></a><span class="w">    </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"Uncommitted changes found. Consider running git-autosquash first."</span>
-</span><span id="__span-7-7"><a href="#__codelineno-7-7" id="__codelineno-7-7" name="__codelineno-7-7"></a><span class="w">    </span><span class="nb">read</span><span class="w"> </span>-p<span class="w"> </span><span class="s2">"Continue with push? (y/n): "</span><span class="w"> </span>-n<span class="w"> </span><span class="m">1</span><span class="w"> </span>-r
-</span><span id="__span-7-8"><a href="#__codelineno-7-8" id="__codelineno-7-8" name="__codelineno-7-8"></a><span class="w">    </span><span class="nb">echo</span>
-</span><span id="__span-7-9"><a href="#__codelineno-7-9" id="__codelineno-7-9" name="__codelineno-7-9"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="o">[[</span><span class="w"> </span>!<span class="w"> </span><span class="nv">$REPLY</span><span class="w"> </span><span class="o">=</span>~<span class="w"> </span>^<span class="o">[</span>Yy<span class="o">]</span>$<span class="w"> </span><span class="o">]]</span><span class="p">;</span><span class="w"> </span><span class="k">then</span>
-</span><span id="__span-7-10"><a href="#__codelineno-7-10" id="__codelineno-7-10" name="__codelineno-7-10"></a><span class="w">        </span><span class="nb">exit</span><span class="w"> </span><span class="m">1</span>
-</span><span id="__span-7-11"><a href="#__codelineno-7-11" id="__codelineno-7-11" name="__codelineno-7-11"></a><span class="w">    </span><span class="k">fi</span>
-</span><span id="__span-7-12"><a href="#__codelineno-7-12" id="__codelineno-7-12" name="__codelineno-7-12"></a><span class="k">fi</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a href="#__codelineno-8-1" id="__codelineno-8-1" name="__codelineno-8-1"></a><span class="ch">#!/bin/bash</span>
+</span><span id="__span-8-2"><a href="#__codelineno-8-2" id="__codelineno-8-2" name="__codelineno-8-2"></a><span class="c1"># .git/hooks/pre-push</span>
+</span><span id="__span-8-3"><a href="#__codelineno-8-3" id="__codelineno-8-3" name="__codelineno-8-3"></a>
+</span><span id="__span-8-4"><a href="#__codelineno-8-4" id="__codelineno-8-4" name="__codelineno-8-4"></a><span class="nb">echo</span><span class="w"> </span><span class="s2">"Checking if working directory needs git-autosquash..."</span>
+</span><span id="__span-8-5"><a href="#__codelineno-8-5" id="__codelineno-8-5" name="__codelineno-8-5"></a><span class="k">if</span><span class="w"> </span>!<span class="w"> </span>git<span class="w"> </span>diff<span class="w"> </span>--quiet<span class="p">;</span><span class="w"> </span><span class="k">then</span>
+</span><span id="__span-8-6"><a href="#__codelineno-8-6" id="__codelineno-8-6" name="__codelineno-8-6"></a><span class="w">    </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"Uncommitted changes found. Consider running git-autosquash first."</span>
+</span><span id="__span-8-7"><a href="#__codelineno-8-7" id="__codelineno-8-7" name="__codelineno-8-7"></a><span class="w">    </span><span class="nb">read</span><span class="w"> </span>-p<span class="w"> </span><span class="s2">"Continue with push? (y/n): "</span><span class="w"> </span>-n<span class="w"> </span><span class="m">1</span><span class="w"> </span>-r
+</span><span id="__span-8-8"><a href="#__codelineno-8-8" id="__codelineno-8-8" name="__codelineno-8-8"></a><span class="w">    </span><span class="nb">echo</span>
+</span><span id="__span-8-9"><a href="#__codelineno-8-9" id="__codelineno-8-9" name="__codelineno-8-9"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="o">[[</span><span class="w"> </span>!<span class="w"> </span><span class="nv">$REPLY</span><span class="w"> </span><span class="o">=</span>~<span class="w"> </span>^<span class="o">[</span>Yy<span class="o">]</span>$<span class="w"> </span><span class="o">]]</span><span class="p">;</span><span class="w"> </span><span class="k">then</span>
+</span><span id="__span-8-10"><a href="#__codelineno-8-10" id="__codelineno-8-10" name="__codelineno-8-10"></a><span class="w">        </span><span class="nb">exit</span><span class="w"> </span><span class="m">1</span>
+</span><span id="__span-8-11"><a href="#__codelineno-8-11" id="__codelineno-8-11" name="__codelineno-8-11"></a><span class="w">    </span><span class="k">fi</span>
+</span><span id="__span-8-12"><a href="#__codelineno-8-12" id="__codelineno-8-12" name="__codelineno-8-12"></a><span class="k">fi</span>
 </span></code></pre></div>
 <h3 id="ide-integration">IDE Integration<a class="headerlink" href="#ide-integration" title="Permanent link">¶</a></h3>
 <p>Many IDEs can be configured to run git-autosquash:</p>
@@ -812,16 +846,16 @@
 <p><strong>Solution</strong>: Review if the changes actually belong in historical commits, or if they should stay as new changes.</p>
 <h3 id="command-not-found">"Command not found"<a class="headerlink" href="#command-not-found" title="Permanent link">¶</a></h3>
 <p><strong>Check installation</strong>:
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a href="#__codelineno-8-1" id="__codelineno-8-1" name="__codelineno-8-1"></a>which<span class="w"> </span>git-autosquash
-</span><span id="__span-8-2"><a href="#__codelineno-8-2" id="__codelineno-8-2" name="__codelineno-8-2"></a>git-autosquash<span class="w"> </span>--version
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a href="#__codelineno-9-1" id="__codelineno-9-1" name="__codelineno-9-1"></a>which<span class="w"> </span>git-autosquash
+</span><span id="__span-9-2"><a href="#__codelineno-9-2" id="__codelineno-9-2" name="__codelineno-9-2"></a>git-autosquash<span class="w"> </span>--version
 </span></code></pre></div></p>
 <p><strong>Reinstall if needed</strong>:
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a href="#__codelineno-9-1" id="__codelineno-9-1" name="__codelineno-9-1"></a>pipx<span class="w"> </span>reinstall<span class="w"> </span>git-autosquash
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a href="#__codelineno-10-1" id="__codelineno-10-1" name="__codelineno-10-1"></a>pipx<span class="w"> </span>reinstall<span class="w"> </span>git-autosquash
 </span></code></pre></div></p>
 <h3 id="not-in-a-git-repository">"Not in a git repository"<a class="headerlink" href="#not-in-a-git-repository" title="Permanent link">¶</a></h3>
 <p>Ensure you're in a Git repository:
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a href="#__codelineno-10-1" id="__codelineno-10-1" name="__codelineno-10-1"></a><span class="nb">pwd</span>
-</span><span id="__span-10-2"><a href="#__codelineno-10-2" id="__codelineno-10-2" name="__codelineno-10-2"></a>git<span class="w"> </span>status
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a href="#__codelineno-11-1" id="__codelineno-11-1" name="__codelineno-11-1"></a><span class="nb">pwd</span>
+</span><span id="__span-11-2"><a href="#__codelineno-11-2" id="__codelineno-11-2" name="__codelineno-11-2"></a>git<span class="w"> </span>status
 </span></code></pre></div></p>
 <h3 id="performance-issues">Performance issues<a class="headerlink" href="#performance-issues" title="Permanent link">¶</a></h3>
 <p>For very large diffs:

@@ -1,0 +1,11 @@
+git-autosquash - Interactive Review
+
+┌─ Changes ────────────────────────────────┐ ┌─ Selected Target ──────────────────────┐
+│ ✓ src/auth.py:45-52        [HIGH 95%]   │ │ Commit: abc1234                        │
+│ ✓ src/dashboard.py:15-23   [HIGH 89%]   │ │ Author: dev@example.com                │
+│ ◯ tests/test_auth.py:67-70 [MED  76%]   │ │ Date: 2 days ago                       │
+│ ◯ src/utils.py:85-90       [MED  64%]   │ │ Message: Fix login validation          │
+│ ? src/utils.py:12-18       [FALLBACK]   │ │                                        │
+└──────────────────────────────────────────┘ └────────────────────────────────────────┘
+
+Ready to apply 2 approved changes. Continue? [y/N]: y

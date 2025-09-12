@@ -320,78 +320,6 @@ class PyteScreenshotCapture:
         return screenshots
 
 
-class MockTerminalCapture:
-    """
-    Mock terminal capture for testing when pyte is not available
-    or when we want to test the capture system itself.
-    """
-
-    def __init__(self, output_dir: Path):
-        self.output_dir = output_dir
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-
-    async def capture_mock_workflow(self, scenario_name: str = "mock") -> List[Path]:
-        """Create mock screenshots for testing purposes."""
-
-        mock_screens = [
-            "git-autosquash - Interactive Hunk Target Selection\n\n"
-            "┌─ Hunks ──────────────────────────┐ ┌─ Target Commits ─────────────┐\n"
-            "│ ✓ src/main.py:15-20             │ │ abc1234 Fix main function    │\n"
-            "│ ? src/utils.py:5-8              │ │ def5678 Add utility helpers  │\n"
-            "│ ? tests/test_main.py:25-30      │ │ hij9012 Update test cases    │\n"
-            "└──────────────────────────────────┘ └───────────────────────────────┘\n"
-            "\n[Space] Toggle  [Enter] Confirm  [q] Quit",
-            "git-autosquash - Interactive Hunk Target Selection\n\n"
-            "┌─ Hunks ──────────────────────────┐ ┌─ Target Commits ─────────────┐\n"
-            "│ ✓ src/main.py:15-20             │ │ abc1234 Fix main function    │\n"
-            "│ ✓ src/utils.py:5-8              │ │ def5678 Add utility helpers  │\n"
-            "│ ? tests/test_main.py:25-30      │ │ hij9012 Update test cases    │\n"
-            "└──────────────────────────────────┘ └───────────────────────────────┘\n"
-            "\n[Space] Toggle  [Enter] Confirm  [q] Quit",
-            "git-autosquash - Confirmation\n\n"
-            "Ready to squash 2 hunks into their target commits?\n\n"
-            "✓ src/main.py:15-20 → abc1234 Fix main function\n"
-            "✓ src/utils.py:5-8  → def5678 Add utility helpers\n\n"
-            "[y] Yes  [n] No  [q] Quit",
-        ]
-
-        screenshots = []
-        for i, screen_content in enumerate(mock_screens):
-            filename = f"{scenario_name}_{i + 1:02d}_mock.txt"
-            file_path = self.output_dir / filename
-            file_path.write_text(screen_content)
-            screenshots.append(file_path)
-
-            # Also create a simple PNG version
-            png_path = self.output_dir / f"{scenario_name}_{i + 1:02d}_mock.png"
-            await self._create_simple_image(screen_content, png_path)
-            screenshots.append(png_path)
-
-        return screenshots
-
-    async def _create_simple_image(self, text: str, image_path: Path):
-        """Create a simple image from text."""
-        try:
-            font = ImageFont.load_default()
-            lines = text.split("\n")
-
-            img_width = max(len(line) for line in lines) * 8 + 20
-            img_height = len(lines) * 16 + 20
-
-            img = Image.new("RGB", (img_width, img_height), color=(12, 12, 12))
-            draw = ImageDraw.Draw(img)
-
-            y_offset = 10
-            for line in lines:
-                draw.text((10, y_offset), line, font=font, fill=(255, 255, 255))
-                y_offset += 16
-
-            img.save(image_path)
-        except Exception as e:
-            # If image creation fails, create a placeholder
-            image_path.write_text(f"Image placeholder: {e}")
-
-
 @contextmanager
 def temporary_git_repo_with_changes():
     """Create a temporary git repository with sample changes for testing."""
@@ -457,10 +385,7 @@ if __name__ == "__main__":
 
         print("Testing pyte screenshot capture...")
 
-        # Test with mock workflow first
-        mock_capture = MockTerminalCapture(output_dir)
-        mock_screenshots = await mock_capture.capture_mock_workflow("demo")
-        print(f"Created {len(mock_screenshots)} mock screenshots")
+        # Test with real git repo
 
         # Test with real git repo (if possible)
         try:

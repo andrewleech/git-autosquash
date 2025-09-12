@@ -515,9 +515,18 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#pipx-recommended" class="md-nav__link">
+  <a href="#uv-recommended" class="md-nav__link">
     <span class="md-ellipsis">
-      pipx (Recommended)
+      uv (Recommended)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pipx" class="md-nav__link">
+    <span class="md-ellipsis">
+      pipx
     </span>
   </a>
   
@@ -527,15 +536,6 @@
   <a href="#pip" class="md-nav__link">
     <span class="md-ellipsis">
       pip
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#uv" class="md-nav__link">
-    <span class="md-ellipsis">
-      uv
     </span>
   </a>
   
@@ -659,7 +659,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#pipx" class="md-nav__link">
+  <a href="#pipx_1" class="md-nav__link">
     <span class="md-ellipsis">
       pipx
     </span>
@@ -677,7 +677,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#uv_1" class="md-nav__link">
+  <a href="#uv" class="md-nav__link">
     <span class="md-ellipsis">
       uv
     </span>
@@ -701,7 +701,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#pipx_1" class="md-nav__link">
+  <a href="#pipx_2" class="md-nav__link">
     <span class="md-ellipsis">
       pipx
     </span>
@@ -719,7 +719,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#uv_2" class="md-nav__link">
+  <a href="#uv_1" class="md-nav__link">
     <span class="md-ellipsis">
       uv
     </span>
@@ -1051,9 +1051,23 @@
 <li>A terminal that supports ANSI colors (most modern terminals)</li>
 </ul>
 <h2 id="installation-methods">Installation Methods<a class="headerlink" href="#installation-methods" title="Permanent link">&para;</a></h2>
-<h3 id="pipx-recommended">pipx (Recommended)<a class="headerlink" href="#pipx-recommended" title="Permanent link">&para;</a></h3>
-<p><a href="https://pypa.github.io/pipx/">pipx</a> is the recommended way to install Python CLI tools. It creates isolated environments for each tool, avoiding dependency conflicts.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pipx<span class="w"> </span>install<span class="w"> </span>git-autosquash
+<h3 id="uv-recommended">uv (Recommended)<a class="headerlink" href="#uv-recommended" title="Permanent link">&para;</a></h3>
+<p><a href="https://github.com/astral-sh/uv">uv</a> is a fast, modern Python package manager with excellent tool installation support:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>git-autosquash
+</span></code></pre></div>
+<div class="admonition tip">
+<p class="admonition-title">Why uv?</p>
+<ul>
+<li>Fastest Python package manager available</li>
+<li>Built-in tool isolation like pipx</li>
+<li>Excellent dependency resolution</li>
+<li>Cross-platform compatibility</li>
+<li>Easy to upgrade: <code>uv tool upgrade git-autosquash</code></li>
+</ul>
+</div>
+<h3 id="pipx">pipx<a class="headerlink" href="#pipx" title="Permanent link">&para;</a></h3>
+<p><a href="https://pypa.github.io/pipx/">pipx</a> creates isolated environments for each tool, avoiding dependency conflicts:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pipx<span class="w"> </span>install<span class="w"> </span>git-autosquash
 </span></code></pre></div>
 <div class="admonition tip">
 <p class="admonition-title">Why pipx?</p>
@@ -1066,20 +1080,16 @@
 </div>
 <h3 id="pip">pip<a class="headerlink" href="#pip" title="Permanent link">&para;</a></h3>
 <p>If you prefer using pip directly:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pip<span class="w"> </span>install<span class="w"> </span>git-autosquash
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pip<span class="w"> </span>install<span class="w"> </span>git-autosquash
 </span></code></pre></div>
 <div class="admonition warning">
 <p class="admonition-title">Virtual Environment Recommended</p>
 <p>If using pip, consider installing in a virtual environment to avoid conflicts:
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>python<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>git-autosquash-env
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nb">source</span><span class="w"> </span>git-autosquash-env/bin/activate<span class="w">  </span><span class="c1"># On Windows: git-autosquash-env\Scripts\activate</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>pip<span class="w"> </span>install<span class="w"> </span>git-autosquash
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>python<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>git-autosquash-env
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nb">source</span><span class="w"> </span>git-autosquash-env/bin/activate<span class="w">  </span><span class="c1"># On Windows: git-autosquash-env\Scripts\activate</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>pip<span class="w"> </span>install<span class="w"> </span>git-autosquash
 </span></code></pre></div></p>
 </div>
-<h3 id="uv">uv<a class="headerlink" href="#uv" title="Permanent link">&para;</a></h3>
-<p><a href="https://github.com/astral-sh/uv">uv</a> is a fast Python package manager with tool installation support:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>git-autosquash
-</span></code></pre></div>
 <h3 id="from-source">From Source<a class="headerlink" href="#from-source" title="Permanent link">&para;</a></h3>
 <p>For development or latest features:</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="from-source-using-uv-recommended-for-development" name="__tabbed_1" type="radio" /><input id="from-source-using-pip" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="from-source-using-uv-recommended-for-development">Using uv (Recommended for Development)</label><label for="from-source-using-pip">Using pip</label></div>
@@ -1186,23 +1196,23 @@
 </div>
 </div>
 <h2 id="upgrading">Upgrading<a class="headerlink" href="#upgrading" title="Permanent link">&para;</a></h2>
-<h3 id="pipx">pipx<a class="headerlink" href="#pipx" title="Permanent link">&para;</a></h3>
+<h3 id="pipx_1">pipx<a class="headerlink" href="#pipx_1" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>pipx<span class="w"> </span>upgrade<span class="w"> </span>git-autosquash
 </span></code></pre></div>
 <h3 id="pip_1">pip<a class="headerlink" href="#pip_1" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>pip<span class="w"> </span>install<span class="w"> </span>--upgrade<span class="w"> </span>git-autosquash
 </span></code></pre></div>
-<h3 id="uv_1">uv<a class="headerlink" href="#uv_1" title="Permanent link">&para;</a></h3>
+<h3 id="uv">uv<a class="headerlink" href="#uv" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>uv<span class="w"> </span>tool<span class="w"> </span>upgrade<span class="w"> </span>git-autosquash
 </span></code></pre></div>
 <h2 id="uninstallation">Uninstallation<a class="headerlink" href="#uninstallation" title="Permanent link">&para;</a></h2>
-<h3 id="pipx_1">pipx<a class="headerlink" href="#pipx_1" title="Permanent link">&para;</a></h3>
+<h3 id="pipx_2">pipx<a class="headerlink" href="#pipx_2" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>pipx<span class="w"> </span>uninstall<span class="w"> </span>git-autosquash
 </span></code></pre></div>
 <h3 id="pip_2">pip<a class="headerlink" href="#pip_2" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-23-1"><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>pip<span class="w"> </span>uninstall<span class="w"> </span>git-autosquash
 </span></code></pre></div>
-<h3 id="uv_2">uv<a class="headerlink" href="#uv_2" title="Permanent link">&para;</a></h3>
+<h3 id="uv_1">uv<a class="headerlink" href="#uv_1" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-24-1"><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>uv<span class="w"> </span>tool<span class="w"> </span>uninstall<span class="w"> </span>git-autosquash
 </span></code></pre></div>
 <h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
