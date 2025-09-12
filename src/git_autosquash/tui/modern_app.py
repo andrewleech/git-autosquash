@@ -22,7 +22,7 @@ class ModernAutoSquashApp(App[bool]):
     This matches the workflow shown in the hero_screenshot.png mock.
     """
 
-    TITLE = "Git Autosquash - Modern Interface"
+    TITLE = "Git Autosquash"
 
     # Modern CSS styling will be defined in modern_screens.py
     CSS = """
