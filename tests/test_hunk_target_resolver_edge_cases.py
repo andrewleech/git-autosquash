@@ -20,7 +20,8 @@ class TestBlameAnalysisEngineEdgeCases:
     def setup_method(self):
         """Setup test fixtures."""
         self.mock_git_ops = MagicMock(spec=GitOps)
-        self.engine = BlameAnalysisEngine(self.mock_git_ops)
+        mock_merge_base = "abc123"
+        self.engine = BlameAnalysisEngine(self.mock_git_ops, mock_merge_base)
 
     def test_empty_blame_output_handling(self):
         """Test handling of empty blame output."""

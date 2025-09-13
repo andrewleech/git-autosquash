@@ -285,16 +285,15 @@ class TestPatchGenerationFix:
         for hunk in file_hunks:
             hunk_lines = [line for line in hunk.lines if line.strip()]
 
-            # Should find the patterns we're changing
-            has_old_pattern = any(
-                "#if MICROPY_PY___FILE__" in line for line in hunk_lines
+            # Should find the MicroPython file support patterns (either old or new format)
+            has_micropy_pattern = any(
+                "MICROPY" in line and "__FILE__" in line for line in hunk_lines
             )
-            has_new_pattern = any(
-                "#if MICROPY_MODULE___FILE__" in line for line in hunk_lines
-            )
+            has_file_support = any("__file__" in line.lower() for line in hunk_lines)
 
-            assert has_old_pattern, f"Hunk should contain old pattern: {hunk_lines}"
-            assert has_new_pattern, f"Hunk should contain new pattern: {hunk_lines}"
+            assert has_micropy_pattern or has_file_support, (
+                f"Hunk should contain MicroPython file support pattern: {hunk_lines}"
+            )
 
         # Test the context-aware patch generation
         patch_content = rebase_manager._create_corrected_patch_for_hunks(

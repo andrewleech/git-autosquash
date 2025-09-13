@@ -262,16 +262,21 @@ class TestRebaseManager:
         mock_file.name = "/tmp/test_todo"
         mock_tempfile.return_value.__enter__.return_value = mock_file
 
-        # Mock successful rebase start
+        # Mock successful rebase start - need two calls: rev-list then rebase
+        rev_list_result = Mock()
+        rev_list_result.returncode = 0
+        rev_list_result.stdout = "commit123\ncommit456\n"  # Mock commit list output
+
         rebase_result = Mock()
         rebase_result.returncode = 0
-        self.mock_git_ops.run_git_command.return_value = rebase_result
+
+        self.mock_git_ops.run_git_command.side_effect = [rev_list_result, rebase_result]
 
         result = self.rebase_manager._start_rebase_edit("commit123")
 
         assert result is True
-        mock_file.write.assert_called_once_with("edit commit123\n")
-        self.mock_git_ops.run_git_command.assert_called_once()
+        mock_file.write.assert_called_once_with("edit commit123\npick commit456\n")
+        assert self.mock_git_ops.run_git_command.call_count == 2
         mock_unlink.assert_called_once_with("/tmp/test_todo")
 
     @patch("tempfile.NamedTemporaryFile")
