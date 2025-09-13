@@ -111,6 +111,38 @@ When blame analysis fails to find valid targets, the system provides fallback me
 - Check return codes and handle failures gracefully
 - Use batch operations when processing multiple items
 
+## Strategy Management Commands
+
+git-autosquash includes hidden subcommands for managing execution strategies. These are not shown in the main help output to avoid confusing regular users, but are available for debugging and advanced configuration:
+
+### `git-autosquash strategy-info`
+**Purpose**: Display current strategy information and system capabilities
+**Output**: Shows active strategy, available strategies, execution order, and environment overrides
+**Use case**: Debugging strategy selection issues
+
+### `git-autosquash strategy-test [--strategy STRATEGY]`
+**Purpose**: Test strategy compatibility and functionality
+**Options**:
+- `--strategy worktree|index|legacy` - Test specific strategy (default: test all)
+**Use case**: Troubleshooting git-autosquash failures, verifying system compatibility
+
+### `git-autosquash strategy-set {worktree|index|legacy|auto}`
+**Purpose**: Configure preferred execution strategy
+**Strategies**:
+- `worktree` - Complete isolation using git worktree (best, requires git 2.5+)
+- `index` - Index manipulation with stash backup (good, requires git 2.0+)
+- `legacy` - Manual patch application (fallback for older git versions)
+- `auto` - Remove override, use auto-detection (default)
+**Effect**: Shows environment variable command to set strategy preference
+**Use case**: Forcing specific strategy when auto-detection fails
+
+### Implementation Notes
+- These subcommands are implemented in `src/git_autosquash/cli_strategy.py`
+- They are hidden from main help via `add_help=False` on the subparser
+- The commands are fully functional but not advertised to end users
+- Strategy selection happens automatically in `GitNativeCompleteHandler` based on git version and capabilities
+- Most users should never need these commands - they're for advanced troubleshooting
+
 ## Common Development Tasks
 
 ### Adding a New Execution Strategy

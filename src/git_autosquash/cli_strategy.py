@@ -174,16 +174,12 @@ def add_strategy_subcommands(subparsers):
     Args:
         subparsers: Subparser object from main argument parser
     """
-    # Strategy info command
-    info_parser = subparsers.add_parser(
-        "strategy-info", help="Show git-native strategy information"
-    )
+    # Strategy info command - hidden from main help
+    info_parser = subparsers.add_parser("strategy-info", help=argparse.SUPPRESS)
     info_parser.set_defaults(func=cmd_strategy_info)
 
-    # Strategy test command
-    test_parser = subparsers.add_parser(
-        "strategy-test", help="Test strategy compatibility"
-    )
+    # Strategy test command - hidden from main help
+    test_parser = subparsers.add_parser("strategy-test", help=argparse.SUPPRESS)
     test_parser.add_argument(
         "--strategy",
         choices=["worktree", "index", "legacy"],
@@ -191,8 +187,8 @@ def add_strategy_subcommands(subparsers):
     )
     test_parser.set_defaults(func=cmd_strategy_test)
 
-    # Strategy set command
-    set_parser = subparsers.add_parser("strategy-set", help="Set preferred strategy")
+    # Strategy set command - hidden from main help
+    set_parser = subparsers.add_parser("strategy-set", help=argparse.SUPPRESS)
     set_parser.add_argument(
         "strategy",
         choices=["worktree", "index", "legacy", "auto"],

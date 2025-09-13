@@ -95,7 +95,7 @@ class BlameAnalysisEngine:
         success, blame_output = self.git_ops._run_git_command(
             "blame",
             f"-L{hunk.old_start},{hunk.old_start + hunk.old_count - 1}",
-            "HEAD",
+            "HEAD~1",
             "--",
             hunk.file_path,
         )
@@ -119,7 +119,7 @@ class BlameAnalysisEngine:
         end_line = hunk.new_start + context_lines
 
         success, blame_output = self.git_ops._run_git_command(
-            "blame", f"-L{start_line},{end_line}", "HEAD", "--", hunk.file_path
+            "blame", f"-L{start_line},{end_line}", "HEAD~1", "--", hunk.file_path
         )
 
         if not success:
@@ -203,7 +203,7 @@ class BlameAnalysisEngine:
 
         # Get blame for the context range
         success, blame_output = self.git_ops._run_git_command(
-            "blame", f"-L{start_line},{end_line}", "HEAD", "--", hunk.file_path
+            "blame", f"-L{start_line},{end_line}", "HEAD~1", "--", hunk.file_path
         )
 
         if not success:

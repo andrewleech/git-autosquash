@@ -69,11 +69,14 @@ pip install git-autosquash
 # Make some changes to your code
 vim src/auth.py src/ui.py
 
-# Run git-autosquash to organize changes
+# Interactive mode (default): Review and approve changes in TUI
 git-autosquash
 
-# Review proposed changes in the TUI, approve what makes sense
-# Changes are automatically squashed into their target commits!
+# Auto-accept mode: Skip TUI for high-confidence targets
+git-autosquash --auto-accept
+
+# Dry-run mode: Preview what would be done without making changes
+git-autosquash --auto-accept --dry-run
 ```
 
 ## Workflow Example
@@ -173,6 +176,8 @@ git-autosquash [OPTIONS]
 
 Options:
   --line-by-line    Use line-by-line hunk splitting for maximum precision
+  --auto-accept     Automatically accept all hunks with blame-identified targets, bypass TUI
+  --dry-run         Show what would be done without making changes (requires --auto-accept)
   --version         Show version information
   --help           Show help message
 ```
@@ -181,6 +186,12 @@ Options:
 
 - **Standard**: Uses git's default hunk boundaries (faster, good for most cases)
 - **Line-by-line**: Analyzes each changed line individually (slower, maximum precision)
+
+### Automation Modes
+
+- **Interactive** (default): Full TUI interface for reviewing and approving changes
+- **Auto-accept**: Automatically processes hunks with high-confidence blame targets, bypassing TUI
+- **Dry-run**: Preview mode showing what would be done without making changes (requires `--auto-accept`)
 
 ## Documentation
 

@@ -290,9 +290,49 @@ def _display_automatic_mappings(mappings: List[HunkTargetMapping]) -> None:
 
 def setup_argument_parser() -> argparse.ArgumentParser:
     """Set up and return the command line argument parser."""
+
+    class HiddenSubcommandFormatter(argparse.HelpFormatter):
+        """Custom formatter that hides suppressed subcommands completely."""
+
+        def _format_action(self, action):
+            # For subparsers, filter out suppressed choices
+            if isinstance(action, argparse._SubParsersAction):
+                # Get original choices and filter out suppressed ones
+                original_choices = action.choices or {}
+                visible_choices = {}
+
+                for choice, subparser in original_choices.items():
+                    # Check if this subparser's help is suppressed
+                    if (
+                        hasattr(subparser, "description")
+                        or not hasattr(subparser, "_defaults")
+                        or subparser._defaults.get("help") != argparse.SUPPRESS
+                    ):
+                        # Only include if not explicitly suppressed in our custom way
+                        if choice not in [
+                            "strategy-info",
+                            "strategy-test",
+                            "strategy-set",
+                        ]:
+                            visible_choices[choice] = subparser
+
+                # If no visible choices, don't show the subcommands section at all
+                if not visible_choices:
+                    return ""
+
+                # Temporarily replace choices for formatting
+                original_choices_ref = action.choices
+                action.choices = visible_choices
+                result = super()._format_action(action)
+                action.choices = original_choices_ref
+                return result
+
+            return super()._format_action(action)
+
     parser = argparse.ArgumentParser(
         prog="git-autosquash",
         description="Automatically squash changes back into historical commits",
+        formatter_class=HiddenSubcommandFormatter,
     )
     parser.add_argument(
         "--line-by-line",
@@ -305,13 +345,18 @@ def setup_argument_parser() -> argparse.ArgumentParser:
         help="Automatically accept all hunks with blame-identified targets, bypass TUI",
     )
     parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be done without making changes (requires --auto-accept)",
+    )
+    parser.add_argument(
         "--version",
         action="version",
         version=f"%(prog)s {__version__}",
     )
 
-    # Add strategy management subcommands
-    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+    # Add hidden strategy management subcommands
+    subparsers = parser.add_subparsers(dest="command")
 
     # Import here to avoid circular imports
     from git_autosquash.cli_strategy import add_strategy_subcommands
@@ -544,12 +589,99 @@ def run_interactive_ui(
         return False
 
 
+def _get_user_friendly_reason(targeting_method) -> str:
+    """Convert targeting method enum to user-friendly reason string."""
+    from git_autosquash.hunk_target_resolver import TargetingMethod
+
+    reason_map = {
+        TargetingMethod.FALLBACK_NEW_FILE: "New file with no git history to analyze",
+        TargetingMethod.FALLBACK_EXISTING_FILE: "No suitable target commits found in blame analysis",
+        TargetingMethod.FALLBACK_CONSISTENCY: "Requires manual selection (consistency fallback)",
+        TargetingMethod.BLAME_MATCH: "Direct blame match (should be auto-accepted)",
+        TargetingMethod.CONTEXTUAL_BLAME_MATCH: "Contextual blame match (should be auto-accepted)",
+    }
+
+    return reason_map.get(
+        targeting_method, f"Unknown targeting method: {targeting_method}"
+    )
+
+
+def _show_dry_run_output(
+    automatic_mappings: List[HunkTargetMapping],
+    fallback_mappings: List[HunkTargetMapping],
+    git_ops: GitOps,
+) -> None:
+    """Show what would be done in dry run mode without making changes."""
+    print("\n=== DRY RUN MODE ===")
+    print("Showing what would be done without making any changes\n")
+
+    if automatic_mappings:
+        print(
+            f"✓ Would auto-accept {len(automatic_mappings)} hunks with blame-identified targets:"
+        )
+        for mapping in automatic_mappings:
+            commit_hash = (
+                mapping.target_commit[:8] if mapping.target_commit else "unknown"
+            )
+            try:
+                # Get commit subject for more context
+                if mapping.target_commit:
+                    result = git_ops.run_git_command(
+                        ["log", "-1", "--format=%s", mapping.target_commit]
+                    )
+                    commit_subject = result.stdout.strip()[:50]
+                    if len(result.stdout.strip()) > 50:
+                        commit_subject += "..."
+                else:
+                    commit_subject = "commit subject unavailable"
+            except Exception:
+                commit_subject = "commit subject unavailable"
+
+            # Use the affected_lines property from DiffHunk
+            lines_range = f"{mapping.hunk.new_start}-{mapping.hunk.new_start + mapping.hunk.new_count - 1}"
+            print(f"  → {mapping.hunk.file_path}:{lines_range}")
+            print(f"    Target: {commit_hash} ({commit_subject})")
+        print()
+
+    if fallback_mappings:
+        print(
+            f"⚠ Would ignore {len(fallback_mappings)} hunks requiring manual target selection:"
+        )
+        for mapping in fallback_mappings:
+            # Convert targeting method to user-friendly reason
+            reason = _get_user_friendly_reason(mapping.targeting_method)
+            lines_range = f"{mapping.hunk.new_start}-{mapping.hunk.new_start + mapping.hunk.new_count - 1}"
+            print(f"  → {mapping.hunk.file_path}:{lines_range}")
+            print(f"    Reason: {reason}")
+        print()
+
+    if not automatic_mappings and not fallback_mappings:
+        print("No hunks found to process.")
+        return
+
+    # Summary
+    total_hunks = len(automatic_mappings) + len(fallback_mappings)
+    print("=== SUMMARY ===")
+    print(f"Total hunks analyzed: {total_hunks}")
+    print(f"Would be squashed: {len(automatic_mappings)}")
+    print(f"Would be ignored: {len(fallback_mappings)}")
+
+    if automatic_mappings:
+        print("\nTo actually perform these changes, run:")
+        print("git autosquash --auto-accept")
+
+
 def main() -> None:
     """Main entry point for git-autosquash command."""
     try:
         # Phase 1: Parse command line arguments
         parser = setup_argument_parser()
         args = parser.parse_args()
+
+        # Validate argument combinations
+        if args.dry_run and not args.auto_accept:
+            print("Error: --dry-run requires --auto-accept", file=sys.stderr)
+            sys.exit(1)
 
         # Handle strategy subcommands
         if hasattr(args, "func"):
@@ -576,23 +708,28 @@ def main() -> None:
         success = False
 
         if args.auto_accept:
-            # Auto-accept mode: process only automatic mappings
-            approved_mappings, ignored_mappings = handle_automatic_mappings(
-                automatic_mappings, auto_accept=True, git_ops=git_ops
-            )
-
-            # Add fallback mappings to ignored list (they can't be auto-accepted)
-            ignored_mappings.extend(fallback_mappings)
-
-            if approved_mappings:
-                success = _execute_rebase(
-                    approved_mappings,
-                    git_ops,
-                    merge_base,
-                    HunkTargetResolver(git_ops, merge_base),
-                )
+            if args.dry_run:
+                # Dry run mode: show what would be done without making changes
+                _show_dry_run_output(automatic_mappings, fallback_mappings, git_ops)
+                success = True
             else:
-                success = True  # No rebase needed
+                # Auto-accept mode: process only automatic mappings
+                approved_mappings, ignored_mappings = handle_automatic_mappings(
+                    automatic_mappings, auto_accept=True, git_ops=git_ops
+                )
+
+                # Add fallback mappings to ignored list (they can't be auto-accepted)
+                ignored_mappings.extend(fallback_mappings)
+
+                if approved_mappings:
+                    success = _execute_rebase(
+                        approved_mappings,
+                        git_ops,
+                        merge_base,
+                        HunkTargetResolver(git_ops, merge_base),
+                    )
+                else:
+                    success = True  # No rebase needed
 
         else:
             # Interactive mode: combine all mappings for user review
@@ -606,7 +743,10 @@ def main() -> None:
 
         # Phase 5: Report results
         if success:
-            print("✓ Operation completed successfully!")
+            if args.dry_run:
+                print("\n✓ Dry run completed successfully!")
+            else:
+                print("✓ Operation completed successfully!")
         else:
             print("✗ Operation failed or was cancelled.")
             sys.exit(1)
