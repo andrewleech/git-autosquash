@@ -405,56 +405,33 @@ class RealScreenshotGenerator:
 
         return screenshots
 
-    def copy_final_screenshots_to_base_names(self):
-        """Copy _final.png screenshots to base names expected by README."""
-        print("\n📋 Copying screenshots to README-compatible base names...")
+    def copy_screenshots_to_docs(self):
+        """Copy screenshots to docs directory for documentation."""
+        print("\n📋 Copying screenshots to docs directory...")
 
         import shutil
 
-        # Map of expected base names (what README references)
-        # Note: hero_screenshot is manually maintained with diagnostic image
-        expected_screenshots = [
-            # "hero_screenshot",  # Skip - manually maintained with real TUI interface
-            "feature_smart_targeting",
-            "feature_interactive_tui",
-            "feature_safety_first",
-            "workflow_step_01",
-            "workflow_step_02",
-            "workflow_step_03",
-            "workflow_step_04",
-            "workflow_step_05",
-            "workflow_step_05_execution",
-            "comparison_before_traditional",
-            "comparison_before_diff",
-            "comparison_after_autosquash",
-            "execution_cleanup",
-            "fallback_new_file_fallback",
-            "fallback_manual_override",
-        ]
-
-        # Directories to update
+        # Create docs screenshots directory
         docs_screenshots_dir = Path("docs/screenshots/readme")
         docs_screenshots_dir.mkdir(parents=True, exist_ok=True)
 
+        # Copy all PNG files from output directory to docs
+        png_files = list(self.output_dir.glob("*.png"))
         copies_made = 0
-        for base_name in expected_screenshots:
-            final_file = self.output_dir / f"{base_name}_final.png"
 
-            if final_file.exists():
-                # Copy to screenshots/readme/ (main location)
-                base_file = self.output_dir / f"{base_name}.png"
-                shutil.copy2(final_file, base_file)
+        for png_file in png_files:
+            # Skip intermediate files, only copy final screenshots
+            if any(
+                intermediate in png_file.name
+                for intermediate in ["_01_initial", "_tui_loaded", "_interaction"]
+            ):
+                continue
 
-                # Copy to docs/screenshots/readme/ (docs location)
-                docs_file = docs_screenshots_dir / f"{base_name}.png"
-                shutil.copy2(final_file, docs_file)
+            docs_file = docs_screenshots_dir / png_file.name
+            shutil.copy2(png_file, docs_file)
+            copies_made += 1
 
-                print(f"  ✓ {base_name}.png (screenshots + docs)")
-                copies_made += 1
-            else:
-                print(f"  ⚠️  Missing {base_name}_final.png")
-
-        print(f"📸 Copied {copies_made} screenshots to base names")
+        print(f"📸 Copied {copies_made} screenshots to docs directory")
 
 
 async def main():
@@ -480,8 +457,8 @@ async def main():
         for png_file in sorted(png_files):
             print(f"  - {png_file.name}")
 
-        # Copy final screenshots to base names expected by README
-        generator.copy_final_screenshots_to_base_names()
+        # Copy screenshots to docs directory
+        generator.copy_screenshots_to_docs()
 
         print("\n🎉 Real application screenshots generated successfully!")
 

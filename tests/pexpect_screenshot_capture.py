@@ -167,10 +167,8 @@ class PexpectScreenshotCapture:
                             except (pexpect.TIMEOUT, pexpect.EOF):
                                 pass
 
-                    # Final screenshot
-                    screenshot_path = await self._capture_screen(
-                        screen, f"{scenario_name}_final"
-                    )
+                    # Final screenshot - use the scenario name directly
+                    screenshot_path = await self._capture_screen(screen, scenario_name)
                     screenshots.append(screenshot_path)
 
                 else:
