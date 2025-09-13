@@ -100,9 +100,9 @@ class PexpectScreenshotCapture:
                     )
                     screenshots.append(screenshot_path)
 
-                    # Send 'a\n' to proceed to TUI
-                    print("Sending 'a' to proceed to TUI...")
-                    child.send("a\n")
+                    # Send 'c\n' to proceed to TUI
+                    print("Sending 'c' to proceed to TUI...")
+                    child.send("c\n")
 
                     # Wait for TUI to load
                     await asyncio.sleep(2.0)
@@ -220,6 +220,10 @@ class PexpectScreenshotCapture:
         elif interaction_type == "wait":
             duration = interaction.get("duration", 0.5)
             await asyncio.sleep(duration)
+
+        elif interaction_type == "text":
+            text = interaction.get("text", "")
+            child.send(text)
 
     async def _capture_screen(self, screen: pyte.Screen, name: str) -> Path:
         """Capture the current screen state as text and convert to image."""

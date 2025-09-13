@@ -126,53 +126,70 @@ class RealScreenshotGenerator:
             )
             screenshots.extend(step1)
 
-            # Step 2: Launch git-autosquash and show analysis
+            # Step 2: Launch git-autosquash and show initial analysis (no selections)
             step2 = await self.pexpect_capture.capture_app_flow(
                 app_command=["git-autosquash"],
                 interactions=[
                     {"type": "wait", "duration": 1.5},  # Wait for choice prompt
-                    {"type": "key", "key": "a"},  # Choose "Process all changes"
+                    {"type": "key", "key": "c"},  # Choose "Continue"
                     {"type": "key", "key": "enter"},  # Press Enter to confirm
-                    {"type": "wait", "duration": 2.0},  # Let analysis complete
-                    {"type": "key", "key": "q"},  # Quit to capture analysis screen
+                    {
+                        "type": "wait",
+                        "duration": 4.0,
+                    },  # Let analysis complete and TUI fully render
+                    {
+                        "type": "key",
+                        "key": "q",
+                    },  # Quit to capture fully loaded analysis screen
                 ],
                 scenario_name="workflow_step_02",
             )
             screenshots.extend(step2)
 
-            # Step 3: Show interactive review with some selections
+            # Step 3: Show interactive review with selective approvals
             step3 = await self.pexpect_capture.capture_app_flow(
                 app_command=["git-autosquash"],
                 interactions=[
                     {"type": "wait", "duration": 1.5},  # Wait for choice prompt
-                    {"type": "key", "key": "a"},  # Choose "Process all changes"
+                    {"type": "key", "key": "c"},  # Choose "Continue"
                     {"type": "key", "key": "enter"},  # Press Enter to confirm
-                    {"type": "wait", "duration": 2.0},  # Analysis
-                    {"type": "key", "key": "space"},  # Toggle first hunk
-                    {"type": "wait", "duration": 0.5},
+                    {"type": "wait", "duration": 3.0},  # Let analysis complete
+                    {"type": "key", "key": "space"},  # Toggle first hunk (approve)
+                    {"type": "wait", "duration": 1.0},  # Let UI update
                     {"type": "key", "key": "down"},  # Move to next hunk
-                    {"type": "key", "key": "space"},  # Toggle second hunk
                     {"type": "wait", "duration": 0.5},
-                    {"type": "key", "key": "q"},  # Quit to capture state
+                    {"type": "key", "key": "down"},  # Move to third hunk (skip second)
+                    {"type": "wait", "duration": 0.5},
+                    {"type": "key", "key": "space"},  # Toggle third hunk (approve)
+                    {
+                        "type": "wait",
+                        "duration": 1.0,
+                    },  # Let UI update and show selections
+                    {"type": "key", "key": "q"},  # Quit to capture selection state
                 ],
                 scenario_name="workflow_step_03",
             )
             screenshots.extend(step3)
 
-            # Step 4: Show execution confirmation
+            # Step 4: Show execution confirmation dialog
             step4 = await self.pexpect_capture.capture_app_flow(
                 app_command=["git-autosquash"],
                 interactions=[
                     {"type": "wait", "duration": 1.5},  # Wait for choice prompt
-                    {"type": "key", "key": "a"},  # Choose "Process all changes"
+                    {"type": "key", "key": "c"},  # Choose "Continue"
                     {"type": "key", "key": "enter"},  # Press Enter to confirm
-                    {"type": "wait", "duration": 2.0},  # Analysis
-                    {"type": "key", "key": "space"},  # Approve first
+                    {"type": "wait", "duration": 3.0},  # Let analysis complete
+                    {"type": "key", "key": "space"},  # Approve first hunk
+                    {"type": "wait", "duration": 0.5},
                     {"type": "key", "key": "down"},
-                    {"type": "key", "key": "space"},  # Approve second
-                    {"type": "key", "key": "enter"},  # Confirm
-                    {"type": "wait", "duration": 0.5},  # Show confirmation
-                    {"type": "text", "text": "n"},  # Say no to avoid actual rebase
+                    {"type": "key", "key": "space"},  # Approve second hunk
+                    {"type": "wait", "duration": 0.5},
+                    {"type": "key", "key": "down"},
+                    {"type": "key", "key": "space"},  # Approve third hunk
+                    {"type": "wait", "duration": 0.5},
+                    {"type": "key", "key": "enter"},  # Trigger confirmation dialog
+                    {"type": "wait", "duration": 2.0},  # Let confirmation dialog appear
+                    {"type": "text", "text": "n"},  # Cancel to avoid actual execution
                 ],
                 scenario_name="workflow_step_04",
             )
@@ -184,7 +201,7 @@ class RealScreenshotGenerator:
                 app_command=["git-autosquash"],
                 interactions=[
                     {"type": "wait", "duration": 1.5},  # Wait for choice prompt
-                    {"type": "key", "key": "a"},  # Choose "Process all changes"
+                    {"type": "key", "key": "c"},  # Choose "Continue"
                     {"type": "key", "key": "enter"},  # Press Enter to confirm
                     {"type": "wait", "duration": 2.0},
                     {"type": "key", "key": "space"},  # Approve first
@@ -225,7 +242,7 @@ class RealScreenshotGenerator:
                 app_command=["git-autosquash"],
                 interactions=[
                     {"type": "wait", "duration": 1.5},  # Wait for choice prompt
-                    {"type": "key", "key": "a"},  # Choose "Process all changes"
+                    {"type": "key", "key": "c"},  # Choose "Continue"
                     {"type": "key", "key": "enter"},  # Press Enter to confirm
                     {"type": "wait", "duration": 2.5},  # Let full analysis complete
                     {"type": "key", "key": "tab"},  # Switch to target panel
@@ -249,7 +266,7 @@ class RealScreenshotGenerator:
                 app_command=["git-autosquash"],
                 interactions=[
                     {"type": "wait", "duration": 1.5},  # Wait for choice prompt
-                    {"type": "key", "key": "a"},  # Choose "Process all changes"
+                    {"type": "key", "key": "c"},  # Choose "Continue"
                     {"type": "key", "key": "enter"},  # Press Enter to confirm
                     {"type": "wait", "duration": 2.0},
                     {"type": "key", "key": "down"},  # Navigate
@@ -277,7 +294,7 @@ class RealScreenshotGenerator:
                 app_command=["git-autosquash"],
                 interactions=[
                     {"type": "wait", "duration": 1.5},  # Wait for choice prompt
-                    {"type": "key", "key": "a"},  # Choose "Process all changes"
+                    {"type": "key", "key": "c"},  # Choose "Continue"
                     {"type": "key", "key": "enter"},  # Press Enter to confirm
                     {"type": "wait", "duration": 2.0},  # Show initial unapproved state
                     {"type": "key", "key": "q"},
@@ -323,7 +340,7 @@ class RealScreenshotGenerator:
                 app_command=["git-autosquash"],
                 interactions=[
                     {"type": "wait", "duration": 1.5},  # Wait for choice prompt
-                    {"type": "key", "key": "a"},  # Choose "Process all changes"
+                    {"type": "key", "key": "c"},  # Choose "Continue"
                     {"type": "key", "key": "enter"},  # Press Enter to confirm
                     {"type": "wait", "duration": 2.0},
                     {"type": "key", "key": "space"},  # Approve first
@@ -367,7 +384,7 @@ class RealScreenshotGenerator:
                 app_command=["git-autosquash"],
                 interactions=[
                     {"type": "wait", "duration": 1.5},  # Wait for choice prompt
-                    {"type": "key", "key": "a"},  # Choose "Process all changes"
+                    {"type": "key", "key": "c"},  # Choose "Continue"
                     {"type": "key", "key": "enter"},  # Press Enter to confirm
                     {"type": "wait", "duration": 2.5},  # Let analysis find fallbacks
                     {"type": "key", "key": "down"},  # Navigate to fallback hunk
@@ -386,7 +403,7 @@ class RealScreenshotGenerator:
                 app_command=["git-autosquash"],
                 interactions=[
                     {"type": "wait", "duration": 1.5},  # Wait for choice prompt
-                    {"type": "key", "key": "a"},  # Choose "Process all changes"
+                    {"type": "key", "key": "c"},  # Choose "Continue"
                     {"type": "key", "key": "enter"},  # Press Enter to confirm
                     {"type": "wait", "duration": 2.0},
                     {"type": "key", "key": "down"},  # Go to a hunk
