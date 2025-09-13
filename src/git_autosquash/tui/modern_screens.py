@@ -1,6 +1,6 @@
 """Screen implementations with 3-panel layout."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from textual import on
 from textual.app import ComposeResult
@@ -329,12 +329,12 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
         # Add ignore option at the top
         ignore_btn = RadioButton("🚫 Ignore (keep in working tree)")
         # Store commit hash as custom attribute for event handling (same pattern as commits)
-        ignore_btn.commit_hash = "ignore-hunk"
+        ignore_btn.commit_hash = "ignore-hunk"  # type: ignore[attr-defined]
         ignore_btn.add_class("ignore-option")
 
         # Check if this hunk is already ignored
         if mapping in self.ignored_mappings:
-            ignore_btn._should_be_selected = True
+            ignore_btn._should_be_selected = True  # type: ignore[attr-defined]
             selected_value = "ignore-hunk"
 
         radio_buttons.append(ignore_btn)
@@ -365,7 +365,7 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
             # Create radio button - always start unselected, let RadioSet manage selection
             radio_btn = RadioButton(commit_text)
             # Store commit hash as custom attribute for event handling
-            radio_btn.commit_hash = commit_info.commit_hash
+            radio_btn.commit_hash = commit_info.commit_hash  # type: ignore[attr-defined]
 
             if is_auto_target:
                 radio_btn.add_class("auto-target")
@@ -383,7 +383,7 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
 
             if should_select:
                 # Mark this button for post-mount selection
-                radio_btn._should_be_selected = True
+                radio_btn._should_be_selected = True  # type: ignore[attr-defined]
                 selected_value = commit_info.commit_hash
 
             radio_buttons.append(radio_btn)
@@ -469,8 +469,11 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
         # Update preview with syntax highlighting
         try:
             from rich.syntax import Syntax
+            from rich.text import Text
 
-            content = Syntax(diff_text, "diff", theme="monokai", line_numbers=False)
+            content: Union["Syntax", "Text"] = Syntax(
+                diff_text, "diff", theme="monokai", line_numbers=False
+            )
         except (ImportError, ValueError):
             from rich.text import Text
 
@@ -486,7 +489,7 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
 
     def action_cancel(self) -> None:
         """Cancel the operation."""
-        self.dismiss(False)
+        self.dismiss(None)
 
     def action_next_change(self) -> None:
         """Navigate to next change."""

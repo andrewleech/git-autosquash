@@ -55,13 +55,16 @@ class FocusController:
             if not hasattr(radio_set, "query") or not hasattr(radio_set, "focus"):
                 return False
 
-            # Find selected button using Textual's query system
+            # Find selected button using manual iteration
             try:
-                selected_buttons = radio_set.query("RadioButton").filter(
-                    lambda btn: getattr(btn, "value", False)
-                )
-                if selected_buttons:
-                    selected_button = selected_buttons.first()
+                all_buttons = radio_set.query("RadioButton").results()
+                selected_button = None
+                for btn in all_buttons:
+                    if getattr(btn, "value", False):
+                        selected_button = btn
+                        break
+
+                if selected_button:
                     # Focus the RadioSet, then navigate to selected button
                     radio_set.focus()
 
