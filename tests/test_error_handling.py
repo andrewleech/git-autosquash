@@ -286,7 +286,8 @@ class TestErrorHandlingIntegration:
         captured = capsys.readouterr()
         assert "Error: Not in a git repository" in captured.out
         assert (
-            "Suggestion: Run this command from within a git repository" in captured.out
+            "Suggestion: Please run this command from within a git repository directory"
+            in captured.out
         )
 
     @patch("sys.argv", ["git-autosquash"])
@@ -306,4 +307,4 @@ class TestErrorHandlingIntegration:
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
         assert "Error: Not on a branch (detached HEAD)" in captured.out
-        assert "Switch to a branch" in captured.out
+        assert "Please checkout a branch before using git-autosquash" in captured.out

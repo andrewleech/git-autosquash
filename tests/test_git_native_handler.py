@@ -18,6 +18,73 @@ class TestGitNativeIgnoreHandler:
         self.git_ops.repo_path = "/test/repo"
         self.handler = GitNativeIgnoreHandler(self.git_ops)
 
+    def create_robust_git_mock(self, custom_responses=None):
+        """Create a robust git command mock that handles unlimited calls.
+
+        Args:
+            custom_responses: Dict of custom responses for specific commands
+        """
+        custom_responses = custom_responses or {}
+
+        def mock_git_command(args, **kwargs):
+            # Check for custom responses first
+            command_key = " ".join(args) if isinstance(args, list) else str(args)
+            if command_key in custom_responses:
+                return custom_responses[command_key]
+
+            # Default responses for common git operations
+            # Note: GitOps.run_git_command passes args WITHOUT "git" prefix
+            if isinstance(args, list) and len(args) >= 1:
+                if args[0] == "stash":
+                    # Handle various stash commands
+                    if len(args) >= 2:
+                        if args[1] == "push":
+                            return subprocess.CompletedProcess(
+                                args=args,
+                                returncode=0,
+                                stdout="stash push success",
+                                stderr="",
+                            )
+                        elif args[1] in ["pop", "drop"] and len(args) >= 3:
+                            return subprocess.CompletedProcess(
+                                args=args,
+                                returncode=0,
+                                stdout=f"stash {args[1]} success",
+                                stderr="",
+                            )
+                        elif args[1] in ["list", "--help"]:
+                            return subprocess.CompletedProcess(
+                                args=args,
+                                returncode=0,
+                                stdout=f"stash {args[1]} success",
+                                stderr="",
+                            )
+                elif args[0] == "apply":
+                    # Handle git apply commands (including --cached for staging)
+                    return subprocess.CompletedProcess(
+                        args=args, returncode=0, stdout="", stderr=""
+                    )
+                elif args[0] == "add":
+                    # Handle git add commands
+                    return subprocess.CompletedProcess(
+                        args=args, returncode=0, stdout="", stderr=""
+                    )
+                elif args[0] == "reset":
+                    # Handle git reset commands
+                    return subprocess.CompletedProcess(
+                        args=args, returncode=0, stdout="", stderr=""
+                    )
+
+                # Default success for other git commands
+                return subprocess.CompletedProcess(
+                    args=args, returncode=0, stdout="", stderr=""
+                )
+            return subprocess.CompletedProcess(
+                args=args, returncode=1, stdout="", stderr="unknown command"
+            )
+
+        return mock_git_command
+
     def test_initialization(self):
         """Test handler initialization."""
         assert self.handler.git_ops is self.git_ops
@@ -320,15 +387,8 @@ class TestGitNativeIgnoreHandler:
             hunk=hunk, target_commit="abc123", confidence="high", blame_info=[]
         )
 
-        # Mock git operations for index approach
-        self.git_ops.run_git_command.side_effect = [
-            subprocess.CompletedProcess(
-                args=["git", "stash", "push"],
-                returncode=0,
-                stdout="stash created",
-                stderr="",
-            ),  # stash push
-        ]
+        # Use robust git mocking to handle unlimited calls
+        self.git_ops.run_git_command.side_effect = self.create_robust_git_mock()
 
         # Mock patch operations - stage succeeds, validation passes, application fails
         self.git_ops.run_git_command_with_input.side_effect = [
@@ -362,16 +422,27 @@ class TestGitNativeIgnoreHandler:
             hunk=hunk, target_commit="abc123", confidence="high", blame_info=[]
         )
 
-        # Mock stash operations
-        self.git_ops.run_git_command.side_effect = [
-            subprocess.CompletedProcess(
+        # Mock stash operations - using custom exception for second call
+        custom_responses = {
+            "git stash push": subprocess.CompletedProcess(
                 args=["git", "stash", "push"],
                 returncode=0,
                 stdout="stash created",
                 stderr="",
-            ),  # stash push
-            Exception("Unexpected error"),  # Exception during operations
-        ]
+            )
+        }
+
+        # Create a mock that succeeds for stash, but raises exception on second call
+        call_count = 0
+
+        def exception_mock(args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 2:  # Second call raises exception
+                raise Exception("Unexpected error")
+            return self.create_robust_git_mock(custom_responses)(args, **kwargs)
+
+        self.git_ops.run_git_command.side_effect = exception_mock
 
         result = self.handler.apply_ignored_hunks([mapping])
 
@@ -396,14 +467,7 @@ class TestGitNativeIgnoreHandler:
         )
 
         # Mock git operations with restore failure for index approach
-        self.git_ops.run_git_command.side_effect = [
-            subprocess.CompletedProcess(
-                args=["git", "stash", "push"],
-                returncode=0,
-                stdout="stash created",
-                stderr="",
-            ),  # stash push
-        ]
+        self.git_ops.run_git_command.side_effect = self.create_robust_git_mock()
 
         # Mock patch operations: stage succeeds, validation fails to trigger restore
         self.git_ops.run_git_command_with_input.side_effect = [
@@ -454,21 +518,77 @@ class TestGitNativeIgnoreHandler:
             ),
         ]
 
-        # Mock git operations for both files with index approach
+        # Mock git operations for batch processing of 2 files
         self.git_ops.run_git_command.side_effect = [
+            # Backup stash
             subprocess.CompletedProcess(
                 args=["git", "stash", "push"],
                 returncode=0,
-                stdout="stash created",
+                stdout="stash success",
                 stderr="",
-            ),  # stash push
+            ),
+            # Capture original index state
+            subprocess.CompletedProcess(
+                args=["git", "write-tree"],
+                returncode=0,
+                stdout="tree_original",
+                stderr="",
+            ),
+            # Stage first hunk - file1.py
+            subprocess.CompletedProcess(
+                args=["git", "hash-object"], returncode=0, stdout="hash1", stderr=""
+            ),
+            subprocess.CompletedProcess(
+                args=["git", "rev-parse"], returncode=0, stdout="head1", stderr=""
+            ),
+            subprocess.CompletedProcess(
+                args=["git", "apply", "--cached"], returncode=0, stdout="", stderr=""
+            ),
+            # Stage second hunk - file2.py
+            subprocess.CompletedProcess(
+                args=["git", "hash-object"], returncode=0, stdout="hash2", stderr=""
+            ),
+            subprocess.CompletedProcess(
+                args=["git", "rev-parse"], returncode=0, stdout="head2", stderr=""
+            ),
+            subprocess.CompletedProcess(
+                args=["git", "apply", "--cached"], returncode=0, stdout="", stderr=""
+            ),
+            # Generate patch from index (git diff --cached)
+            subprocess.CompletedProcess(
+                args=["git", "diff", "--cached"],
+                returncode=0,
+                stdout="--- a/file1.py\n+++ b/file1.py\n@@ -1,1 +1,2 @@\n line 1\n+new line 1\n",
+                stderr="",
+            ),
+            # Restore original index
+            subprocess.CompletedProcess(
+                args=["git", "read-tree"], returncode=0, stdout="", stderr=""
+            ),
+            # Cleanup backup stash
+            subprocess.CompletedProcess(
+                args=["git", "stash", "drop"], returncode=0, stdout="", stderr=""
+            ),
         ]
 
         # Mock successful patch operations (stage 2 hunks + validate + apply)
         self.git_ops.run_git_command_with_input.side_effect = [
+            # Stage first hunk to index
+            subprocess.CompletedProcess(
+                args=["git", "apply", "--cached"], returncode=0, stdout="", stderr=""
+            ),
+            # Stage second hunk to index
+            subprocess.CompletedProcess(
+                args=["git", "apply", "--cached"], returncode=0, stdout="", stderr=""
+            ),
+            # Validate patch (git apply --check)
+            subprocess.CompletedProcess(
+                args=["git", "apply", "--check"], returncode=0, stdout="", stderr=""
+            ),
+            # Apply final patch to working tree
             subprocess.CompletedProcess(
                 args=["git", "apply"], returncode=0, stdout="", stderr=""
-            ),  # apply success
+            ),
         ]
 
         result = self.handler.apply_ignored_hunks(mappings)
@@ -546,26 +666,35 @@ stash@{1}: On feature: def456 saved changes"""
         )
 
         # Mock operations with cleanup failure for index approach
-        self.git_ops.run_git_command.side_effect = [
-            subprocess.CompletedProcess(
-                args=["git", "stash", "push"],
-                returncode=0,
-                stdout="stash created",
-                stderr="",
-            ),  # stash push
-            subprocess.CompletedProcess(
-                args=["git", "stash", "drop"],
+        custom_responses = {
+            "stash drop stash@{0}": subprocess.CompletedProcess(
+                args=["stash", "drop", "stash@{0}"],
                 returncode=1,
                 stdout="",
                 stderr="stash drop failed",
-            ),  # stash drop (fails)
-        ]
+            ),
+            "diff --cached": subprocess.CompletedProcess(
+                args=["diff", "--cached"],
+                returncode=0,
+                stdout="--- a/test.py\n+++ b/test.py\n@@ -1,1 +1,2 @@\n existing line\n+new line\n",
+                stderr="",
+            ),
+        }
+        self.git_ops.run_git_command.side_effect = self.create_robust_git_mock(
+            custom_responses
+        )
 
         # Mock successful patch operations
         self.git_ops.run_git_command_with_input.side_effect = [
             subprocess.CompletedProcess(
+                args=["git", "apply", "--cached"], returncode=0, stdout="", stderr=""
+            ),  # Stage hunk to index
+            subprocess.CompletedProcess(
+                args=["git", "apply", "--check"], returncode=0, stdout="", stderr=""
+            ),  # Validate patch
+            subprocess.CompletedProcess(
                 args=["git", "apply"], returncode=0, stdout="", stderr=""
-            ),  # apply
+            ),  # Apply to working tree
         ]
 
         result = self.handler.apply_ignored_hunks([mapping])

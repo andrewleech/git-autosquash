@@ -118,7 +118,7 @@ class TestPatchGenerationRegression:
         if hunks:
             # Test old single hunk method still works
             old_patch = rebase_manager._create_corrected_hunk(
-                hunks[0], commits["target_commit"]
+                hunks[0], commits["target_commit"], hunks[0].file_path
             )
             assert old_patch is not None or len(hunks[0].old_lines) == 0
 
@@ -147,8 +147,7 @@ class TestPatchGenerationRegression:
 
             # Test that hunk has expected attributes
             assert hasattr(hunk, "file_path")
-            assert hasattr(hunk, "old_lines")
-            assert hasattr(hunk, "new_lines")
+            assert hasattr(hunk, "lines")  # Current API uses 'lines' for diff content
             assert hasattr(hunk, "old_start")
             assert hasattr(hunk, "new_start")
 
@@ -250,7 +249,7 @@ class TestPatchGenerationErrorHandling:
         rebase_manager = RebaseManager(git_ops, commits["initial_commit"])
 
         # Create mock hunk with missing data
-        from git_autosquash.diff_hunk import DiffHunk
+        from git_autosquash.hunk_parser import DiffHunk
 
         corrupted_hunk = DiffHunk(
             file_path="test.txt",
@@ -258,8 +257,9 @@ class TestPatchGenerationErrorHandling:
             old_count=1,
             new_start=1,
             new_count=1,
-            old_lines=[],  # Empty - corrupted
-            new_lines=[],  # Empty - corrupted
+            lines=[],  # Empty - corrupted
+            context_before=[],
+            context_after=[],
         )
 
         # Should handle gracefully
@@ -287,7 +287,7 @@ class TestPatchGenerationErrorHandling:
             fake_commit = "nonexistent123456789abcdef"
 
             # Create minimal hunk
-            from git_autosquash.diff_hunk import DiffHunk
+            from git_autosquash.hunk_parser import DiffHunk
 
             test_hunk = DiffHunk(
                 file_path="test.txt",
@@ -295,8 +295,9 @@ class TestPatchGenerationErrorHandling:
                 old_count=1,
                 new_start=1,
                 new_count=1,
-                old_lines=["old content"],
-                new_lines=["new content"],
+                lines=["-old content", "+new content"],
+                context_before=[],
+                context_after=[],
             )
 
             # Should handle missing commit gracefully

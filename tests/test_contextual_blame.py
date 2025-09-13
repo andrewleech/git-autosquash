@@ -37,13 +37,18 @@ class TestContextualBlame:
         )
 
         # Mock file content with meaningful lines around the hunk
+        # Need at least 11 lines since we're looking for context around line 10
         file_content = """line 1
 line 2
+line 3
+line 4
+line 5
+line 6
+line 7
+line 8
 // Comment above target
 #define TARGET_LINE value
-// Comment below target
-line 6
-line 7"""
+// Comment below target"""
 
         blame_analyzer.git_ops._run_git_command.return_value = (True, file_content)
 
@@ -52,8 +57,8 @@ line 7"""
             hunk, context_lines=1
         )
 
-        # Should find lines 9 and 11 (comments around line 10)
-        expected_lines = [9, 11]  # Lines with meaningful content
+        # Should find lines 9, 10, and 11 (meaningful lines around the modification)
+        expected_lines = [9, 10, 11]  # Lines with meaningful content
         assert context_lines == expected_lines
 
     def test_filter_meaningful_lines_excludes_whitespace(self, blame_analyzer):
@@ -227,7 +232,8 @@ meaningful line 6"""
             result = blame_analyzer._analyze_single_hunk(hunk)
 
             # Should fall back to user selection
+            # The API changed - blame_info is now optional
             mock_create_fallback.assert_called_once_with(
-                hunk, TargetingMethod.FALLBACK_EXISTING_FILE, []
+                hunk, TargetingMethod.FALLBACK_EXISTING_FILE
             )
             assert result == expected_fallback

@@ -398,7 +398,7 @@ class TestPerformanceOptimizations:
                 strategy="wrapper_strategy",
                 operation="wrapper_operation",
                 message="Wrapper failed",
-                underlying_error=None,
+                underlying_error=e,
             )
         )
 

@@ -1,5 +1,6 @@
 """Tests for security-related edge cases and path traversal protection."""
 
+import subprocess
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -18,11 +19,76 @@ class TestPathTraversalProtection:
 
     def setup_method(self):
         """Setup test fixtures."""
+        import subprocess
+
         self.mock_git_ops = MagicMock(spec=GitOps)
         self.mock_git_ops.repo_path = "/fake/repo"
-        # Mock git operations to avoid actual git calls
+
+        # Create robust git mocking for GitNativeIgnoreHandler
+        def create_robust_git_mock():
+            def mock_git_command(args, **kwargs):
+                if isinstance(args, list) and len(args) >= 1:
+                    if args[0] == "stash":
+                        if len(args) >= 2:
+                            if args[1] == "push":
+                                return subprocess.CompletedProcess(
+                                    args=args,
+                                    returncode=0,
+                                    stdout="stash push success",
+                                    stderr="",
+                                )
+                            elif args[1] in ["pop", "drop"] and len(args) >= 3:
+                                return subprocess.CompletedProcess(
+                                    args=args,
+                                    returncode=0,
+                                    stdout=f"stash {args[1]} success",
+                                    stderr="",
+                                )
+                            elif args[1] in ["list", "--help"]:
+                                return subprocess.CompletedProcess(
+                                    args=args,
+                                    returncode=0,
+                                    stdout=f"stash {args[1]} success",
+                                    stderr="",
+                                )
+                    elif args[0] == "diff" and "--cached" in args:
+                        # Return a valid diff for staged changes
+                        diff_content = """--- a/test_file.py
++++ b/test_file.py
+@@ -1,1 +1,1 @@
+-old
++new
+"""
+                        return subprocess.CompletedProcess(
+                            args=args, returncode=0, stdout=diff_content, stderr=""
+                        )
+                    elif args[0] == "add":
+                        # Staging operations succeed
+                        return subprocess.CompletedProcess(
+                            args=args, returncode=0, stdout="", stderr=""
+                        )
+                    # Default success for other git commands
+                    return subprocess.CompletedProcess(
+                        args=args, returncode=0, stdout="", stderr=""
+                    )
+                return subprocess.CompletedProcess(
+                    args=args, returncode=1, stdout="", stderr="unknown command"
+                )
+
+            return mock_git_command
+
+        # Mock git operations to return proper subprocess.CompletedProcess objects
+        self.mock_git_ops.run_git_command.side_effect = create_robust_git_mock()
+        self.mock_git_ops.run_git_command_with_input.return_value = (
+            subprocess.CompletedProcess(
+                args=["apply"], returncode=0, stdout="", stderr=""
+            )
+        )
+
+        # Keep the original _run_git_command mocking for compatibility
         self.mock_git_ops._run_git_command.return_value = (True, "stash_ref_12345")
         self.mock_git_ops._run_git_command_with_input.return_value = (True, "")
+
         self.native_handler = GitNativeIgnoreHandler(self.mock_git_ops)
         self.worktree_handler = GitWorktreeIgnoreHandler(self.mock_git_ops)
         # Mock worktree-specific operations to focus on security validation
@@ -328,8 +394,25 @@ class TestPathTraversalProtection:
         """Test edge cases in repository root resolution."""
         # Test with non-existent repo path
         self.mock_git_ops.repo_path = "/nonexistent/repo/path"
-        # Mock git operations to avoid the unpacking error
+
+        # Override the git mock to return failures for nonexistent repo
+        def failing_git_mock(args, **kwargs):
+            # All git operations should fail for nonexistent repo
+            return subprocess.CompletedProcess(
+                args=args, returncode=1, stdout="", stderr="fatal: not a git repository"
+            )
+
+        self.mock_git_ops.run_git_command.side_effect = failing_git_mock
+        self.mock_git_ops.run_git_command_with_input.return_value = (
+            subprocess.CompletedProcess(
+                args=["apply"],
+                returncode=1,
+                stdout="",
+                stderr="fatal: not a git repository",
+            )
+        )
         self.mock_git_ops._run_git_command.return_value = (False, "repo not found")
+
         # Override the worktree backup mock for this specific failure case
         self.worktree_handler._create_comprehensive_backup = MagicMock(
             return_value=None
@@ -400,7 +483,19 @@ class TestPathTraversalProtection:
 
     def test_security_with_git_operation_failures(self):
         """Test security validation when git operations fail."""
-        # Mock git stash creation to fail
+
+        # Override all git operations to fail
+        def failing_git_mock(args, **kwargs):
+            return subprocess.CompletedProcess(
+                args=args, returncode=1, stdout="", stderr="git operation failed"
+            )
+
+        self.mock_git_ops.run_git_command.side_effect = failing_git_mock
+        self.mock_git_ops.run_git_command_with_input.return_value = (
+            subprocess.CompletedProcess(
+                args=["apply"], returncode=1, stdout="", stderr="git operation failed"
+            )
+        )
         self.mock_git_ops._run_git_command.return_value = (
             False,
             "stash creation failed",

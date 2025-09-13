@@ -350,7 +350,9 @@ class TestPatchGenerationErrorRecovery:
             if apply_result.returncode != 0:
                 print(f"Expected conflict detected: {apply_result.stderr}")
 
-            # Verify we can return to original state
+            # Clean up patch file and return to original state
+            if patch_file.exists():
+                patch_file.unlink()
             subprocess.run(
                 ["git", "checkout", original_commit], cwd=repo.repo_path, check=True
             )
@@ -647,6 +649,10 @@ class TestPatchGenerationErrorRecovery:
 
                         # Reset to clean state
                         git_ops.run_git_command(["reset", "--hard", "HEAD"])
+
+                        # Clean up patch file
+                        if patch_file.exists():
+                            patch_file.unlink()
 
                         # Verify clean state after reset
                         clean_status = git_ops.run_git_command(

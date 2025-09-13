@@ -63,12 +63,22 @@ def temp_repo():
 def mock_git_ops():
     """Provide a properly configured mock GitOps instance."""
     mock = Mock()
-    # Setup common return values
+    # Setup common return values for run_git_command (subprocess-style)
     mock_result = Mock()
     mock_result.stdout = ""
     mock_result.stderr = ""
     mock_result.returncode = 0
     mock.run_git_command.return_value = mock_result
+
+    # Setup common return values for _run_git_command (tuple-style)
+    mock._run_git_command.return_value = (True, "")  # (success, output)
+
+    # Setup _run_git_command_with_input (tuple-style)
+    mock._run_git_command_with_input.return_value = (True, "")
+
+    # Setup common GitOps attributes
+    mock.repo_path = "/test/repo"
+
     return mock
 
 
@@ -83,6 +93,20 @@ def blame_analyzer(mock_git_ops):
             mock_batch.return_value.run_git_batch.return_value = [
                 (True, "abc123 test.py 10 test content", "")
             ]
+            # Setup batch_expand_hashes to return input hashes unchanged for testing
+            mock_batch.return_value.batch_expand_hashes.return_value = {}
+
+            # Setup batch_load_commit_info for commit timestamp/summary tests
+            from unittest.mock import Mock
+
+            mock_commit_info = Mock()
+            mock_commit_info.timestamp = 1640995200
+            mock_commit_info.short_hash = "abc1234"
+            mock_commit_info.subject = "Add new feature"
+            mock_batch.return_value.batch_load_commit_info.return_value = {
+                "abc123": mock_commit_info,
+                "abc123456": mock_commit_info,
+            }
             analyzer = BlameAnalyzer(mock_git_ops, "test_merge_base")
             yield analyzer
     except ImportError:
@@ -143,9 +167,11 @@ def create_test_hunk(
 
     return DiffHunk(
         file_path=file_path,
-        old_start_line=old_start,
-        old_line_count=old_count if old_count > 0 else 1,
-        new_start_line=new_start,
-        new_line_count=new_count if new_count > 0 else 1,
-        diff_lines=diff_lines,
+        old_start=old_start,
+        old_count=old_count if old_count > 0 else 1,
+        new_start=new_start,
+        new_count=new_count if new_count > 0 else 1,
+        lines=diff_lines,
+        context_before=[],
+        context_after=[],
     )

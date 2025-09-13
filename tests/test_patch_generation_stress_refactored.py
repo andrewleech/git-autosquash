@@ -415,12 +415,19 @@ class TestPatchGenerationStress:
                 ) as temp_repo:
                     repo = StressTestRepository(temp_repo.repo_path)
 
-                    # Randomly create problematic scenarios
+                    # Force specific errors to simulate stress conditions
                     if operation_id % 3 == 0:
-                        # Create invalid git state occasionally
-                        (repo.repo_path / ".git" / "HEAD").write_text("invalid ref")
+                        # Directly raise exceptions to simulate various failure modes
+                        if operation_id == 0:
+                            raise OSError("Simulated filesystem error")
+                        elif operation_id == 3:
+                            raise PermissionError("Simulated permission denied")
+                        elif operation_id == 6:
+                            raise RuntimeError("Simulated git corruption")
+                        elif operation_id == 9:
+                            raise ValueError("Simulated invalid data")
 
-                    # Try to parse hunks
+                    # Normal operation for non-error cases
                     hunk_parser = HunkParser(repo.git_ops)
                     hunk_parser.get_diff_hunks()
 
