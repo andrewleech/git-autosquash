@@ -1,14 +1,14 @@
 # Basic Workflow
 
-This guide covers the most common git-autosquash usage patterns and workflows that you'll encounter in day-to-day development.
+Common git-autosquash usage patterns for day-to-day development.
 
 ## Standard Development Workflow
 
 ### 1. Feature Development with Bug Fixes
 
-This is the most common scenario: you're working on a feature branch and discover bugs in existing code that should be fixed in their original commits.
+Working on a feature branch while discovering bugs in existing code that should be fixed in their original commits.
 
-**Scenario**: You're adding user authentication and notice a validation bug in existing login code.
+**Scenario**: Adding user authentication and noticing a validation bug in existing login code.
 
 ```bash
 # You're on a feature branch
@@ -16,13 +16,13 @@ git checkout -b feature/oauth-integration
 
 # Make changes to multiple files
 vim src/auth/oauth.py      # New OAuth implementation
-vim src/auth/login.py      # Fix validation bug in existing code  
+vim src/auth/login.py      # Fix validation bug in existing code
 vim src/ui/login_form.py   # Update form for OAuth
 
 # Check what you've changed
 git status
 # modified:   src/auth/oauth.py
-# modified:   src/auth/login.py  
+# modified:   src/auth/login.py
 # modified:   src/ui/login_form.py
 
 # Run git-autosquash
@@ -36,7 +36,7 @@ git-autosquash
 
 ### 2. Code Cleanup and Refactoring
 
-**Scenario**: You've been refactoring code and want to distribute improvements back to their logical commits.
+After refactoring code, distribute improvements back to their logical commits.
 
 ```bash
 # After refactoring session
@@ -48,11 +48,11 @@ git status
 git-autosquash
 ```
 
-The TUI will show you which improvements can go back to the commits that originally introduced each piece of functionality.
+The TUI shows which improvements can go back to the commits that originally introduced each piece of functionality.
 
 ### 3. Mixed Staged and Unstaged Changes
 
-git-autosquash intelligently handles different working tree states:
+git-autosquash handles different working tree states:
 
 ```bash
 # Some changes staged, others not
@@ -67,15 +67,15 @@ git status
 git-autosquash
 # Mixed staged and unstaged changes detected.
 # Choose an option:
-#   a) Process all changes (staged + unstaged)  
+#   a) Process all changes (staged + unstaged)
 #   s) Stash unstaged changes and process only staged
 #   q) Quit
 ```
 
-!!! tip "Recommended Approach"
-    - **Option a**: Most common choice, processes all changes together
-    - **Option s**: Use when you want to be very careful about what gets rebased
-    - **Option q**: Use to manually stage exactly what you want first
+Recommended approach:
+- **Option a**: Most common choice, processes all changes together
+- **Option s**: Use when you want to be careful about what gets rebased
+- **Option q**: Use to manually stage exactly what you want first
 
 ## TUI Navigation Patterns
 
@@ -96,13 +96,13 @@ git-autosquash
 - All lines blame to the target commit
 - Clear logical connection
 
-**Medium Confidence** (Yellow):  
+**Medium Confidence** (Yellow):
 - Review the diff carefully
 - Most lines match but some uncertainty
 - Consider the logical relationship
 
 **Low Confidence** (Red):
-- Be very cautious
+- Be cautious
 - Mixed blame results or newer commits involved
 - Often better to leave as new changes
 
@@ -116,43 +116,33 @@ git-autosquash
 | Toggle ignore all | i | Toggle all hunks between ignore and skip |
 | Execute | Enter | Start rebase with approved changes |
 | Cancel | Escape or q | Abort operation |
-| Help | ? | Show help (if implemented) |
 
 ## Common Scenarios
 
-### Scenario: Bug Fix During Feature Work
-
-```mermaid
-graph LR
-    A[Working on Feature] --> B[Notice Bug]
-    B --> C[Fix Bug in Same Session]
-    C --> D[Run git-autosquash]
-    D --> E[Bug Fix → Historical Commit]
-    D --> F[Feature Work → Stays Current]
-```
+### Bug Fix During Feature Work
 
 **Best Practice**: Fix bugs as you encounter them, then use git-autosquash to organize the changes appropriately.
 
-### Scenario: Code Review Feedback
+### Code Review Feedback
 
-You receive code review feedback asking for changes across multiple commits:
+After receiving code review feedback requesting changes across multiple commits:
 
 ```bash
 # After addressing review feedback
 git status
 # modified:   src/auth/login.py      # Requested security fix
-# modified:   src/ui/dashboard.py    # Requested UI improvement  
+# modified:   src/ui/dashboard.py    # Requested UI improvement
 # modified:   docs/api.md           # Documentation update
 
 git-autosquash
 # Security fix → Goes to original login commit
-# UI improvement → Goes to original dashboard commit  
+# UI improvement → Goes to original dashboard commit
 # Documentation → Stays as new change (no logical target)
 ```
 
-### Scenario: Merge Conflict Resolution
+### Merge Conflict Resolution
 
-Sometimes you'll encounter conflicts during the rebase:
+When conflicts occur during rebase:
 
 ```bash
 git-autosquash
@@ -162,10 +152,10 @@ git-autosquash
 # Later, if conflicts occurred:
 # ⚠️ Rebase conflicts detected:
 #   src/auth/login.py
-# 
+#
 # To resolve conflicts:
 # 1. Edit the conflicted files to resolve conflicts
-# 2. Stage the resolved files: git add <files>  
+# 2. Stage the resolved files: git add <files>
 # 3. Continue the rebase: git rebase --continue
 # 4. Or abort the rebase: git rebase --abort
 ```
@@ -176,18 +166,18 @@ git-autosquash
 3. Stage resolved files: `git add src/auth/login.py`
 4. Continue: `git rebase --continue`
 
-### Scenario: Extracting Accidentally Committed Changes
+### Extracting Accidentally Committed Changes
 
-**Scenario**: You committed debug code or temporary changes that should be removed from history but kept in your working tree for further development.
+You committed debug code or temporary changes that should be removed from history but kept in your working tree for further development.
 
 ```bash
 # You have commits with mixed changes
 git log --oneline -3
-# abc1234 Add user dashboard feature  
+# abc1234 Add user dashboard feature
 # def5678 Fix authentication bug
 # ghi9012 Add admin panel
 
-# Some of these commits contain debug prints or temporary code
+# Some commits contain debug prints or temporary code
 # that you want to extract back to working directory
 
 git-autosquash
@@ -198,35 +188,34 @@ git-autosquash
 2. For legitimate changes: Select **"Skip"** (leave in commits) or **"Squash"** (organize better)
 3. Execute the operation
 
-**Result**: 
+**Result**:
 - Debug code gets extracted to your working directory
 - Clean commits remain in history
 - You can now properly commit or discard the extracted code
 
-This is essentially a selective "uncommit" operation - much more precise than `git reset`.
+This is a selective "uncommit" operation - more precise than `git reset`.
 
 ## Branch Management
 
 ### Safe Branch Practices
 
-**✅ Good practices**:
+**Good practices**:
 - Use git-autosquash on feature branches only
 - Ensure your branch has a clear merge-base with main/master
 - Keep feature branches focused and reasonably sized
 
-**❌ Avoid**:
+**Avoid**:
 - Running on main/master branch directly
 - Using on branches without clear merge-base
 - Running on very large branches with complex history
 
 ### Working with Shared Branches
 
-!!! warning "Shared Branch Caution"
-    If others are working on your branch:
-    
-    1. **Coordinate first**: Let team members know you're rebasing
-    2. **Force push required**: After git-autosquash, you'll need `git push --force-with-lease`
-    3. **Team updates**: Others will need to `git pull --rebase` or reset their local branches
+If others are working on your branch:
+
+1. **Coordinate first**: Let team members know you're rebasing
+2. **Force push required**: After git-autosquash, you'll need `git push --force-with-lease`
+3. **Team updates**: Others will need to `git pull --rebase` or reset their local branches
 
 ### Branch Cleanup After Success
 
@@ -248,9 +237,9 @@ git commit -m "Add OAuth provider configuration"
 For large repositories with extensive history:
 
 - git-autosquash caches blame and commit information
-- First run may be slower as caches are built  
-- Subsequent runs on the same branch are much faster
-- Consider using `--line-by-line` for very precise control
+- First run may be slower as caches are built
+- Subsequent runs on the same branch are faster
+- Consider using `--line-by-line` for precise control
 
 ### Optimizing for Speed
 
@@ -266,7 +255,7 @@ git-autosquash
 
 ### Pre-Push Hook
 
-You can integrate git-autosquash into your workflow with git hooks:
+Integrate git-autosquash into your workflow with git hooks:
 
 ```bash
 #!/bin/bash
@@ -285,7 +274,7 @@ fi
 
 ### IDE Integration
 
-Many IDEs can be configured to run git-autosquash:
+Configure IDEs to run git-autosquash:
 
 - **VS Code**: Add as a task or terminal command
 - **IntelliJ/PyCharm**: Configure as external tool
@@ -295,7 +284,7 @@ Many IDEs can be configured to run git-autosquash:
 
 ### "No target commits found"
 
-This happens when:
+Occurs when:
 - All changes are in new files
 - Changes are outside the branch scope (before merge-base)
 - Git blame doesn't find clear ownership
@@ -304,13 +293,13 @@ This happens when:
 
 ### "Command not found"
 
-**Check installation**:
+Check installation:
 ```bash
 which git-autosquash
 git-autosquash --version
 ```
 
-**Reinstall if needed**:
+Reinstall if needed:
 ```bash
 pipx reinstall git-autosquash
 ```
@@ -327,11 +316,11 @@ git status
 
 For very large diffs:
 - Consider breaking changes into smaller chunks
-- Use `--line-by-line` for more granular control  
-- Ensure you have adequate memory and disk space
+- Use `--line-by-line` for more granular control
+- Ensure adequate memory and disk space
 
 ## Next Steps
 
-- Learn about [Advanced Usage](advanced-usage.md) options and power features
-- Explore [Complex Workflows](../examples/complex-workflows.md) for challenging scenarios  
-- Check [Troubleshooting](troubleshooting.md) for detailed problem-solving guides
+- [Advanced Usage](advanced-usage.md) - Power features and options
+- [Complex Workflows](../examples/complex-workflows.md) - Challenging scenarios
+- [Troubleshooting](troubleshooting.md) - Detailed problem-solving guides

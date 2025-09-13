@@ -7,50 +7,40 @@
 
 **Automatically squash changes back into historical commits where they belong.**
 
-git-autosquash is a powerful tool that analyzes your working directory changes and automatically distributes them back to the commits where those code sections were last modified. Instead of creating noisy "fix lint errors", "cleanup tests", or "address review feedback" commits, it uses git blame analysis to intelligently squash improvements back into their logical historical commits.
+git-autosquash eliminates "cleanup" commits by analyzing git blame to determine which historical commits should receive your current changes. Instead of accumulating "fix lint", "address PR feedback", or "update tests" commits, it distributes improvements back to their logical origin points.
 
 ![git-autosquash Interactive TUI](screenshots/readme/hero_screenshot.png)
 
-**Perfect for common scenarios like**: You've been working on a feature branch and now need to fix lint errors, test failures, or code review feedback. Rather than committing all fixes into a final "cleanup" commit, git-autosquash lets you push each fix back to the original commit that introduced the issue, maintaining clean and logical git history.
+## What It Does
 
-## Key Features
+- Analyzes your working directory changes using git blame
+- Maps each change to the commit that last modified those lines
+- Presents an interactive interface for review and approval
+- Executes git rebase to squash changes into target commits
+- Maintains clean, logical git history
 
-- **Smart Targeting**: Uses git blame to find the exact commits where code was last modified
-- **Interactive TUI**: Rich terminal interface with syntax-highlighted diff viewer  
-- **Safety First**: Default unapproved state with user confirmation for all changes
-- **Conflict Resolution**: Clear guidance when merge conflicts occur during rebase
-- **Progress Tracking**: Real-time feedback with detailed commit summaries
-- **Rollback Support**: Full git reflog integration for easy recovery
+## Why You Need It
 
-### Feature Demonstrations
+Common scenario: You're working on a feature branch and need to address code review feedback, fix lint errors, or update tests across multiple files. Instead of creating noisy cleanup commits, git-autosquash pushes each fix back to the commit that originally introduced the code.
 
-<details>
-<summary>Smart Targeting with Git Blame Analysis</summary>
+**Before**: Messy history with fix commits
+```
+* fix lint errors in auth module
+* address PR feedback on validation
+* update tests for new API
+* feat: implement user authentication
+* feat: add input validation
+* feat: update user API
+```
 
-![Smart Targeting](screenshots/readme/feature_smart_targeting.png)
+**After**: Clean history with integrated improvements
+```
+* feat: implement user authentication (includes lint fixes)
+* feat: add input validation (includes PR feedback)
+* feat: update user API (includes test updates)
+```
 
-git-autosquash analyzes git blame to understand exactly which commits last modified each line of code, providing high-confidence targeting for your changes.
-</details>
-
-<details>
-<summary>Interactive Terminal Interface</summary>
-
-![Interactive TUI](screenshots/readme/feature_interactive_tui.png)
-
-Full keyboard navigation with syntax highlighting, real-time previews, and intuitive controls make reviewing changes efficient and clear.
-</details>
-
-<details>
-<summary>Safety-First Approach</summary>
-
-![Safety First](screenshots/readme/feature_safety_first.png)
-
-All changes start unapproved by default. Full git reflog integration and backup creation ensure you can always recover if something goes wrong.
-</details>
-
-## Quick Start
-
-### Installation
+## Installation
 
 ```bash
 # Recommended: Install with uv (fastest, modern Python package manager)
@@ -63,12 +53,9 @@ pipx install git-autosquash
 pip install git-autosquash
 ```
 
-### Basic Usage
+## Usage
 
 ```bash
-# Make some changes to your code
-vim src/auth.py src/ui.py
-
 # Interactive mode (default): Review and approve changes in TUI
 git-autosquash
 
@@ -77,298 +64,54 @@ git-autosquash --auto-accept
 
 # Dry-run mode: Preview what would be done without making changes
 git-autosquash --auto-accept --dry-run
+
+# Line-by-line precision mode
+git-autosquash --line-by-line
 ```
-
-## Workflow Example
-
-Here's what a typical git-autosquash session looks like:
-
-### Before: Messy History
-![Before Traditional Approach](screenshots/readme/comparison_before_traditional.png)
-
-### The git-autosquash Process
-
-1. **Check Status** - See what changes need organizing
-![Workflow Step 1](screenshots/readme/workflow_step_01.png)
-
-2. **Launch Analysis** - git-autosquash analyzes your changes
-![Workflow Step 2](screenshots/readme/workflow_step_02.png)
-
-3. **Review Results** - See confidence levels and proposed targets
-![Workflow Step 3](screenshots/readme/workflow_step_03.png)
-
-4. **Interactive Review** - Approve or modify the suggestions
-![Workflow Step 4](screenshots/readme/workflow_step_04.png)
-
-5. **Execute Changes** - Watch the rebase happen safely
-![Workflow Step 5](screenshots/readme/workflow_step_05.png)
-
-6. **Clean History** - Enjoy your organized git log
-![Workflow Step 6](screenshots/readme/workflow_step_06.png)
-
-### After: Clean History
-![After git-autosquash](screenshots/readme/comparison_after_autosquash.png)
 
 ## How It Works
 
-1. **Analysis**: Parses your working directory changes into structured hunks
-2. **Blame Investigation**: Uses `git blame` to find which commits last modified each line
-3. **Target Resolution**: Applies frequency-based algorithm to select target commits with confidence scoring
-4. **Interactive Review**: Presents findings in rich TUI with confidence indicators and diff previews
-5. **Safe Execution**: Performs interactive rebase only on user-approved changes with full backup support
+git-autosquash uses git blame analysis to trace each modified line back to its originating commit, then presents an interactive interface for reviewing and approving the proposed squash targets.
 
-### Handling Edge Cases
+For complete documentation, architecture details, and advanced usage patterns, see: **https://andrewleech.github.io/git-autosquash/**
 
-git-autosquash gracefully handles complex scenarios:
+### Key Features
 
-<details>
-<summary>New Files Without History</summary>
-
-![New File Fallback](screenshots/readme/fallback_new_file_fallback.png)
-
-When files have no git blame history, git-autosquash offers intelligent fallback options based on recent commits and similar files.
-</details>
-
-<details>
-<summary>Ambiguous Blame Results</summary>
-
-![Ambiguous Blame](screenshots/readme/fallback_ambiguous_blame_fallback.png)
-
-When multiple commits could be valid targets, you get clear options to choose the most appropriate one.
-</details>
-
-<details>
-<summary>Manual Override Capability</summary>
-
-![Manual Override](screenshots/readme/fallback_manual_override.png)
-
-Sometimes you know better than the algorithm - easily override suggestions when you have the full context.
-</details>
-
-## Use Cases
-
-### Perfect for:
-- **Bug fixes during feature work** - Squash fixes back into original implementations
-- **Code review feedback** - Distribute improvements to their logical commits
-- **Refactoring sessions** - Integrate optimizations with original code
-- **Documentation updates** - Keep docs synchronized with code changes
-- **Lint and test fixes** - Clean up CI failures without polluting history
-- **Security patches** - Apply security fixes to the vulnerable code commits
-
-### Example: Code Review Workflow
-```bash
-# After addressing review feedback across multiple files
-git-autosquash
-
-# TUI automatically maps:
-# - Security fix → Original security implementation commit
-# - Performance improvement → Original algorithm commit  
-# - Documentation update → Original feature commit
-# - New functionality → Remains as new commits
-
-# Result: Clean history where each commit tells complete story
-```
-
-## Command-Line Options
-
-```bash
-git-autosquash [OPTIONS]
-
-Options:
-  --line-by-line    Use line-by-line hunk splitting for maximum precision
-  --auto-accept     Automatically accept all hunks with blame-identified targets, bypass TUI
-  --dry-run         Show what would be done without making changes (requires --auto-accept)
-  --version         Show version information
-  --help           Show help message
-```
-
-### Precision Modes
-
-- **Standard**: Uses git's default hunk boundaries (faster, good for most cases)
-- **Line-by-line**: Analyzes each changed line individually (slower, maximum precision)
-
-### Automation Modes
-
-- **Interactive** (default): Full TUI interface for reviewing and approving changes
-- **Auto-accept**: Automatically processes hunks with high-confidence blame targets, bypassing TUI
-- **Dry-run**: Preview mode showing what would be done without making changes (requires `--auto-accept`)
+- **Smart Targeting**: git blame analysis identifies logical target commits
+- **Interactive TUI**: Rich terminal interface with diff previews
+- **Safety First**: All changes require explicit approval
+- **Automatic Rollback**: Full git reflog integration for recovery
+- **Conflict Resolution**: Clear guidance when merge conflicts occur
+- **Multiple Modes**: Interactive, auto-accept, and dry-run options
 
 ## Documentation
 
-**Complete documentation is available at: https://andrewleech.github.io/git-autosquash/**
+**Complete documentation**: https://andrewleech.github.io/git-autosquash/
 
-### Quick Links
+- **[Getting Started](https://andrewleech.github.io/git-autosquash/user-guide/getting-started/)** - First session walkthrough
+- **[CLI Reference](https://andrewleech.github.io/git-autosquash/reference/cli-options/)** - All command-line options
+- **[Advanced Usage](https://andrewleech.github.io/git-autosquash/user-guide/advanced-usage/)** - Complex workflows and edge cases
+- **[Development Guide](https://andrewleech.github.io/git-autosquash/technical/development/)** - Contributing and development setup
 
-- **[Getting Started](https://andrewleech.github.io/git-autosquash/user-guide/getting-started/)** - Your first git-autosquash session
-- **[Basic Workflow](https://andrewleech.github.io/git-autosquash/user-guide/basic-workflow/)** - Common usage patterns
-- **[CLI Reference](https://andrewleech.github.io/git-autosquash/reference/cli-options/)** - Command-line options and flags
-- **[FAQ](https://andrewleech.github.io/git-autosquash/reference/faq/)** - Frequently asked questions
-- **[API Reference](https://andrewleech.github.io/git-autosquash/technical/api-reference/)** - Developer documentation
+## Use Cases
 
-### Documentation Sections
+- Code review feedback distribution
+- Lint and formatting fix integration
+- Test update consolidation
+- Documentation synchronization
+- Security patch application
+- Refactoring optimization placement
 
-- **User Guides**: Installation, getting started, advanced usage, troubleshooting
-- **Examples**: Real-world scenarios, complex workflows, IDE integration  
-- **Technical**: Architecture, development guide, testing strategy
-- **Reference**: CLI options, configuration, FAQ, API documentation
+## Status
 
-## System Architecture
-
-Git-autosquash employs a layered architecture with multiple execution strategies:
-
-```mermaid
-graph TD
-    %% CLI Layer
-    subgraph CLI_Layer["CLI Layer"]
-        CLI["Main Entry Point"]
-    end
-
-    %% Business Logic
-    subgraph Business["Business Logic"]
-        Parser["Hunk Parser"]
-        Resolver["Target Resolver"]
-        Strategy["Strategy Manager"]
-    end
-
-    %% User Interface
-    subgraph UI["User Interface"]
-        TUI["Interactive TUI"]
-    end
-
-    %% Execution Strategies
-    subgraph Execution["Execution Strategies"]
-        Native["Native Handler"]
-        Complete["Complete Handler"]
-        Worktree["Worktree Handler"]
-    end
-
-    %% Git Integration
-    subgraph Git["Git Integration"]
-        GitOps["Git Operations"]
-        Batch["Batch Operations"]
-    end
-
-    %% Connections
-    CLI -->|parse changes| Parser
-    Parser -->|find targets| Resolver
-    Resolver -->|present options| TUI
-    TUI -->|user decisions| Strategy
-    Strategy -->|simple scenarios| Native
-    Strategy -->|standard operations| Complete
-    Strategy -->|complex conflicts| Worktree
-    Native -->|git commands| GitOps
-    Complete -->|git commands| GitOps
-    Worktree -->|git commands| GitOps
-    GitOps -->|optimization| Batch
-
-    %% Styling
-    classDef cli fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-    classDef business fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-    classDef ui fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
-    classDef execution fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-    classDef git fill:#fce4ec,stroke:#c2185b,stroke-width:2px
-    
-    class CLI cli
-    class Parser,Resolver,Strategy business
-    class TUI ui
-    class Native,Complete,Worktree execution
-    class GitOps,Batch git
-```
-
-**Key Architecture Benefits:**
-- **Safety-First**: Atomic operations with automatic rollback
-- **Performance**: Intelligent batching reduces git command overhead by ~10x
-- **Flexibility**: Multiple execution strategies handle different complexity levels
-- **User Experience**: Rich TUI with fallback modes for various scenarios
-
-For detailed architecture documentation, see [Software Architecture Document](docs/technical/software_architecture_document.md).
-
-## Advanced Features
-
-### Conflict Resolution
-![Conflict Resolution](screenshots/readme/feature_conflict_resolution.png)
-
-When conflicts occur during rebase, git-autosquash provides clear guidance and options for resolution.
-
-### Progress Tracking
-![Progress Tracking](screenshots/readme/feature_progress_tracking.png)
-
-Real-time feedback keeps you informed during the rebase process with detailed progress indicators.
-
-## Development Status
-
-git-autosquash is actively developed and functional. All core features are implemented and tested:
-
-- ✅ Git repository analysis and validation
-- ✅ Diff parsing with both standard and line-by-line modes  
-- ✅ Git blame analysis with intelligent target resolution
-- ✅ Rich terminal interface with Textual framework
-- ✅ Interactive rebase execution with conflict handling
-- ✅ Comprehensive error handling and recovery
-- ✅ Full test suite with 400+ passing tests
-- ✅ Screenshot capture system for documentation
+Production-ready with full test coverage. All core functionality implemented and actively maintained.
 
 ## Contributing
 
-We welcome contributions! Please see our [Development Guide](https://andrewleech.github.io/git-autosquash/technical/development/) for details on:
-
-- Setting up the development environment
-- Code standards and pre-commit hooks  
-- Testing strategy and guidelines
-- Submitting pull requests
-
-### Quick Development Setup
-
-```bash
-git clone https://github.com/andrewleech/git-autosquash.git
-cd git-autosquash
-
-# Install in development mode
-uv pip install -e ".[dev]"
-
-# Install pre-commit hooks (required)
-uv run pre-commit install
-
-# Run tests
-uv run pytest
-
-# Generate screenshots for documentation
-uv run python capture_readme_screenshots.py
-```
-
-### Screenshot System
-
-git-autosquash includes a comprehensive screenshot capture system using `pyte` terminal emulation:
-
-```bash
-# Test screenshot generation
-uv run pytest tests/test_tui_screenshot_integration.py -v
-
-# Generate all README screenshots
-uv run python capture_readme_screenshots.py
-
-# Screenshots saved to screenshots/readme/
-```
-
-See `TUI_SCREENSHOT_GUIDE.md` for complete documentation of the screenshot system.
-
-## License
-
-[License information to be added]
-
-## Acknowledgments
-
-- Built with [Textual](https://textual.textualize.io/) for the rich terminal interface
-- Powered by [uv](https://github.com/astral-sh/uv) for fast dependency management  
-- Documentation built with [MkDocs Material](https://squidfunk.github.io/mkdocs-material/)
-- Screenshot system uses [pyte](https://github.com/selectel/pyte) for terminal emulation
+See [Development Guide](https://andrewleech.github.io/git-autosquash/technical/development/) for setup, testing, and contribution guidelines.
 
 ## Support
 
-- **Documentation**: https://andrewleech.github.io/git-autosquash/
 - **Issues**: [GitHub Issues](https://github.com/andrewleech/git-autosquash/issues)
+- **Documentation**: https://andrewleech.github.io/git-autosquash/
 - **Discussions**: [GitHub Discussions](https://github.com/andrewleech/git-autosquash/discussions)
-
----
-
-*Transform your cluttered git history into clean, logical commits with git-autosquash!*
