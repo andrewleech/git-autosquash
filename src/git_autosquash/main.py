@@ -291,48 +291,9 @@ def _display_automatic_mappings(mappings: List[HunkTargetMapping]) -> None:
 def setup_argument_parser() -> argparse.ArgumentParser:
     """Set up and return the command line argument parser."""
 
-    class HiddenSubcommandFormatter(argparse.HelpFormatter):
-        """Custom formatter that hides suppressed subcommands completely."""
-
-        def _format_action(self, action):
-            # For subparsers, filter out suppressed choices
-            if isinstance(action, argparse._SubParsersAction):
-                # Get original choices and filter out suppressed ones
-                original_choices = action.choices or {}
-                visible_choices = {}
-
-                for choice, subparser in original_choices.items():
-                    # Check if this subparser's help is suppressed
-                    if (
-                        hasattr(subparser, "description")
-                        or not hasattr(subparser, "_defaults")
-                        or subparser._defaults.get("help") != argparse.SUPPRESS
-                    ):
-                        # Only include if not explicitly suppressed in our custom way
-                        if choice not in [
-                            "strategy-info",
-                            "strategy-test",
-                            "strategy-set",
-                        ]:
-                            visible_choices[choice] = subparser
-
-                # If no visible choices, don't show the subcommands section at all
-                if not visible_choices:
-                    return ""
-
-                # Temporarily replace choices for formatting
-                original_choices_ref = action.choices
-                action.choices = visible_choices
-                result = super()._format_action(action)
-                action.choices = original_choices_ref
-                return result
-
-            return super()._format_action(action)
-
     parser = argparse.ArgumentParser(
         prog="git-autosquash",
         description="Automatically squash changes back into historical commits",
-        formatter_class=HiddenSubcommandFormatter,
     )
     parser.add_argument(
         "--line-by-line",
@@ -354,6 +315,14 @@ def setup_argument_parser() -> argparse.ArgumentParser:
         action="version",
         version=f"%(prog)s {__version__}",
     )
+
+    return parser
+
+
+def setup_strategy_argument_parser() -> argparse.ArgumentParser:
+    """Set up argument parser with strategy commands included."""
+
+    parser = setup_argument_parser()
 
     # Add hidden strategy management subcommands
     subparsers = parser.add_subparsers(dest="command")
@@ -675,7 +644,15 @@ def main() -> None:
     """Main entry point for git-autosquash command."""
     try:
         # Phase 1: Parse command line arguments
-        parser = setup_argument_parser()
+        # Check if strategy commands are being used
+        strategy_commands = ["strategy-info", "strategy-test", "strategy-set"]
+        if len(sys.argv) > 1 and sys.argv[1] in strategy_commands:
+            # Use strategy parser for strategy commands
+            parser = setup_strategy_argument_parser()
+        else:
+            # Use normal parser for regular usage
+            parser = setup_argument_parser()
+
         args = parser.parse_args()
 
         # Validate argument combinations
