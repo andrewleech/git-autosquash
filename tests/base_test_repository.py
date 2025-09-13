@@ -9,7 +9,7 @@ and provide comprehensive error handling.
 import tempfile
 import threading
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Iterator
+from typing import Dict, List, Optional, Any, Iterator, Callable
 import weakref
 from contextlib import contextmanager
 
@@ -442,7 +442,7 @@ static int parse_compile_execute(const void *source, mp_parse_input_kind_t input
             "target": target_commit,
         }
 
-    def create_identical_changes_scenario(self) -> Dict[str, str]:
+    def create_identical_changes_scenario(self) -> Dict[str, Any]:
         """
         Create a scenario with identical changes at different locations.
 
@@ -588,8 +588,8 @@ class ResourceManagedTestRepository(BaseTestRepository):
         """
         super().__init__(repo_path)
         self._resource_monitor = ResourceMonitor()
-        self._performance_metrics = {}
-        self._cleanup_callbacks = []
+        self._performance_metrics: dict[str, float] = {}
+        self._cleanup_callbacks: list[Callable] = []
 
     def add_cleanup_callback(self, callback):
         """Add cleanup callback to be executed during resource cleanup."""
@@ -833,7 +833,7 @@ class ConcurrentSafeTestRepository(StressTestRepository):
         """Initialize concurrent-safe test repository."""
         super().__init__(repo_path)
         self._operation_lock = threading.RLock()
-        self._active_operations = set()
+        self._active_operations: set[str] = set()
         self._operation_counter = 0
 
     def _get_operation_id(self) -> str:
@@ -851,9 +851,7 @@ class ConcurrentSafeTestRepository(StressTestRepository):
         with self._operation_lock:
             if full_operation_name in self._active_operations:
                 raise GitOperationError(
-                    operation_name,
-                    -1,
-                    f"Operation {operation_name} already in progress",
+                    f"Operation {operation_name} already in progress"
                 )
             self._active_operations.add(full_operation_name)
 
@@ -972,7 +970,7 @@ class PerformanceMonitoringRepository(ConcurrentSafeTestRepository):
         """Initialize performance monitoring repository."""
         super().__init__(repo_path)
         self._performance_metrics = {}
-        self._operation_timings = []
+        self._operation_timings: list[dict[str, Any]] = []
         self._resource_tracker = ResourceMonitor()
 
     @contextmanager
@@ -1028,7 +1026,7 @@ class PerformanceMonitoringRepository(ConcurrentSafeTestRepository):
         if not self._operation_timings:
             return {}
 
-        operations_by_type = {}
+        operations_by_type: dict[str, list[dict[str, Any]]] = {}
         for timing in self._operation_timings:
             op_type = timing["operation"]
             if op_type not in operations_by_type:

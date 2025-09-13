@@ -390,8 +390,8 @@ void setup_config_{i}() {{
         assert diff_result.returncode == 0
 
         # This should complete without excessive memory usage
-        hunk_parser = HunkParser(diff_result.stdout)
-        hunks = hunk_parser.parse_hunks()
+        hunk_parser = HunkParser(git_ops)
+        hunks = hunk_parser._parse_diff_output(diff_result.stdout)
 
         # Should have parsed a significant number of hunks
         assert len(hunks) >= 50, (
@@ -413,8 +413,8 @@ if __name__ == "__main__":
             ["diff", scenario["target_commit"] + "~1", scenario["source_commit"]]
         )
 
-        hunk_parser = HunkParser(diff_result.stdout)
-        hunks = hunk_parser.parse_hunks()
+        hunk_parser = HunkParser(git_ops)
+        hunks = hunk_parser._parse_diff_output(diff_result.stdout)
 
         print(f"Successfully parsed {len(hunks)} hunks")
         print("Dual-hunk integration test completed successfully!")

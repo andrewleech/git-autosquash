@@ -277,7 +277,7 @@ class ErrorBoundary:
 
             # Log the error
             self.logger.error(
-                f"Error in {self.operation_name}: {test_error.message}",
+                f"Error in {self.operation_name}: {test_error}",
                 extra={"error_context": test_error.get_full_context()},
             )
 

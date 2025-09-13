@@ -1,6 +1,6 @@
 """Tests for UIStateController."""
 
-from git_autosquash.blame_analyzer import HunkTargetMapping
+from git_autosquash.hunk_target_resolver import HunkTargetMapping
 from git_autosquash.hunk_parser import DiffHunk
 from git_autosquash.tui.state_controller import UIStateController
 
