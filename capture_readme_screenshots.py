@@ -27,9 +27,9 @@ class RealScreenshotGenerator:
 
     def __init__(self, output_dir: Path | None = None):
         if output_dir is None:
-            # Use absolute path relative to script location
+            # Use docs directory for MkDocs integration
             script_dir = Path(__file__).parent
-            output_dir = script_dir / "screenshots" / "readme"
+            output_dir = script_dir / "docs" / "screenshots" / "readme"
 
         self.output_dir = output_dir
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -423,32 +423,21 @@ class RealScreenshotGenerator:
         return screenshots
 
     def copy_screenshots_to_docs(self):
-        """Copy screenshots to docs directory for documentation."""
-        print("\n📋 Copying screenshots to docs directory...")
+        """Screenshots are now generated directly in docs directory."""
+        print("\n📋 Screenshots generated directly in docs directory...")
 
-        import shutil
-
-        # Create docs screenshots directory
-        docs_screenshots_dir = Path("docs/screenshots/readme")
-        docs_screenshots_dir.mkdir(parents=True, exist_ok=True)
-
-        # Copy all PNG files from output directory to docs
+        # Count final screenshots (excluding intermediate files)
         png_files = list(self.output_dir.glob("*.png"))
-        copies_made = 0
-
-        for png_file in png_files:
-            # Skip intermediate files, only copy final screenshots
-            if any(
+        final_screenshots = [
+            png_file for png_file in png_files
+            if not any(
                 intermediate in png_file.name
                 for intermediate in ["_01_initial", "_tui_loaded", "_interaction"]
-            ):
-                continue
+            )
+        ]
 
-            docs_file = docs_screenshots_dir / png_file.name
-            shutil.copy2(png_file, docs_file)
-            copies_made += 1
-
-        print(f"📸 Copied {copies_made} screenshots to docs directory")
+        print(f"📸 Generated {len(final_screenshots)} final screenshots in {self.output_dir}")
+        print(f"📁 Ready for mkdocs integration from docs/screenshots/readme/")
 
 
 async def main():
