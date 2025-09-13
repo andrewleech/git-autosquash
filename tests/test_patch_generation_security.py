@@ -11,7 +11,7 @@ import stat
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 import pytest
 
 from git_autosquash.git_ops import GitOps
@@ -43,7 +43,7 @@ class SecurityTestBuilder:
             check=True,
         )
 
-    def create_path_traversal_scenario(self) -> Dict[str, str]:
+    def create_path_traversal_scenario(self) -> Dict[str, Any]:
         """Create scenario with potential path traversal attacks."""
 
         # Create legitimate files first
@@ -200,7 +200,7 @@ void safe_function() {
             return {
                 "base_commit": base_commit,
                 "change_commit": change_commit,
-                "symlink_created": symlink_created,
+                "symlink_created": str(symlink_created),
                 "external_file": str(external_file),
             }
 
@@ -208,7 +208,7 @@ void safe_function() {
             print(f"Symlink attack scenario creation failed: {e}")
             return None
 
-    def create_permission_attack_scenario(self) -> Dict[str, str]:
+    def create_permission_attack_scenario(self) -> Dict[str, Any]:
         """Create scenario with permission-based attacks."""
 
         # Create file with restricted permissions
@@ -314,7 +314,7 @@ void writable_function() {
             "permissions_set": permissions_set,
         }
 
-    def create_filename_injection_scenario(self) -> Dict[str, str]:
+    def create_filename_injection_scenario(self) -> Dict[str, Any]:
         """Create scenario with potentially dangerous filenames."""
 
         dangerous_names = [
@@ -323,7 +323,7 @@ void writable_function() {
             # but will test handling of filenames that could be problematic
         ]
 
-        files_created = []
+        files_created: list[str] = []
 
         for filename in dangerous_names:
             try:

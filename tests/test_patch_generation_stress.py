@@ -8,7 +8,7 @@ high-load scenarios, concurrent operations, and resource constraints.
 import gc
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Dict
+from typing import Any, Dict
 import pytest
 
 from git_autosquash.git_ops import GitOps
@@ -31,7 +31,7 @@ class ImprovedStressTestBuilder(StressTestRepository):
         num_files: int = 50,  # Reduced for better performance
         lines_per_file: int = 500,  # Reduced for better performance
         patterns_per_file: int = 10,  # Reduced for better performance
-    ) -> Dict[str, str]:
+    ) -> Dict[str, Any]:
         """Create repository with massive number of files and patterns using GitOps."""
 
         files_content = {}
@@ -89,7 +89,7 @@ class ImprovedStressTestBuilder(StressTestRepository):
     @error_boundary("deep_history_creation", max_retries=2)
     def create_deep_history_scenario(
         self, history_depth: int = 20
-    ) -> Dict[str, str]:  # Reduced depth
+    ) -> Dict[str, Any]:  # Reduced depth
         """Create repository with very deep commit history using GitOps."""
 
         # Create base file
@@ -148,7 +148,7 @@ void depth_{depth}_function() {{
         }
 
     @error_boundary("concurrent_scenario_creation", max_retries=2)
-    def create_concurrent_operation_scenario(self) -> Dict[str, str]:
+    def create_concurrent_operation_scenario(self) -> Dict[str, Any]:
         """Create scenario for testing concurrent operations using GitOps."""
 
         # Create multiple files that can be operated on concurrently
@@ -302,8 +302,8 @@ class TestMassiveRepositoryHandling:
         memory_tracker.start_tracking()
 
         start_time = time.time()
-        hunk_parser = HunkParser(diff_content)
-        hunks = hunk_parser.parse_hunks()
+        hunk_parser = HunkParser(git_ops)
+        hunks = hunk_parser._parse_diff_output(diff_content)
         parsing_time = time.time() - start_time
 
         memory_tracker.update_peak()
@@ -358,8 +358,8 @@ class TestConcurrentOperations:
 
         def parse_hunks_worker(worker_id: int) -> int:
             """Worker function for concurrent hunk parsing."""
-            hunk_parser = HunkParser(diff_content)
-            hunks = hunk_parser.parse_hunks()
+            hunk_parser = HunkParser(git_ops)
+            hunks = hunk_parser._parse_diff_output(diff_content)
             return len(hunks)
 
         # Run concurrent parsing
@@ -464,8 +464,8 @@ class TestErrorRecoveryUnderStress:
         assert diff_result.returncode == 0
 
         # Parse the diff
-        hunk_parser = HunkParser(diff_result.stdout)
-        hunks = hunk_parser.parse_hunks()
+        hunk_parser = HunkParser(git_ops)
+        hunks = hunk_parser._parse_diff_output(diff_result.stdout)
 
         memory_tracker.update_peak()
         memory_delta = memory_tracker.get_memory_delta()
@@ -496,8 +496,8 @@ if __name__ == "__main__":
             ["diff", scenario["base_commit"], scenario["change_commit"]]
         )
 
-        hunk_parser = HunkParser(diff_result.stdout)
-        hunks = hunk_parser.parse_hunks()
+        hunk_parser = HunkParser(git_ops)
+        hunks = hunk_parser._parse_diff_output(diff_result.stdout)
         print(f"Parsed {len(hunks)} hunks successfully")
 
         print("Stress test completed successfully!")

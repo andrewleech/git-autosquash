@@ -268,7 +268,7 @@ class PyteScreenshotCapture:
 
         # Create image
         img = Image.new(
-            "RGB", (img_width, img_height), color=(12, 12, 12)
+            "RGB", (int(img_width), int(img_height)), color=(12, 12, 12)
         )  # Dark background
         draw = ImageDraw.Draw(img)
 

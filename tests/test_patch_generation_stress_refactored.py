@@ -12,7 +12,7 @@ import psutil
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 import pytest
 import weakref
 from contextlib import contextmanager
@@ -187,12 +187,12 @@ class StressTestExecutor:
 
     def execute_concurrent_operations(
         self, operation_func, num_threads: int = 4, operations_per_thread: int = 10
-    ) -> List[any]:
+    ) -> List[Any]:
         """Execute operations concurrently with proper error handling."""
         results = []
-        exceptions = []
+        exceptions: list[tuple[int | str, Exception]] = []
 
-        def worker_thread(thread_id: int) -> List[any]:
+        def worker_thread(thread_id: int) -> List[Any]:
             thread_results = []
             try:
                 for i in range(operations_per_thread):
@@ -271,7 +271,7 @@ class TestPatchGenerationStress:
             # Measure patch generation time
             start_time = time.time()
             hunk_parser = HunkParser(stress_repo.git_ops)
-            hunks = hunk_parser.parse_hunks()
+            hunks = hunk_parser.get_diff_hunks()
             elapsed_time = time.time() - start_time
 
             # Verify performance is reasonable
@@ -308,7 +308,7 @@ class TestPatchGenerationStress:
 
             # Parse hunks from all modifications
             hunk_parser = HunkParser(stress_repo.git_ops)
-            hunks = hunk_parser.parse_hunks()
+            hunks = hunk_parser.get_diff_hunks()
 
             # Verify results
             assert len(hunks) == len(files_to_modify), (
@@ -328,7 +328,7 @@ class TestPatchGenerationStress:
 
         def create_and_test_repository(
             thread_id: int, operation_id: int
-        ) -> Dict[str, any]:
+        ) -> Dict[str, Any]:
             """Create repository and perform operations in worker thread."""
             with temporary_test_repository(
                 f"concurrent_{thread_id}_{operation_id}"
@@ -340,7 +340,7 @@ class TestPatchGenerationStress:
 
                 # Parse hunks
                 hunk_parser = HunkParser(repo.git_ops)
-                hunks = hunk_parser.parse_hunks()
+                hunks = hunk_parser.get_diff_hunks()
 
                 return {
                     "thread_id": thread_id,
@@ -384,7 +384,7 @@ class TestPatchGenerationStress:
 
                 # Parse hunks
                 hunk_parser = HunkParser(stress_repo.git_ops)
-                hunks = hunk_parser.parse_hunks()
+                hunks = hunk_parser.get_diff_hunks()
 
                 # Record memory after each iteration
                 current_memory = tracker.record_measurement()
@@ -422,7 +422,7 @@ class TestPatchGenerationStress:
 
                     # Try to parse hunks
                     hunk_parser = HunkParser(repo.git_ops)
-                    hunk_parser.parse_hunks()
+                    hunk_parser.get_diff_hunks()
 
                 return True
 
@@ -466,7 +466,7 @@ class TestPatchGenerationStress:
                 # Parse hunks periodically
                 if i % 5 == 4:
                     hunk_parser = HunkParser(stress_repo.git_ops)
-                    hunks = hunk_parser.parse_hunks()
+                    hunks = hunk_parser.get_diff_hunks()
                     del hunks, hunk_parser
 
                 # Record memory every 10 iterations
@@ -508,7 +508,7 @@ def test_patch_generation_performance_benchmark(stress_repo: StressTestRepositor
     # Benchmark hunk parsing
     start_time = time.time()
     hunk_parser = HunkParser(stress_repo.git_ops)
-    hunks = hunk_parser.parse_hunks()
+    hunks = hunk_parser.get_diff_hunks()
     elapsed_time = time.time() - start_time
 
     # Performance assertions
@@ -529,15 +529,18 @@ def test_memory_usage_benchmark(stress_repo: StressTestRepository):
 
         # Perform operations
         hunk_parser = HunkParser(stress_repo.git_ops)
-        hunk_parser.parse_hunks()
+        hunk_parser.get_diff_hunks()
 
         # Measure memory
         memory_increase = tracker.get_memory_increase()
 
         # Memory usage assertion
-        assert memory_increase < 50, (
-            f"Memory usage benchmark failed: {memory_increase:.1f}MB"
-        )
+        if memory_increase is not None:
+            assert memory_increase < 50, (
+                f"Memory usage benchmark failed: {memory_increase:.1f}MB"
+            )
+        else:
+            assert False, "Memory tracking failed: no memory increase data"
 
         print(f"Memory usage benchmark: {memory_increase:.1f}MB increase")
 

@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
-from typing import Dict
+from typing import Any, Dict
 import pytest
 
 from git_autosquash.git_ops import GitOps
@@ -53,7 +53,7 @@ class ErrorRecoveryBuilder:
             check=True,
         )
 
-    def create_rebase_conflict_scenario(self) -> Dict[str, str]:
+    def create_rebase_conflict_scenario(self) -> Dict[str, Any]:
         """Create scenario that will cause rebase conflicts."""
 
         # Create base file
@@ -167,7 +167,7 @@ void conflicting_new_function() {
             "conflicting_commit": conflicting_commit,
         }
 
-    def create_incomplete_operation_scenario(self) -> Dict[str, str]:
+    def create_incomplete_operation_scenario(self) -> Dict[str, Any]:
         """Create scenario for testing incomplete operations."""
 
         # Create multiple files that will be modified
@@ -238,7 +238,7 @@ void conflicting_new_function() {
             "files": list(files_content.keys()),
         }
 
-    def create_working_tree_dirty_scenario(self) -> Dict[str, str]:
+    def create_working_tree_dirty_scenario(self) -> Dict[str, Any]:
         """Create scenario with dirty working tree for stash testing."""
 
         # Create clean base

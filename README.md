@@ -13,19 +13,19 @@ git-autosquash is a powerful tool that analyzes your working directory changes a
 
 **Perfect for common scenarios like**: You've been working on a feature branch and now need to fix lint errors, test failures, or code review feedback. Rather than committing all fixes into a final "cleanup" commit, git-autosquash lets you push each fix back to the original commit that introduced the issue, maintaining clean and logical git history.
 
-## ✨ Key Features
+## Key Features
 
-- **🎯 Smart Targeting**: Uses git blame to find the exact commits where code was last modified
-- **💻 Interactive TUI**: Rich terminal interface with syntax-highlighted diff viewer  
-- **🛡️ Safety First**: Default unapproved state with user confirmation for all changes
-- **🔧 Conflict Resolution**: Clear guidance when merge conflicts occur during rebase
-- **📊 Progress Tracking**: Real-time feedback with detailed commit summaries
-- **↩️ Rollback Support**: Full git reflog integration for easy recovery
+- **Smart Targeting**: Uses git blame to find the exact commits where code was last modified
+- **Interactive TUI**: Rich terminal interface with syntax-highlighted diff viewer  
+- **Safety First**: Default unapproved state with user confirmation for all changes
+- **Conflict Resolution**: Clear guidance when merge conflicts occur during rebase
+- **Progress Tracking**: Real-time feedback with detailed commit summaries
+- **Rollback Support**: Full git reflog integration for easy recovery
 
 ### Feature Demonstrations
 
 <details>
-<summary>🎯 Smart Targeting with Git Blame Analysis</summary>
+<summary>Smart Targeting with Git Blame Analysis</summary>
 
 ![Smart Targeting](screenshots/readme/feature_smart_targeting.png)
 
@@ -33,7 +33,7 @@ git-autosquash analyzes git blame to understand exactly which commits last modif
 </details>
 
 <details>
-<summary>💻 Interactive Terminal Interface</summary>
+<summary>Interactive Terminal Interface</summary>
 
 ![Interactive TUI](screenshots/readme/feature_interactive_tui.png)
 
@@ -41,14 +41,14 @@ Full keyboard navigation with syntax highlighting, real-time previews, and intui
 </details>
 
 <details>
-<summary>🛡️ Safety-First Approach</summary>
+<summary>Safety-First Approach</summary>
 
 ![Safety First](screenshots/readme/feature_safety_first.png)
 
 All changes start unapproved by default. Full git reflog integration and backup creation ensure you can always recover if something goes wrong.
 </details>
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Installation
 
@@ -76,7 +76,7 @@ git-autosquash
 # Changes are automatically squashed into their target commits!
 ```
 
-## 📝 Workflow Example
+## Workflow Example
 
 Here's what a typical git-autosquash session looks like:
 
@@ -106,7 +106,7 @@ Here's what a typical git-autosquash session looks like:
 ### After: Clean History
 ![After git-autosquash](screenshots/readme/comparison_after_autosquash.png)
 
-## 🔄 How It Works
+## How It Works
 
 1. **Analysis**: Parses your working directory changes into structured hunks
 2. **Blame Investigation**: Uses `git blame` to find which commits last modified each line
@@ -119,7 +119,7 @@ Here's what a typical git-autosquash session looks like:
 git-autosquash gracefully handles complex scenarios:
 
 <details>
-<summary>🆕 New Files Without History</summary>
+<summary>New Files Without History</summary>
 
 ![New File Fallback](screenshots/readme/fallback_new_file_fallback.png)
 
@@ -127,7 +127,7 @@ When files have no git blame history, git-autosquash offers intelligent fallback
 </details>
 
 <details>
-<summary>❓ Ambiguous Blame Results</summary>
+<summary>Ambiguous Blame Results</summary>
 
 ![Ambiguous Blame](screenshots/readme/fallback_ambiguous_blame_fallback.png)
 
@@ -135,14 +135,14 @@ When multiple commits could be valid targets, you get clear options to choose th
 </details>
 
 <details>
-<summary>✏️ Manual Override Capability</summary>
+<summary>Manual Override Capability</summary>
 
 ![Manual Override](screenshots/readme/fallback_manual_override.png)
 
 Sometimes you know better than the algorithm - easily override suggestions when you have the full context.
 </details>
 
-## 🎯 Use Cases
+## Use Cases
 
 ### Perfect for:
 - **Bug fixes during feature work** - Squash fixes back into original implementations
@@ -166,7 +166,7 @@ git-autosquash
 # Result: Clean history where each commit tells complete story
 ```
 
-## ⚙️ Command-Line Options
+## Command-Line Options
 
 ```bash
 git-autosquash [OPTIONS]
@@ -182,7 +182,7 @@ Options:
 - **Standard**: Uses git's default hunk boundaries (faster, good for most cases)
 - **Line-by-line**: Analyzes each changed line individually (slower, maximum precision)
 
-## 📚 Documentation
+## Documentation
 
 **Complete documentation is available at: https://andrewleech.github.io/git-autosquash/**
 
@@ -201,7 +201,7 @@ Options:
 - **Technical**: Architecture, development guide, testing strategy
 - **Reference**: CLI options, configuration, FAQ, API documentation
 
-## 🏗️ System Architecture
+## System Architecture
 
 Git-autosquash employs a layered architecture with multiple execution strategies:
 
@@ -272,7 +272,7 @@ graph TD
 
 For detailed architecture documentation, see [Software Architecture Document](docs/technical/software_architecture_document.md).
 
-## 🔧 Advanced Features
+## Advanced Features
 
 ### Conflict Resolution
 ![Conflict Resolution](screenshots/readme/feature_conflict_resolution.png)
@@ -284,7 +284,7 @@ When conflicts occur during rebase, git-autosquash provides clear guidance and o
 
 Real-time feedback keeps you informed during the rebase process with detailed progress indicators.
 
-## 🚀 Development Status
+## Development Status
 
 git-autosquash is actively developed and functional. All core features are implemented and tested:
 
@@ -297,7 +297,7 @@ git-autosquash is actively developed and functional. All core features are imple
 - ✅ Full test suite with 400+ passing tests
 - ✅ Screenshot capture system for documentation
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! Please see our [Development Guide](https://andrewleech.github.io/git-autosquash/technical/development/) for details on:
 
@@ -341,18 +341,18 @@ uv run python capture_readme_screenshots.py
 
 See `TUI_SCREENSHOT_GUIDE.md` for complete documentation of the screenshot system.
 
-## 📄 License
+## License
 
 [License information to be added]
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - Built with [Textual](https://textual.textualize.io/) for the rich terminal interface
 - Powered by [uv](https://github.com/astral-sh/uv) for fast dependency management  
 - Documentation built with [MkDocs Material](https://squidfunk.github.io/mkdocs-material/)
 - Screenshot system uses [pyte](https://github.com/selectel/pyte) for terminal emulation
 
-## 📞 Support
+## Support
 
 - **Documentation**: https://andrewleech.github.io/git-autosquash/
 - **Issues**: [GitHub Issues](https://github.com/andrewleech/git-autosquash/issues)

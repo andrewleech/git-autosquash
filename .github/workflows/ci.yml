@@ -33,7 +33,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv pip install --system -e ".[dev]"
+          uv sync --dev
 
       - name: Run ruff linting
         run: |
@@ -77,7 +77,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv pip install --system -e ".[dev]"
+          uv sync --dev
 
       - name: Run pre-commit hooks
         run: |
