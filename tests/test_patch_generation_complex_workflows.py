@@ -143,8 +143,8 @@ void function_b() {
             text=True,
         )
 
-        # Return to main branch and create merge
-        subprocess.run(["git", "checkout", "main"], cwd=self.repo_path, check=True)
+        # Return to the base commit to continue from there
+        subprocess.run(["git", "checkout", base_commit], cwd=self.repo_path, check=True)
 
         # Merge branch1 first (this should succeed)
         subprocess.run(
@@ -338,8 +338,10 @@ void setup() {
             "cherry_pick_test.c", pattern_changed_content, "Update all patterns"
         )
 
-        # Switch back to main branch
-        subprocess.run(["git", "checkout", "main"], cwd=builder.repo_path, check=True)
+        # Switch back to base commit to continue from there
+        subprocess.run(
+            ["git", "checkout", base_commit], cwd=builder.repo_path, check=True
+        )
 
         # Test cherry-picking pattern_commit to base_commit (where context differs)
         git_ops = GitOps(str(builder.repo_path))
@@ -389,8 +391,12 @@ void utility_function() {
         # Create merge conflict scenario
         commits = builder.create_merge_conflict_scenario(base_commit)
 
-        # Create a commit on main that changes the pattern
-        subprocess.run(["git", "checkout", "main"], cwd=builder.repo_path, check=True)
+        # Create a commit on the merge commit that changes the pattern
+        subprocess.run(
+            ["git", "checkout", commits["merge_commit"]],
+            cwd=builder.repo_path,
+            check=True,
+        )
 
         pattern_update_content = """// Multi-branch scenario file
 #if NEW_CONFIG
