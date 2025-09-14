@@ -83,8 +83,8 @@ class BatchGitOperations:
                 self._branch_commits_cache = []
             else:
                 commits = [line.strip() for line in output.split("\n") if line.strip()]
-                # Reverse to get most recent first
-                self._branch_commits_cache = list(reversed(commits))
+                # Keep chronological order (oldest first) to align with git's natural processing
+                self._branch_commits_cache = commits
 
             return self._branch_commits_cache
 

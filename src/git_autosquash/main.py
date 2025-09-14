@@ -220,11 +220,25 @@ def _execute_rebase(approved_mappings, git_ops, merge_base, resolver) -> bool:
         for file_path in e.conflicted_files:
             print(f"  {file_path}")
 
-        print("\nTo resolve conflicts:")
-        print("1. Edit the conflicted files to resolve conflicts")
-        print("2. Stage the resolved files: git add <files>")
-        print("3. Continue the rebase: git rebase --continue")
-        print("4. Or abort the rebase: git rebase --abort")
+        # Check if rebase is actually still in progress
+        try:
+            status_result = git_ops.run_git_command(["status", "--porcelain"])
+            rebase_in_progress = rebase_manager.is_rebase_in_progress()
+            print(f"DEBUG: Rebase in progress: {rebase_in_progress}")
+            print(f"DEBUG: Working tree status: {status_result.stdout.strip()}")
+        except Exception as debug_e:
+            print(f"DEBUG: Failed to check rebase status: {debug_e}")
+
+        if rebase_manager.is_rebase_in_progress():
+            print("\nTo resolve conflicts:")
+            print("1. Edit the conflicted files to resolve conflicts")
+            print("2. Stage the resolved files: git add <files>")
+            print("3. Continue the rebase: git rebase --continue")
+            print("4. Or abort the rebase: git rebase --abort")
+        else:
+            print("\nRebase was automatically aborted due to conflicts.")
+            print("Repository has been restored to its original state.")
+            print("This prevents manual conflict resolution but keeps the repository clean.")
 
         return False
 
@@ -403,12 +417,13 @@ def get_merge_base(git_ops: GitOps, current_branch: str) -> str:
     return merge_base
 
 
-def check_repository_state(git_ops: GitOps, merge_base: str) -> None:
+def check_repository_state(git_ops: GitOps, merge_base: str, auto_accept: bool = False) -> None:
     """Check repository state and handle uncommitted changes.
 
     Args:
         git_ops: GitOps instance
         merge_base: Merge base commit hash
+        auto_accept: If True, automatically continue without user prompt
 
     Raises:
         SystemExit: If repository state is invalid
@@ -435,10 +450,13 @@ def check_repository_state(git_ops: GitOps, merge_base: str) -> None:
             # This shouldn't happen if is_clean is False, but handle it gracefully
             pass
         else:
-            choice = _get_user_choice_for_uncommitted_changes()
-            if choice != "continue":
-                print("Operation cancelled.")
-                sys.exit(0)
+            if auto_accept:
+                print("✓ Auto-accepting uncommitted changes (will be temporarily stashed)")
+            else:
+                choice = _get_user_choice_for_uncommitted_changes()
+                if choice != "continue":
+                    print("Operation cancelled.")
+                    sys.exit(0)
 
 
 def process_hunks_and_mappings(
@@ -668,7 +686,7 @@ def main() -> None:
         git_ops = GitOps()
         current_branch = validate_git_environment(git_ops)
         merge_base = get_merge_base(git_ops, current_branch)
-        check_repository_state(git_ops, merge_base)
+        check_repository_state(git_ops, merge_base, args.auto_accept)
 
         # Phase 3: Process hunks and create mappings
         automatic_mappings, fallback_mappings = process_hunks_and_mappings(

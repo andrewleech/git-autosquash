@@ -20,6 +20,7 @@ class GitStateManager:
         self._stash_refs: List[str] = []
         self._original_branch: Optional[str] = None
         self._cleanup_actions: List[Callable[[], None]] = []
+        self._stash_creation_time: Optional[float] = None
 
     def save_current_state(self) -> GitResult[str]:
         """Save the current git state and return a stash reference."""
@@ -29,20 +30,27 @@ class GitStateManager:
             if success:
                 self._original_branch = branch.strip()
 
-            # Create stash with untracked files
+            # Create stash without untracked files to avoid restore conflicts
             success, output = self.git_ops._run_git_command(
                 "stash",
                 "push",
-                "--include-untracked",
                 "--message",
                 "git-autosquash temporary state",
             )
 
             if success:
-                # Extract stash reference from output
-                stash_ref = "stash@{0}"  # Latest stash
+                # Extract stash reference from output - git stash returns SHA
+                # Output format: "Saved working directory and index state WIP on branch: message"
+                # But we need to use stash@{0} since that's the latest stash created
+                # However, we must pop it immediately or track it carefully to avoid conflicts
+                stash_ref = "stash@{0}"  # Latest stash (the one we just created)
                 self._stash_refs.append(stash_ref)
                 self.logger.debug(f"Saved git state to {stash_ref}")
+
+                # CRITICAL: Store creation timestamp to verify this is our stash
+                import time
+                self._stash_creation_time = time.time()
+
                 return Ok(stash_ref)
             else:
                 error = GitOperationError(
@@ -58,9 +66,39 @@ class GitStateManager:
             )
             return Err(error)
 
+    def _verify_stash_is_ours(self, stash_ref: str) -> bool:
+        """Verify that the stash reference points to a stash we created."""
+        try:
+            # Check stash message to see if it's ours
+            success, output = self.git_ops._run_git_command("stash", "show", "-s", stash_ref)
+
+            if success and "git-autosquash temporary state" in output:
+                return True
+
+            # Also check if it's in our tracked stashes
+            if stash_ref in self._stash_refs:
+                return True
+
+            self.logger.warning(f"Stash {stash_ref} does not appear to be created by git-autosquash")
+            return False
+
+        except Exception as e:
+            self.logger.warning(f"Could not verify stash ownership: {e}")
+            return False
+
     def restore_state(self, stash_ref: str) -> GitResult[bool]:
         """Restore git state from a stash reference."""
         try:
+            # CRITICAL: Verify this is our stash before restoring
+            if not self._verify_stash_is_ours(stash_ref):
+                error = GitOperationError(
+                    operation="restore_state",
+                    message=f"SAFETY: Refusing to restore stash {stash_ref} - not created by current git-autosquash operation",
+                    command=f"git stash pop {stash_ref}",
+                    stderr="Stash verification failed",
+                )
+                return Err(error)
+
             # Apply the stash
             success, output = self.git_ops._run_git_command("stash", "pop", stash_ref)
 

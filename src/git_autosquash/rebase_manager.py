@@ -91,8 +91,11 @@ class RebaseManager:
 
             return True
 
+        except RebaseConflictError:
+            # Don't cleanup on rebase conflicts - let user resolve manually
+            raise
         except Exception:
-            # Cleanup on any error
+            # Cleanup on any other error
             self._cleanup_on_error()
             raise
 
@@ -119,24 +122,24 @@ class RebaseManager:
         return commit_hunks
 
     def _get_commit_order(self, commit_hashes: Set[str]) -> List[str]:
-        """Get commits in git topological order (oldest first).
+        """Get commits in git topological order (newest first).
 
         Args:
             commit_hashes: Set of commit hashes to order
 
         Returns:
-            List of commit hashes in git topological order (oldest first)
+            List of commit hashes in git topological order (newest first)
         """
         # Lazy initialize batch operations
         if self._batch_ops is None:
             self._batch_ops = BatchGitOperations(self.git_ops, self.merge_base)
 
-        # Get all branch commits in topological order (newest first)
+        # Get all branch commits in chronological order (oldest first)
         all_branch_commits = self._batch_ops.get_branch_commits()
 
-        # Filter to only the commits we need and reverse to get oldest first
+        # Filter to only the commits we need, keeping chronological order
         ordered_commits = []
-        for commit_hash in reversed(all_branch_commits):
+        for commit_hash in all_branch_commits:
             if commit_hash in commit_hashes:
                 ordered_commits.append(commit_hash)
 
@@ -304,43 +307,6 @@ class RebaseManager:
         except IOError as e:
             raise subprocess.SubprocessError(f"Failed to write {file_path}: {e}")
 
-    def _apply_single_hunk_to_content(self, content: str, hunk: DiffHunk) -> str:
-        """Apply a single hunk's changes to file content.
-
-        Args:
-            content: Original file content
-            hunk: Hunk to apply
-
-        Returns:
-            Modified content with hunk changes applied
-        """
-        # For this specific case, we know the hunks are simple replacements
-        # MICROPY_PY___FILE__ -> MICROPY_MODULE___FILE__
-
-        # Extract the actual change from the hunk lines
-        old_pattern = None
-        new_replacement = None
-
-        for line in hunk.lines:
-            if line.startswith("-") and "MICROPY_PY___FILE__" in line:
-                # Extract the line without the '-' prefix and clean whitespace
-                old_pattern = line[1:].strip()
-            elif line.startswith("+") and "MICROPY_MODULE___FILE__" in line:
-                # Extract the line without the '+' prefix and clean whitespace
-                new_replacement = line[1:].strip()
-
-        if old_pattern and new_replacement:
-            print(f"DEBUG: Replacing '{old_pattern}' with '{new_replacement}'")
-            # Use exact string replacement
-            modified = content.replace(old_pattern, new_replacement)
-            if modified != content:
-                print("DEBUG: Successfully applied replacement")
-                return modified
-            else:
-                print("DEBUG: Warning: No replacement made - pattern not found")
-
-        print("DEBUG: Could not extract clear replacement pattern from hunk")
-        return content
 
     def _consolidate_hunks_by_file(
         self, hunks: List[DiffHunk]
@@ -436,9 +402,7 @@ class RebaseManager:
         )
 
         # Group hunks by file
-        files_to_hunks: Dict[str, List[DiffHunk]] = self._consolidate_hunks_by_file(
-            hunks
-        )
+        files_to_hunks: Dict[str, List[DiffHunk]] = self._consolidate_hunks_by_file(hunks)
 
         patch_lines = []
 
@@ -448,27 +412,13 @@ class RebaseManager:
             # Add file header
             patch_lines.extend([f"--- a/{file_path}", f"+++ b/{file_path}"])
 
-            # Read the file content from the target commit state
+            # Read the current file content to find correct line numbers
             try:
-                # Use git show to get file content from target commit
-                show_result = self.git_ops.run_git_command(
-                    ["show", f"{target_commit}:{file_path}"]
-                )
-                if show_result.returncode != 0:
-                    print(
-                        f"DEBUG: Failed to read {file_path} from commit {target_commit[:8]}: {show_result.stderr}"
-                    )
-                    continue
-
-                file_content = show_result.stdout
-                file_lines = file_content.splitlines(keepends=True)
-                print(
-                    f"DEBUG: Read {len(file_lines)} lines from {file_path} at commit {target_commit[:8]}"
-                )
-            except Exception as e:
-                print(
-                    f"DEBUG: Failed to read {file_path} from commit {target_commit[:8]}: {e}"
-                )
+                with open(file_path, "r") as f:
+                    file_lines = f.readlines()
+                print(f"DEBUG: Read {len(file_lines)} lines from {file_path}")
+            except IOError as e:
+                print(f"DEBUG: Failed to read {file_path}: {e}")
                 continue
 
             # Track which lines we've already used to prevent duplicates
@@ -489,13 +439,18 @@ class RebaseManager:
                 target_line_num = self._find_target_with_context(
                     change, file_lines, used_lines
                 )
-                if target_line_num:
+
+                if target_line_num is not None:
                     used_lines.add(target_line_num)
-                    corrected_hunk = self._create_corrected_hunk_for_change(
+                    hunk_lines = self._create_corrected_hunk_for_change(
                         change, target_line_num, file_lines
                     )
-                    if corrected_hunk:
-                        patch_lines.extend(corrected_hunk)
+                    patch_lines.extend(hunk_lines)
+                    print(f"DEBUG: Created corrected hunk at line {target_line_num}")
+                else:
+                    print(
+                        f"DEBUG: Could not find target for change: {change['old_line'][:50]}..."
+                    )
 
         return "\n".join(patch_lines) + "\n"
 
@@ -514,9 +469,9 @@ class RebaseManager:
         """
         new_line = change["new_line"]
 
-        # Create context around the target line (3 lines before and after)
-        context_start = max(1, target_line_num - 3)
-        context_end = min(len(file_lines), target_line_num + 3)
+        # Create context around the target line (6 lines before and after for better resilience)
+        context_start = max(1, target_line_num - 6)
+        context_end = min(len(file_lines), target_line_num + 6)
 
         print(
             f"DEBUG: Creating hunk for change at line {target_line_num}, context {context_start}-{context_end}"
@@ -550,7 +505,7 @@ class RebaseManager:
         return hunk_lines
 
     def _generate_rebase_todo(self, target_commit: str) -> str:
-        """Generate rebase todo list with target commit marked for editing and commits after it as pick.
+        """Generate rebase todo list with target commit marked for editing.
 
         Args:
             target_commit: Commit to mark for editing
@@ -558,10 +513,32 @@ class RebaseManager:
         Returns:
             Rebase todo content
         """
-        # Get commits from target_commit^ to HEAD
-        result = self.git_ops.run_git_command(
-            ["rev-list", "--reverse", f"{target_commit}^..HEAD"]
+        # Check if target commit is reachable from HEAD
+        reachable_result = self.git_ops.run_git_command(
+            ["merge-base", "--is-ancestor", target_commit, "HEAD"]
         )
+
+        if reachable_result.returncode == 0:
+            # Target commit is an ancestor of HEAD - use normal range
+            result = self.git_ops.run_git_command(
+                ["rev-list", "--reverse", f"{target_commit}^..HEAD"]
+            )
+        else:
+            # Target commit is not in current branch history
+            # Find common ancestor and create range from there
+            merge_base_result = self.git_ops.run_git_command(
+                ["merge-base", target_commit, "HEAD"]
+            )
+
+            if merge_base_result.returncode == 0:
+                merge_base = merge_base_result.stdout.strip()
+                # Get commits from merge base to HEAD that include our target
+                result = self.git_ops.run_git_command(
+                    ["rev-list", "--reverse", f"{merge_base}..HEAD", target_commit]
+                )
+            else:
+                # No common ancestor found, fallback to simple edit
+                return f"edit {target_commit}\n"
 
         if result.returncode != 0:
             # Fallback to simple edit if rev-list fails
@@ -571,6 +548,15 @@ class RebaseManager:
             line.strip() for line in result.stdout.strip().split("\n") if line.strip()
         ]
 
+        # If no commits found, use simple edit
+        if not commit_list:
+            return f"edit {target_commit}\n"
+
+        # For now, always use comprehensive approach to avoid losing commits
+        # TODO: Implement proper conflict-avoiding strategy that preserves subsequent commits
+
+        # Use comprehensive rebase approach
+        print(f"DEBUG: Using comprehensive rebase approach for {target_commit[:8]} with {len(commit_list)} commits")
         todo_lines = []
         for commit_hash in commit_list:
             if commit_hash == target_commit:
@@ -579,6 +565,91 @@ class RebaseManager:
                 todo_lines.append(f"pick {commit_hash}")
 
         return "\n".join(todo_lines) + "\n"
+
+    def _commit_might_conflict_with_target(
+        self, commit_hash: str, target_commit: str, target_files: set = None
+    ) -> bool:
+        """Check if a commit might conflict with changes to the target commit.
+
+        Args:
+            commit_hash: Commit to check for conflicts
+            target_commit: Target commit being modified
+            target_files: Set of files being modified in target (optional, will be computed if not provided)
+
+        Returns:
+            True if commit might conflict with target modifications
+        """
+        # Get files modified by the potentially conflicting commit
+        result = self.git_ops.run_git_command(
+            ["diff-tree", "--no-commit-id", "--name-only", "-r", commit_hash]
+        )
+
+        if result.returncode != 0:
+            # If we can't determine files, assume potential conflict for safety
+            return True
+
+        commit_files = set(line.strip() for line in result.stdout.strip().split('\n') if line.strip())
+
+        # Get files modified in target commit if not provided
+        if target_files is None:
+            target_result = self.git_ops.run_git_command(
+                ["diff-tree", "--no-commit-id", "--name-only", "-r", target_commit]
+            )
+
+            if target_result.returncode != 0:
+                # If we can't determine target files, assume potential conflict
+                return True
+
+            target_files = set(line.strip() for line in target_result.stdout.strip().split('\n') if line.strip())
+
+        # Check for file overlap - if same files are modified, potential conflict
+        file_overlap = commit_files.intersection(target_files)
+
+        if file_overlap:
+            print(f"DEBUG: Potential conflict detected: commit {commit_hash[:8]} and target {target_commit[:8]} both modify: {', '.join(file_overlap)}")
+            return True
+
+        return False
+
+    def _should_use_simple_rebase(self, target_commit: str) -> bool:
+        """Determine if we should use simple rebase approach to avoid conflicts.
+
+        Args:
+            target_commit: Target commit being modified
+
+        Returns:
+            True if simple rebase approach should be used
+        """
+        # Check if there are subsequent commits that might conflict
+        result = self.git_ops.run_git_command(
+            ["rev-list", "--reverse", f"{target_commit}^..HEAD"]
+        )
+
+        if result.returncode != 0:
+            return False
+
+        commit_list = [
+            line.strip() for line in result.stdout.strip().split("\n") if line.strip()
+        ]
+
+        # Get target files once for efficiency
+        target_result = self.git_ops.run_git_command(
+            ["diff-tree", "--no-commit-id", "--name-only", "-r", target_commit]
+        )
+
+        if target_result.returncode != 0:
+            return False
+
+        target_files = set(line.strip() for line in target_result.stdout.strip().split('\n') if line.strip())
+
+        # Check if any subsequent commits might conflict
+        for commit_hash in commit_list:
+            if commit_hash != target_commit:
+                if self._commit_might_conflict_with_target(commit_hash, target_commit, target_files):
+                    print(f"DEBUG: Using simple rebase due to potential conflicts with subsequent commits")
+                    return True
+
+        return False
 
     def _create_corrected_hunk(
         self, hunk: DiffHunk, file_lines: List[str], file_path: str
@@ -621,9 +692,9 @@ class RebaseManager:
             print("DEBUG: Could not find target line in current file")
             return []
 
-        # Create context around the target line (3 lines before and after)
-        context_start = max(1, target_line_num - 3)
-        context_end = min(len(file_lines), target_line_num + 3)
+        # Create context around the target line (6 lines before and after for better resilience)
+        context_start = max(1, target_line_num - 6)
+        context_end = min(len(file_lines), target_line_num + 6)
 
         print(
             f"DEBUG: Creating hunk for lines {context_start}-{context_end}, changing line {target_line_num}"
@@ -698,8 +769,13 @@ class RebaseManager:
         Returns:
             True if rebase started successfully
         """
+        # Clean up any existing rebase state first
+        self._cleanup_rebase_state()
+
         # Create rebase todo that marks target commit for editing and picks all others
         todo_content = self._generate_rebase_todo(target_commit)
+        print(f"DEBUG: Generated todo content for {target_commit[:8]}:")
+        print(todo_content)
 
         # Write todo to temporary file
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
@@ -712,9 +788,16 @@ class RebaseManager:
             env["GIT_SEQUENCE_EDITOR"] = f"cp {todo_file}"
 
             # Start interactive rebase from target commit to include commits after it
+            print(f"DEBUG: Starting rebase with: git rebase -i {target_commit}^")
             result = self.git_ops.run_git_command(
                 ["rebase", "-i", f"{target_commit}^"], env=env
             )
+
+            print(f"DEBUG: Rebase command returned: {result.returncode}")
+            if result.stdout:
+                print(f"DEBUG: Rebase stdout: {result.stdout}")
+            if result.stderr:
+                print(f"DEBUG: Rebase stderr: {result.stderr}")
 
             if result.returncode != 0:
                 # Rebase failed to start
@@ -728,6 +811,18 @@ class RebaseManager:
                 os.unlink(todo_file)
             except OSError:
                 pass
+
+    def _cleanup_rebase_state(self) -> None:
+        """Clean up any existing rebase state that might interfere."""
+        # Check if there's an ongoing rebase
+        rebase_merge_dir = os.path.join(self.git_ops.repo_path, ".git", "rebase-merge")
+        rebase_apply_dir = os.path.join(self.git_ops.repo_path, ".git", "rebase-apply")
+
+        if os.path.exists(rebase_merge_dir) or os.path.exists(rebase_apply_dir):
+            print("DEBUG: Found existing rebase state, cleaning up...")
+            # Try to abort any existing rebase
+            self.git_ops.run_git_command(["rebase", "--abort"])
+            print("DEBUG: Cleaned up existing rebase state")
 
     def _apply_patch(self, patch_content: str) -> None:
         """Apply patch content to working directory.
@@ -744,12 +839,13 @@ class RebaseManager:
         try:
             # Apply patch using git apply with fuzzy matching for better context handling
             print(
-                f"DEBUG: Running git apply --ignore-space-change --whitespace=nowarn {patch_file}"
+                f"DEBUG: Running git apply --3way --ignore-whitespace --whitespace=nowarn {patch_file}"
             )
             result = self.git_ops.run_git_command(
                 [
                     "apply",
-                    "--ignore-space-change",
+                    "--3way",
+                    "--ignore-whitespace",
                     "--whitespace=nowarn",
                     patch_file,
                 ]
@@ -826,6 +922,9 @@ class RebaseManager:
 
         while retry_count < max_retries:
             result = self.git_ops.run_git_command(["rebase", "--continue"])
+            print(f"DEBUG: git rebase --continue returned: {result.returncode}")
+            print(f"DEBUG: git rebase --continue stdout: {result.stdout}")
+            print(f"DEBUG: git rebase --continue stderr: {result.stderr}")
 
             if result.returncode == 0:
                 # Rebase completed successfully
@@ -922,14 +1021,18 @@ class RebaseManager:
         Returns:
             True if rebase is active
         """
+        # Check for rebase directories that indicate an active rebase
+        rebase_merge_dir = os.path.join(self.git_ops.repo_path, ".git", "rebase-merge")
+        rebase_apply_dir = os.path.join(self.git_ops.repo_path, ".git", "rebase-apply")
+
+        if os.path.exists(rebase_merge_dir) or os.path.exists(rebase_apply_dir):
+            return True
+
+        # Also check git status output for rebase indicators
         try:
-            result = self.git_ops.run_git_command(["status", "--porcelain=v2"])
-            if result.returncode == 0:
-                # Look for rebase status indicators
-                lines = result.stdout.split("\n")
-                for line in lines:
-                    if line.startswith("# rebase"):
-                        return True
+            result = self.git_ops.run_git_command(["status"])
+            if result.returncode == 0 and "rebase in progress" in result.stdout:
+                return True
         except subprocess.SubprocessError:
             pass
 
