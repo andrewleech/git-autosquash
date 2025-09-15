@@ -247,8 +247,6 @@ class RebaseManager:
             self._abort_rebase()
             raise subprocess.SubprocessError(f"Failed to apply changes: {e}")
 
-
-
     def _consolidate_hunks_by_file(
         self, hunks: List[DiffHunk]
     ) -> Dict[str, List[DiffHunk]]:
@@ -343,7 +341,9 @@ class RebaseManager:
         )
 
         # Group hunks by file
-        files_to_hunks: Dict[str, List[DiffHunk]] = self._consolidate_hunks_by_file(hunks)
+        files_to_hunks: Dict[str, List[DiffHunk]] = self._consolidate_hunks_by_file(
+            hunks
+        )
 
         patch_lines = []
 
@@ -497,7 +497,9 @@ class RebaseManager:
         # TODO: Implement proper conflict-avoiding strategy that preserves subsequent commits
 
         # Use comprehensive rebase approach
-        print(f"DEBUG: Using comprehensive rebase approach for {target_commit[:8]} with {len(commit_list)} commits")
+        print(
+            f"DEBUG: Using comprehensive rebase approach for {target_commit[:8]} with {len(commit_list)} commits"
+        )
         todo_lines = []
         for commit_hash in commit_list:
             if commit_hash == target_commit:
@@ -529,7 +531,9 @@ class RebaseManager:
             # If we can't determine files, assume potential conflict for safety
             return True
 
-        commit_files = set(line.strip() for line in result.stdout.strip().split('\n') if line.strip())
+        commit_files = set(
+            line.strip() for line in result.stdout.strip().split("\n") if line.strip()
+        )
 
         # Get files modified in target commit if not provided
         if target_files is None:
@@ -541,13 +545,19 @@ class RebaseManager:
                 # If we can't determine target files, assume potential conflict
                 return True
 
-            target_files = set(line.strip() for line in target_result.stdout.strip().split('\n') if line.strip())
+            target_files = set(
+                line.strip()
+                for line in target_result.stdout.strip().split("\n")
+                if line.strip()
+            )
 
         # Check for file overlap - if same files are modified, potential conflict
         file_overlap = commit_files.intersection(target_files)
 
         if file_overlap:
-            print(f"DEBUG: Potential conflict detected: commit {commit_hash[:8]} and target {target_commit[:8]} both modify: {', '.join(file_overlap)}")
+            print(
+                f"DEBUG: Potential conflict detected: commit {commit_hash[:8]} and target {target_commit[:8]} both modify: {', '.join(file_overlap)}"
+            )
             return True
 
         return False
@@ -581,13 +591,21 @@ class RebaseManager:
         if target_result.returncode != 0:
             return False
 
-        target_files = set(line.strip() for line in target_result.stdout.strip().split('\n') if line.strip())
+        target_files = set(
+            line.strip()
+            for line in target_result.stdout.strip().split("\n")
+            if line.strip()
+        )
 
         # Check if any subsequent commits might conflict
         for commit_hash in commit_list:
             if commit_hash != target_commit:
-                if self._commit_might_conflict_with_target(commit_hash, target_commit, target_files):
-                    print(f"DEBUG: Using simple rebase due to potential conflicts with subsequent commits")
+                if self._commit_might_conflict_with_target(
+                    commit_hash, target_commit, target_files
+                ):
+                    print(
+                        "DEBUG: Using simple rebase due to potential conflicts with subsequent commits"
+                    )
                     return True
 
         return False

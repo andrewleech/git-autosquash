@@ -128,7 +128,6 @@ def _simple_approval_fallback(mappings, resolver, commit_analyzer=None):
     return {"approved": approved_mappings, "ignored": ignored_mappings}
 
 
-
 def _create_patch_for_hunk(hunk) -> str:
     """Create a patch string for a single hunk.
 
@@ -218,7 +217,9 @@ def _execute_rebase(approved_mappings, git_ops, merge_base, resolver) -> bool:
         else:
             print("\nRebase was automatically aborted due to conflicts.")
             print("Repository has been restored to its original state.")
-            print("This prevents manual conflict resolution but keeps the repository clean.")
+            print(
+                "This prevents manual conflict resolution but keeps the repository clean."
+            )
 
         return False
 
@@ -397,7 +398,9 @@ def get_merge_base(git_ops: GitOps, current_branch: str) -> str:
     return merge_base
 
 
-def check_repository_state(git_ops: GitOps, merge_base: str, auto_accept: bool = False) -> None:
+def check_repository_state(
+    git_ops: GitOps, merge_base: str, auto_accept: bool = False
+) -> None:
     """Check repository state and handle uncommitted changes.
 
     Args:
@@ -431,7 +434,9 @@ def check_repository_state(git_ops: GitOps, merge_base: str, auto_accept: bool =
             pass
         else:
             if auto_accept:
-                print("✓ Auto-accepting uncommitted changes (will be temporarily stashed)")
+                print(
+                    "✓ Auto-accepting uncommitted changes (will be temporarily stashed)"
+                )
             else:
                 choice = _get_user_choice_for_uncommitted_changes()
                 if choice != "continue":
