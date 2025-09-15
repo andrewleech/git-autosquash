@@ -128,26 +128,6 @@ def _simple_approval_fallback(mappings, resolver, commit_analyzer=None):
     return {"approved": approved_mappings, "ignored": ignored_mappings}
 
 
-def _apply_ignored_hunks(ignored_mappings, git_ops) -> bool:
-    """Apply ignored hunks back to the working tree using complete git-native solution.
-
-    Uses the complete git-native handler with intelligent strategy selection:
-    1. Git worktree (best isolation, requires Git 2.5+)
-    2. Git index manipulation (good isolation, compatible)
-    3. Automatic fallback between strategies
-
-    Args:
-        ignored_mappings: List of ignored hunk to commit mappings
-        git_ops: GitOps instance
-
-    Returns:
-        True if successful, False if any hunks could not be applied
-    """
-    from git_autosquash.git_native_complete_handler import create_git_native_handler
-
-    handler = create_git_native_handler(git_ops)
-    return handler.apply_ignored_hunks(ignored_mappings)
-
 
 def _create_patch_for_hunk(hunk) -> str:
     """Create a patch string for a single hunk.
@@ -523,13 +503,9 @@ def handle_automatic_mappings(
     else:
         # Show automatic mappings and ask for confirmation
         _display_automatic_mappings(automatic_mappings)
-        success = _apply_ignored_hunks(automatic_mappings, git_ops)
-        if success:
-            print("✓ Successfully applied automatic mappings")
-            return [], []
-        else:
-            print("✗ Failed to apply some automatic mappings")
-            return [], automatic_mappings
+        # In non-auto-accept mode, return mappings for normal rebase processing
+        # instead of incorrectly applying them to working tree
+        return automatic_mappings, []
 
 
 def run_interactive_ui(
@@ -556,7 +532,13 @@ def run_interactive_ui(
         approved = app.run()
 
         if approved:
-            result = _apply_ignored_hunks(app.approved_mappings, git_ops)
+            # Use the same rebase execution path as auto-accept mode for consistency
+            result = _execute_rebase(
+                app.approved_mappings,
+                git_ops,
+                merge_base,
+                HunkTargetResolver(git_ops, merge_base),
+            )
             if result:
                 print("✓ Successfully applied selected hunks")
                 return True

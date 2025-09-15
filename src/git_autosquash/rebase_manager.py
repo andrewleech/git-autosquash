@@ -247,65 +247,6 @@ class RebaseManager:
             self._abort_rebase()
             raise subprocess.SubprocessError(f"Failed to apply changes: {e}")
 
-    def _apply_hunks_directly(self, hunks: List[DiffHunk]) -> None:
-        """Apply hunks directly to files by modifying the file content.
-
-        Args:
-            hunks: List of hunks to apply
-
-        Raises:
-            subprocess.SubprocessError: If file modifications fail
-        """
-        print(f"DEBUG: Starting direct application of {len(hunks)} hunks")
-
-        # Group hunks by file
-        files_to_hunks: Dict[str, List[DiffHunk]] = {}
-        for hunk in hunks:
-            if hunk.file_path not in files_to_hunks:
-                files_to_hunks[hunk.file_path] = []
-            files_to_hunks[hunk.file_path].append(hunk)
-
-        for file_path, file_hunks in files_to_hunks.items():
-            print(f"DEBUG: Processing file {file_path} with {len(file_hunks)} hunks")
-            self._apply_hunks_to_file(file_path, file_hunks)
-
-    def _apply_hunks_to_file(self, file_path: str, hunks: List[DiffHunk]) -> None:
-        """Apply hunks directly to a specific file.
-
-        Args:
-            file_path: Path to the file to modify
-            hunks: List of hunks to apply to this file
-
-        Raises:
-            subprocess.SubprocessError: If file modification fails
-        """
-
-        print(f"DEBUG: Reading current content of {file_path}")
-        try:
-            with open(file_path, "r") as f:
-                content = f.read()
-        except IOError as e:
-            raise subprocess.SubprocessError(f"Failed to read {file_path}: {e}")
-
-        print(f"DEBUG: Original file has {len(content.splitlines())} lines")
-
-        # Apply each hunk's changes
-        modified_content = content
-        for i, hunk in enumerate(hunks):
-            print(f"DEBUG: Applying hunk {i + 1} to {file_path}")
-            modified_content = self._apply_single_hunk_to_content(
-                modified_content, hunk
-            )
-
-        print(f"DEBUG: Modified file has {len(modified_content.splitlines())} lines")
-
-        # Write the modified content back
-        try:
-            with open(file_path, "w") as f:
-                f.write(modified_content)
-            print(f"DEBUG: Successfully wrote modified content to {file_path}")
-        except IOError as e:
-            raise subprocess.SubprocessError(f"Failed to write {file_path}: {e}")
 
 
     def _consolidate_hunks_by_file(
@@ -567,7 +508,7 @@ class RebaseManager:
         return "\n".join(todo_lines) + "\n"
 
     def _commit_might_conflict_with_target(
-        self, commit_hash: str, target_commit: str, target_files: set = None
+        self, commit_hash: str, target_commit: str, target_files: Optional[set] = None
     ) -> bool:
         """Check if a commit might conflict with changes to the target commit.
 
@@ -839,12 +780,11 @@ class RebaseManager:
         try:
             # Apply patch using git apply with fuzzy matching for better context handling
             print(
-                f"DEBUG: Running git apply --3way --ignore-whitespace --whitespace=nowarn {patch_file}"
+                f"DEBUG: Running git apply --ignore-whitespace --whitespace=nowarn {patch_file}"
             )
             result = self.git_ops.run_git_command(
                 [
                     "apply",
-                    "--3way",
                     "--ignore-whitespace",
                     "--whitespace=nowarn",
                     patch_file,
