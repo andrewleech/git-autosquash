@@ -63,7 +63,7 @@ class GitNativeCompleteHandler:
         # Initialize strategy handler
         self.index_handler = GitNativeIgnoreHandler(git_ops)
 
-        # Use index strategy (worktree strategy removed for simplification)
+        # Use index strategy as primary approach
         self.preferred_strategy = "index"
 
         self.logger.info(
@@ -123,27 +123,26 @@ class GitNativeCompleteHandler:
         Returns:
             Preferred strategy type (simplified to index only)
         """
-        # Check for explicit strategy override for backwards compatibility
+        # Check for explicit strategy override
         env_strategy = os.getenv("GIT_AUTOSQUASH_STRATEGY", "").lower()
-        if env_strategy == "worktree":
-            self.logger.warning(
-                "Worktree strategy no longer available, using index strategy"
-            )
-        elif env_strategy in ["index", "legacy"]:
+        if env_strategy in ["index", "legacy"]:
             self.logger.info(f"Using strategy from environment: {env_strategy}")
             return env_strategy  # type: ignore
 
-        # Simplified: always use index strategy
+        # Default to index strategy
         return "index"
 
     def _get_strategy_execution_order(self) -> List[StrategyType]:
         """Get the order of strategies to try based on preference and fallback.
 
         Returns:
-            List of strategies in execution order (simplified to index only)
+            List of strategies in execution order
         """
-        # Simplified: only index strategy available
-        return ["index"]
+        # Return preferred strategy first, with fallback to the other option
+        if self.preferred_strategy == "legacy":
+            return ["legacy"]
+        else:
+            return ["index"]
 
     def _execute_strategy(
         self, strategy: StrategyType, ignored_mappings: List[HunkTargetMapping]
@@ -172,7 +171,6 @@ class GitNativeCompleteHandler:
         """
         return {
             "preferred_strategy": self.preferred_strategy,
-            "worktree_available": False,  # Worktree strategy removed
             "strategies_available": ["index"],
             "execution_order": self._get_strategy_execution_order(),
             "environment_override": os.getenv("GIT_AUTOSQUASH_STRATEGY"),
@@ -188,13 +186,10 @@ class GitNativeCompleteHandler:
         if strategy in ["index", "legacy"]:
             self.preferred_strategy = strategy
             self.logger.info(f"Forced strategy changed to: {strategy}")
-        elif strategy == "worktree":
-            self.logger.warning(
-                "Worktree strategy no longer available, using index strategy"
-            )
-            self.preferred_strategy = "index"
         else:
-            raise ValueError(f"Invalid strategy: {strategy}")
+            raise ValueError(
+                f"Invalid strategy: {strategy}. Valid options: index, legacy"
+            )
 
 
 class GitNativeStrategyManager:

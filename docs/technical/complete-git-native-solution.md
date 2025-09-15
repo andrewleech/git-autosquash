@@ -1,18 +1,19 @@
 # Complete Git-Native Solution
 
+> **⚠️ ARCHITECTURAL UPDATE**: The multi-strategy approach described in this document has been simplified. The worktree strategy has been removed due to unnecessary complexity. The current implementation uses only the index strategy with legacy fallback.
+
 ## Overview
 
-The complete git-native solution provides intelligent, multi-strategy support for applying ignored hunks with automatic fallback capabilities. This implementation represents the culmination of our git-native investigation and provides production-ready functionality.
+The git-native solution provides intelligent hunk application with automatic fallback capabilities. The implementation has been simplified to focus on the most effective approach while maintaining production-ready functionality.
 
 ## Architecture
 
 ### Core Components
 
-1. **GitNativeCompleteHandler** - Main handler with strategy selection
-2. **GitWorktreeIgnoreHandler** - Worktree-based implementation (best isolation)
-3. **GitNativeIgnoreHandler** - Index-based implementation (good compatibility)  
-4. **GitNativeStrategyManager** - Strategy management utilities
-5. **CLI Strategy Commands** - User-facing configuration tools
+1. **GitNativeCompleteHandler** - Main handler with simplified strategy selection
+2. **GitNativeIgnoreHandler** - Index-based implementation (primary strategy)
+3. **GitNativeStrategyManager** - Strategy management utilities (simplified)
+4. **CLI Strategy Commands** - User-facing configuration tools (updated)
 
 ### Strategy Hierarchy
 

@@ -1,61 +1,39 @@
 # Git-Native Strategies User Guide
 
+> **⚠️ ARCHITECTURAL UPDATE**: The worktree strategy has been removed from git-autosquash due to architectural simplification. The system now uses a streamlined index-based approach that provides the same functionality with reduced complexity.
+
 ## Overview
 
-Git-autosquash now includes advanced git-native strategies that provide enhanced security, performance, and reliability when applying ignored hunks. The system automatically selects the best available strategy and provides intelligent fallback capabilities.
+Git-autosquash uses a simplified git-native strategy that provides enhanced security, performance, and reliability when applying ignored hunks. The system automatically uses the best available approach with no configuration required.
 
 ## Quick Start
 
-The git-native strategies work automatically with no configuration required:
+Git-autosquash now works automatically with no strategy configuration needed:
 
 ```bash
-# Run git-autosquash normally - it will auto-detect the best strategy
+# Run git-autosquash - it uses the optimized index strategy
 git autosquash
 ```
 
 ## Available Strategies
 
-### 1. Worktree Strategy (Recommended)
+### 1. Index Strategy (Default)
 
-**Best isolation and performance**
+- **Requirements**: Git 2.0 or later (widely available)
+- **Benefits**: Native git operations, precise hunk control, excellent performance
+- **Use Case**: All environments - development, CI/CD, production
 
-- **Requirements**: Git 2.5 or later
-- **Benefits**: Complete isolation, atomic operations, no index contamination
-- **Use Case**: Modern development environments
+The index strategy provides optimal balance of performance, safety, and compatibility.
 
-```bash
-# Force worktree strategy
-export GIT_AUTOSQUASH_STRATEGY=worktree
-git autosquash
-```
+### 2. Legacy Strategy (Fallback)
 
-### 2. Index Strategy (Compatible)
+**Manual patch application for older systems**
 
-**Excellent compatibility and performance**
+- **Requirements**: Any git version
+- **Benefits**: Maximum compatibility
+- **Use Case**: Very old git versions (pre-2.0)
 
-- **Requirements**: Any modern git version
-- **Benefits**: Native git operations, precise hunk control
-- **Use Case**: Fallback when worktree unavailable, CI/CD environments
-
-```bash
-# Force index strategy
-export GIT_AUTOSQUASH_STRATEGY=index
-git autosquash
-```
-
-### 3. Auto-Detection (Default)
-
-**Intelligent strategy selection**
-
-- Automatically selects worktree strategy on Git 2.5+
-- Falls back to index strategy on older versions
-- Provides optimal performance for your environment
-
-```bash
-# Use auto-detection (default behavior)
-unset GIT_AUTOSQUASH_STRATEGY
-git autosquash
-```
+The system automatically falls back to legacy mode only when necessary.
 
 ## Strategy Management Commands
 
@@ -69,19 +47,16 @@ Example output:
 ```
 Git-Autosquash Strategy Information
 ========================================
-Current Strategy: worktree
-Worktree Available: ✓
-Strategies Available: worktree, index
-Execution Order: worktree → index
+Current Strategy: index
+Strategies Available: index, legacy
 Environment Override: None
 
 Strategy Descriptions:
-  worktree - Complete isolation using git worktree (best)
-  index    - Index manipulation with stash backup (good)
+  index    - Index manipulation with stash backup (recommended)
   legacy   - Manual patch application (fallback)
 
 Configuration:
-  Set GIT_AUTOSQUASH_STRATEGY=worktree|index to override
+  Set GIT_AUTOSQUASH_STRATEGY=index|legacy to override
   Default: Auto-detect based on git capabilities
 ```
 
@@ -92,33 +67,17 @@ Configuration:
 git autosquash strategy-test
 
 # Test specific strategy
-git autosquash strategy-test --strategy worktree
-```
-
-Example output:
-```
-Testing Git-Native Strategy Compatibility
-=============================================
-
-Testing worktree strategy:
-  Compatibility: ✓
-  Basic Function: ✓
-
-Testing index strategy:
-  Compatibility: ✓
-  Basic Function: ✓
-
-Recommended Strategy: worktree
+git autosquash strategy-test --strategy index
 ```
 
 ### Configure Strategy
 
 ```bash
-# Set specific strategy
-git autosquash strategy-set worktree
+# Set specific strategy (rarely needed)
 git autosquash strategy-set index
+git autosquash strategy-set legacy
 
-# Return to auto-detection
+# Return to auto-detection (default)
 git autosquash strategy-set auto
 ```
 
@@ -126,34 +85,23 @@ git autosquash strategy-set auto
 
 ### Persistent Configuration
 
-Add to your shell profile (`~/.bashrc`, `~/.zshrc`, etc.):
+Add to your shell profile (`~/.bashrc`, `~/.zshrc`, etc.) if you need to override the default:
 
 ```bash
-# Always use worktree strategy
-export GIT_AUTOSQUASH_STRATEGY=worktree
-
-# Or always use index strategy
+# Force index strategy (rarely needed)
 export GIT_AUTOSQUASH_STRATEGY=index
 
-# Or use auto-detection (default)
+# Force legacy strategy (for very old git)
+export GIT_AUTOSQUASH_STRATEGY=legacy
+
+# Use auto-detection (default behavior)
 # unset GIT_AUTOSQUASH_STRATEGY
-```
-
-### Per-Project Configuration
-
-```bash
-# In specific repository
-echo 'export GIT_AUTOSQUASH_STRATEGY=index' >> .envrc
-
-# Or use direnv for automatic loading
-echo 'export GIT_AUTOSQUASH_STRATEGY=worktree' > .envrc
-direnv allow
 ```
 
 ### CI/CD Configuration
 
 ```yaml
-# GitHub Actions example
+# GitHub Actions example (usually not needed)
 - name: Configure git-autosquash
   run: echo "GIT_AUTOSQUASH_STRATEGY=index" >> $GITHUB_ENV
 
@@ -161,63 +109,32 @@ direnv allow
   run: git autosquash
 ```
 
-## Advanced Features
+## Performance
 
-### Fallback Behavior
+The simplified architecture provides excellent performance:
 
-The system automatically tries multiple strategies in order of preference:
+| Operation | Index Strategy | Legacy Strategy |
+|-----------|----------------|-----------------|
+| 100 hunks | 35ms | 80ms |
+| 500 hunks | 140ms | 320ms |
+| 1000 hunks | 280ms | 640ms |
+| Memory Usage | Very Low | High |
+| CPU Usage | Very Low | Medium |
 
-1. **Primary Strategy**: Your preferred/configured strategy
-2. **Fallback Strategy**: Alternative strategy if primary fails
-3. **Error Recovery**: Atomic restore from git stash on any failure
-
-```bash
-# Example: Worktree preferred, index fallback
-export GIT_AUTOSQUASH_STRATEGY=worktree
-git autosquash  # Tries worktree first, falls back to index if needed
-```
-
-### Performance Optimization
-
-Different strategies are optimized for different use cases:
-
-- **Small changes (1-50 hunks)**: Index strategy (35ms average)
-- **Medium changes (50-500 hunks)**: Either strategy performs well  
-- **Large changes (500+ hunks)**: Worktree strategy recommended (better isolation)
-
-### Security Features
+## Security Features
 
 All strategies include enhanced security:
 
 - **Path validation**: Prevents directory traversal attacks
-- **Secure temporary files**: Proper permissions on temporary worktrees
 - **Input sanitization**: All git commands are properly escaped
 - **Atomic recovery**: Safe rollback on any failure
+- **Secure operations**: Proper isolation of temporary files
 
 ## Troubleshooting
 
 ### Common Issues
 
-#### Worktree Strategy Not Available
-
-```bash
-# Check git version
-git --version
-
-# Worktree requires Git 2.5+
-# Solution: Upgrade git or use index strategy
-export GIT_AUTOSQUASH_STRATEGY=index
-```
-
-#### Permission Errors with Temporary Files
-
-```bash
-# Check temporary directory permissions
-ls -la /tmp/git-autosquash-*
-
-# Solution: Ensure proper /tmp permissions or use index strategy
-export GIT_AUTOSQUASH_STRATEGY=index
-```
+Most users will never need to configure strategies manually, as the system automatically selects the best option.
 
 #### Strategy Fails Unexpectedly
 
@@ -228,8 +145,8 @@ git autosquash strategy-test
 # View detailed information
 git autosquash strategy-info
 
-# Force alternative strategy
-export GIT_AUTOSQUASH_STRATEGY=index
+# Force alternative strategy if needed
+export GIT_AUTOSQUASH_STRATEGY=legacy
 ```
 
 ### Debug Mode
@@ -245,80 +162,41 @@ git autosquash
 git autosquash strategy-info
 ```
 
-### Error Recovery
+## Migration from Previous Versions
 
-All strategies include automatic error recovery:
+If you were using worktree strategy configuration:
 
-1. **Backup Creation**: Comprehensive git stash before operations
-2. **Atomic Operations**: Changes applied atomically per strategy
-3. **Automatic Rollback**: Repository restored to original state on failure
-4. **Cleanup**: Temporary files/worktrees cleaned up automatically
+1. **Remove old environment variables**: `unset GIT_AUTOSQUASH_STRATEGY`
+2. **No action required**: The index strategy provides equivalent functionality
+3. **Better performance**: Expect similar or faster execution times
+4. **Same reliability**: Atomic operations with automatic recovery remain
 
-## Performance Comparison
-
-| Operation | Worktree | Index | Legacy |
-|-----------|----------|--------|--------|
-| 100 hunks | 45ms | 35ms | 80ms |
-| 500 hunks | 180ms | 140ms | 320ms |
-| 1000 hunks | 350ms | 280ms | 640ms |
-| Memory Usage | Low | Very Low | High |
-| CPU Usage | Low | Very Low | Medium |
+Existing workflows remain unchanged - simply upgrade and enjoy the simplified architecture!
 
 ## Best Practices
 
 ### Development Environment
 
 ```bash
-# Use auto-detection for flexibility
+# Use default auto-detection (recommended)
 unset GIT_AUTOSQUASH_STRATEGY
-
-# Or prefer worktree for best isolation
-export GIT_AUTOSQUASH_STRATEGY=worktree
 ```
 
 ### CI/CD Environment
 
 ```bash
-# Use index strategy for reliability and compatibility
-export GIT_AUTOSQUASH_STRATEGY=index
-
-# Ensure clean environment
-git status --porcelain
-git stash list
+# Usually no configuration needed
+# The index strategy works well in all environments
+git autosquash
 ```
 
 ### Large Repositories
 
 ```bash
-# Use worktree strategy for better isolation
-export GIT_AUTOSQUASH_STRATEGY=worktree
-
-# Monitor performance
+# No special configuration needed
+# The index strategy handles large repos efficiently
 time git autosquash
 ```
-
-### Team Configuration
-
-Create a team-wide configuration file:
-
-```bash
-# .git-autosquash-config
-export GIT_AUTOSQUASH_STRATEGY=worktree
-
-# Source in shell profiles
-echo 'source .git-autosquash-config' >> ~/.bashrc
-```
-
-## Migration from Legacy
-
-If you were using an older version of git-autosquash:
-
-1. **No action required**: Git-native strategies work automatically
-2. **Better performance**: Expect faster execution times
-3. **Enhanced security**: Path validation prevents security issues
-4. **Improved reliability**: Atomic operations with automatic recovery
-
-Existing workflows remain unchanged - simply upgrade and enjoy the benefits!
 
 ## Support and Feedback
 
@@ -326,4 +204,4 @@ Existing workflows remain unchanged - simply upgrade and enjoy the benefits!
 - **Discussions**: Join discussions at [GitHub Discussions](https://github.com/andrewleech/git-autosquash/discussions)
 - **Documentation**: Full documentation at [Read the Docs](https://git-autosquash.readthedocs.io)
 
-The git-native strategies represent a significant advancement in git-autosquash's capabilities, providing production-ready performance and reliability for teams of all sizes.
+The simplified git-native architecture provides production-ready performance and reliability with reduced complexity and maintenance overhead.

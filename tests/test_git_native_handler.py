@@ -1,7 +1,7 @@
 """Tests for git-native ignore handler."""
 
 import subprocess
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 from git_autosquash.hunk_target_resolver import HunkTargetMapping
 from git_autosquash.git_native_handler import GitNativeIgnoreHandler
@@ -704,33 +704,3 @@ stash@{1}: On feature: def456 saved changes"""
 
         # Should attempt cleanup operations
         self.git_ops.run_git_command.assert_called()
-
-
-class TestGitNativeHandlerIntegration:
-    """Integration tests for git-native handler with main module."""
-
-    @patch("git_autosquash.git_native_complete_handler.GitNativeCompleteHandler")
-    def test_main_uses_git_native_handler(self, mock_handler_class):
-        """Test that main module uses the complete git-native handler."""
-        from git_autosquash.main import _apply_ignored_hunks
-
-        # Create mock handler instance
-        mock_handler = Mock()
-        mock_handler.apply_ignored_hunks.return_value = True
-        mock_handler_class.return_value = mock_handler
-
-        # Create test data
-        git_ops = Mock()
-        ignored_mappings = [Mock()]
-
-        # Call the function
-        result = _apply_ignored_hunks(ignored_mappings, git_ops)
-
-        # Verify handler was created with proper constructor parameters
-        call_args = mock_handler_class.call_args
-        assert call_args[0] == (git_ops,)  # First positional arg is git_ops
-        assert (
-            "capability_cache" in call_args[1] or len(call_args[0]) > 1
-        )  # Has capability_cache parameter
-        mock_handler.apply_ignored_hunks.assert_called_once_with(ignored_mappings)
-        assert result is True

@@ -5,13 +5,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Core Architecture
 
 ### Component Hierarchy
-The application follows a layered architecture with three main execution strategies:
+The application follows a simplified architecture with index-based execution:
 
 1. **GitNativeHandler** (src/git_autosquash/git_native_handler.py) - Simple in-place git operations
 2. **GitNativeCompleteHandler** (src/git_autosquash/git_native_complete_handler.py) - Full rebase completion with reflog safety
-3. **GitWorktreeHandler** (src/git_autosquash/git_worktree_handler.py) - Isolated worktree operations for complex scenarios
 
-Each strategy is implemented as an independent handler class with the GitNativeCompleteHandler orchestrating strategy selection and fallback based on complexity and safety requirements.
+The architecture has been simplified from the previous three-strategy approach. The worktree strategy has been removed as it provided no meaningful benefits over the index strategy while adding significant complexity.
 
 ### Key Component Interactions
 
@@ -30,8 +29,7 @@ main.py (entry point)
   │   └── UI Controllers (widget management)
   └── Strategy Execution (rebase management)
       ├── GitNativeCompleteHandler (orchestrator)
-      ├── GitNativeIgnoreHandler (index strategy)
-      └── GitWorktreeIgnoreHandler (worktree strategy)
+      └── GitNativeIgnoreHandler (index strategy)
 ```
 
 ### Performance & Security Infrastructure
@@ -123,14 +121,13 @@ git-autosquash includes hidden subcommands for managing execution strategies. Th
 ### `git-autosquash strategy-test [--strategy STRATEGY]`
 **Purpose**: Test strategy compatibility and functionality
 **Options**:
-- `--strategy worktree|index|legacy` - Test specific strategy (default: test all)
+- `--strategy index|legacy` - Test specific strategy (default: test all)
 **Use case**: Troubleshooting git-autosquash failures, verifying system compatibility
 
-### `git-autosquash strategy-set {worktree|index|legacy|auto}`
+### `git-autosquash strategy-set {index|legacy|auto}`
 **Purpose**: Configure preferred execution strategy
 **Strategies**:
-- `worktree` - Complete isolation using git worktree (best, requires git 2.5+)
-- `index` - Index manipulation with stash backup (good, requires git 2.0+)
+- `index` - Index manipulation with stash backup (recommended, requires git 2.0+)
 - `legacy` - Manual patch application (fallback for older git versions)
 - `auto` - Remove override, use auto-detection (default)
 **Effect**: Shows environment variable command to set strategy preference
@@ -142,14 +139,17 @@ git-autosquash includes hidden subcommands for managing execution strategies. Th
 - The commands are fully functional but not advertised to end users
 - Strategy selection happens automatically in `GitNativeCompleteHandler` based on git version and capabilities
 - Most users should never need these commands - they're for advanced troubleshooting
+- The worktree strategy has been removed due to architectural simplification
 
 ## Common Development Tasks
 
 ### Adding a New Execution Strategy
-1. Extend `CliStrategy` base class
-2. Implement `execute()` method with strategy-specific logic
-3. Add to strategy selection in `main.py`
+1. Extend the `GitNativeCompleteHandler` class
+2. Implement strategy-specific logic in new handler classes
+3. Add to strategy selection in `GitNativeCompleteHandler`
 4. Create corresponding tests in `tests/`
+
+Note: The architecture now uses a simplified index-based approach. Consider whether additional complexity is truly necessary before adding new strategies.
 
 ### Modifying TUI Components
 1. Enhanced UI components are in `tui/enhanced_*` files for fallback scenarios

@@ -2,7 +2,7 @@
 
 import subprocess
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 from git_autosquash.exceptions import handle_unexpected_error
 
@@ -10,13 +10,16 @@ from git_autosquash.exceptions import handle_unexpected_error
 class GitOps:
     """Handles git operations for repository analysis and validation."""
 
-    def __init__(self, repo_path: Optional[Path] = None) -> None:
+    def __init__(self, repo_path: Optional[Union[str, Path]] = None) -> None:
         """Initialize GitOps with optional repository path.
 
         Args:
             repo_path: Path to git repository. Defaults to current directory.
         """
-        self.repo_path = repo_path if repo_path is not None else Path.cwd()
+        if repo_path is None:
+            self.repo_path = Path.cwd()
+        else:
+            self.repo_path = Path(repo_path)
 
     def is_git_available(self) -> bool:
         """Check if git is installed and available.

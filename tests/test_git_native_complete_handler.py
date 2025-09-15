@@ -74,7 +74,7 @@ class TestGitNativeCompleteHandler:
             hunk=hunk, target_commit="abc123", confidence="high", blame_info=[]
         )
 
-        # Force index strategy (worktree no longer available)
+        # Force index strategy
         self.handler.force_strategy("index")
 
         # Mock successful index handler
@@ -88,38 +88,13 @@ class TestGitNativeCompleteHandler:
             assert result is True
             mock_index.assert_called_once_with([mapping])
 
-    def test_worktree_strategy_deprecated(self):
-        """Test that attempting to use deprecated worktree strategy falls back to index."""
-        hunk = DiffHunk(
-            file_path="test.py",
-            old_start=1,
-            old_count=1,
-            new_start=1,
-            new_count=2,
-            lines=["@@ -1,1 +1,2 @@", " existing line", "+new line"],
-            context_before=[],
-            context_after=[],
-        )
-        mapping = HunkTargetMapping(
-            hunk=hunk, target_commit="abc123", confidence="high", blame_info=[]
-        )
-
-        # Try to force worktree strategy (should fallback to index)
-        self.handler.force_strategy("worktree")
-
-        # Should now be using index strategy
-        assert self.handler.preferred_strategy == "index"
-
-        # Mock index success
-        with patch.object(
-            self.handler.index_handler, "apply_ignored_hunks"
-        ) as mock_index:
-            mock_index.return_value = True
-
-            result = self.handler.apply_ignored_hunks([mapping])
-
-            assert result is True
-            mock_index.assert_called_once_with([mapping])
+    def test_invalid_strategy_rejected(self):
+        """Test that invalid strategies are rejected."""
+        # Try to force invalid strategy
+        with pytest.raises(
+            ValueError, match="Invalid strategy: invalid. Valid options: index, legacy"
+        ):
+            self.handler.force_strategy("invalid")
 
     def test_index_strategy_fails(self):
         """Test handling when index strategy fails."""
@@ -164,7 +139,7 @@ class TestGitNativeCompleteHandler:
             hunk=hunk, target_commit="abc123", confidence="high", blame_info=[]
         )
 
-        # Force index strategy (worktree no longer available)
+        # Force index strategy
         self.handler.force_strategy("index")
 
         # Mock index raising exception
@@ -204,13 +179,13 @@ class TestGitNativeCompleteHandler:
 
     def test_force_strategy_change(self):
         """Test forcing strategy change at runtime."""
-        # Try worktree (deprecated, falls back to index)
-        self.handler.force_strategy("worktree")
-        assert self.handler.preferred_strategy == "index"  # Should fallback to index
-
         # Change to index explicitly
         self.handler.force_strategy("index")
         assert self.handler.preferred_strategy == "index"
+
+        # Change to legacy
+        self.handler.force_strategy("legacy")
+        assert self.handler.preferred_strategy == "legacy"
 
         # Invalid strategy should raise error
         with pytest.raises(ValueError):
@@ -228,7 +203,6 @@ class TestGitNativeCompleteHandler:
             info = handler.get_strategy_info()
 
             assert info["preferred_strategy"] == "index"
-            assert info["worktree_available"] is False  # Worktree removed
             assert "worktree" not in info["strategies_available"]
             assert "index" in info["strategies_available"]
             assert info["execution_order"] == ["index"]
@@ -241,12 +215,12 @@ class TestGitNativeCompleteHandler:
         order = self.handler._get_strategy_execution_order()
         assert order == ["index"]
 
-    def test_worktree_preferred_execution_order(self):
-        """Test execution order when worktree is preferred (deprecated)."""
-        self.handler.force_strategy("worktree")  # Falls back to index
+    def test_legacy_preferred_execution_order(self):
+        """Test execution order when legacy is preferred."""
+        self.handler.force_strategy("legacy")
 
         order = self.handler._get_strategy_execution_order()
-        assert order == ["index"]  # Only index strategy available
+        assert order == ["legacy"]
 
 
 class TestGitNativeStrategyManager:
@@ -294,16 +268,10 @@ class TestGitNativeStrategyManager:
 
         assert strategy == "index"
 
-    def test_validate_strategy_compatibility_worktree_available(self):
-        """Test strategy validation when worktree is available."""
-        self.git_ops._run_git_command.return_value = (True, "worktree add available")
+    def test_validate_strategy_compatibility_available_strategies(self):
+        """Test strategy validation for available strategies."""
+        self.git_ops._run_git_command.return_value = (True, "git available")
 
-        assert (
-            GitNativeStrategyManager.validate_strategy_compatibility(
-                self.git_ops, "worktree"
-            )
-            is True
-        )
         assert (
             GitNativeStrategyManager.validate_strategy_compatibility(
                 self.git_ops, "index"
@@ -317,16 +285,11 @@ class TestGitNativeStrategyManager:
             is True
         )
 
-    def test_validate_strategy_compatibility_worktree_unavailable(self):
-        """Test strategy validation when worktree is not available."""
+    def test_validate_strategy_compatibility_git_unavailable(self):
+        """Test strategy validation when git is not available."""
         self.git_ops._run_git_command.return_value = (False, "command not found")
 
-        assert (
-            GitNativeStrategyManager.validate_strategy_compatibility(
-                self.git_ops, "worktree"
-            )
-            is False
-        )
+        # All strategies should handle git unavailability gracefully
         assert (
             GitNativeStrategyManager.validate_strategy_compatibility(
                 self.git_ops, "index"
@@ -423,7 +386,6 @@ class TestCompleteHandlerIntegration:
             # Should respect environment variable
             assert handler.preferred_strategy == "index"
 
-            # Worktree no longer available as fallback
+            # Verify strategy info
             info = handler.get_strategy_info()
-            assert info["worktree_available"] is False
             assert info["execution_order"] == ["index"]

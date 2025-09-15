@@ -252,7 +252,6 @@ class TestPerformanceOptimizations:
         # Strategy info should include cache size
         info = handler.get_strategy_info()
         assert info["capability_cache_size"] == len(test_capabilities)
-        assert info["worktree_available"] is False  # Worktree removed
 
     def test_resource_manager_cleanup_guarantees(self) -> None:
         """Test that resource managers guarantee cleanup even on exceptions."""

@@ -1,5 +1,9 @@
 # Git Worktree Investigation for Enhanced Hunk Processing
 
+> **⚠️ DEPRECATED**: This investigation concluded that the worktree strategy provided no meaningful benefits over the index strategy while adding significant complexity. The worktree strategy has been removed from the codebase. This document is maintained for historical reference only.
+
+> **CONCLUSION**: After thorough investigation and implementation, the worktree strategy was determined to be unnecessary complexity. The index strategy provides equivalent functionality with better performance and simpler maintenance.
+
 ## Current Approach Analysis
 
 Our current git-native handler uses index manipulation within the main working tree:

@@ -1,10 +1,12 @@
 # Software Architecture Document
 ## Git-Autosquash Interactive Git Rebase Tool
 
-**Document Version:** 1.0  
-**Date:** August 29, 2025  
-**Prepared By:** Architecture Analysis Team  
-**Document Type:** Technical Architecture Specification  
+**Document Version:** 1.1
+**Date:** September 15, 2025
+**Prepared By:** Architecture Analysis Team
+**Document Type:** Technical Architecture Specification
+
+> **⚠️ ARCHITECTURAL UPDATE (v1.1)**: The worktree strategy has been removed from the codebase due to architectural simplification. This document reflects the historical architecture. The current system uses only index-based strategies (Native and Complete handlers).  
 
 ---
 
@@ -33,7 +35,7 @@ Git-Autosquash is a command-line tool that intelligently distributes working dir
 
 ### Key Architectural Features
 - **Layered Architecture**: Clear separation of concerns across CLI, business logic, git operations, and user interface layers
-- **Strategy Pattern**: Multiple execution strategies (Native, Complete, Worktree) for different operational scenarios
+- **Strategy Pattern**: Multiple execution strategies (Native, Complete) for different operational scenarios
 - **Safety-First Design**: Atomic operations, reflog tracking, and automatic rollback capabilities
 - **Interactive User Interface**: Terminal-based user interface with fallback mechanisms
 - **Batch Optimization**: Intelligent batching of git operations to minimize subprocess overhead

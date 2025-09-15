@@ -353,13 +353,24 @@ class RebaseManager:
             # Add file header
             patch_lines.extend([f"--- a/{file_path}", f"+++ b/{file_path}"])
 
-            # Read the current file content to find correct line numbers
+            # Read the file content from target commit to find correct line numbers
             try:
-                with open(file_path, "r") as f:
-                    file_lines = f.readlines()
-                print(f"DEBUG: Read {len(file_lines)} lines from {file_path}")
-            except IOError as e:
-                print(f"DEBUG: Failed to read {file_path}: {e}")
+                # Get file content at target commit
+                result = self.git_ops.run_git_command(
+                    ["show", f"{target_commit}:{file_path}"]
+                )
+                if result.returncode != 0:
+                    print(
+                        f"DEBUG: Failed to get {file_path} from {target_commit}: {result.stderr}"
+                    )
+                    continue
+
+                file_lines = result.stdout.splitlines(keepends=True)
+                print(
+                    f"DEBUG: Read {len(file_lines)} lines from {file_path} at {target_commit[:8]}"
+                )
+            except Exception as e:
+                print(f"DEBUG: Failed to read {file_path} from {target_commit}: {e}")
                 continue
 
             # Track which lines we've already used to prevent duplicates

@@ -33,9 +33,6 @@ def cmd_strategy_info(args: argparse.Namespace) -> int:
         print("Git-Autosquash Strategy Information")
         print("=" * 40)
         print(f"Current Strategy: {info['preferred_strategy']}")
-        print(
-            f"Worktree Available: {'✗ (removed for simplification)' if not info['worktree_available'] else '✓'}"
-        )
         print(f"Strategies Available: {', '.join(info['strategies_available'])}")
         print(f"Execution Order: {' → '.join(info['execution_order'])}")
 
@@ -51,7 +48,7 @@ def cmd_strategy_info(args: argparse.Namespace) -> int:
 
         print("\nConfiguration:")
         print("  Set GIT_AUTOSQUASH_STRATEGY=index|legacy to override")
-        print("  Default: Uses index strategy (worktree removed for simplification)")
+        print("  Default: Uses index strategy for optimal performance")
 
         return 0
 
@@ -85,13 +82,7 @@ def cmd_strategy_test(args: argparse.Namespace) -> int:
         strategies_to_test = [strategy] if strategy else ["index", "legacy"]
 
         # Handle worktree strategy requests
-        if strategy == "worktree":
-            print(f"\nTesting {strategy} strategy:")
-            print("  Compatibility: ✗")
-            print(
-                "  Reason: Worktree strategy removed for architectural simplification"
-            )
-            return 0
+        # No special handling needed for unsupported strategies - they'll be filtered out
 
         for strat in strategies_to_test:
             print(f"\nTesting {strat} strategy:")
@@ -144,21 +135,13 @@ def cmd_strategy_set(args: argparse.Namespace) -> int:
             print("Valid strategies: index, legacy, auto", file=sys.stderr)
             return 1
 
-        if strategy == "worktree":
-            print("Error: Worktree strategy is no longer available", file=sys.stderr)
-            print(
-                "Use 'index' strategy instead (equivalent functionality)",
-                file=sys.stderr,
-            )
-            return 1
+        # Remove worktree from valid strategies entirely
 
         if strategy == "auto":
             # Remove environment override to use auto-detection
             if "GIT_AUTOSQUASH_STRATEGY" in os.environ:
                 print("Removing GIT_AUTOSQUASH_STRATEGY environment variable")
-                print(
-                    "Strategy will default to index (worktree removed for simplification)"
-                )
+                print("Strategy will default to index for optimal performance")
                 # Note: We can't actually remove it from the current process
                 print("Unset GIT_AUTOSQUASH_STRATEGY in your shell to apply")
             else:
