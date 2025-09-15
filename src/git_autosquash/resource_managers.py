@@ -49,6 +49,7 @@ class GitStateManager:
 
                 # CRITICAL: Store creation timestamp to verify this is our stash
                 import time
+
                 self._stash_creation_time = time.time()
 
                 return Ok(stash_ref)
@@ -70,7 +71,9 @@ class GitStateManager:
         """Verify that the stash reference points to a stash we created."""
         try:
             # Check stash message to see if it's ours
-            success, output = self.git_ops._run_git_command("stash", "show", "-s", stash_ref)
+            success, output = self.git_ops._run_git_command(
+                "stash", "show", "-s", stash_ref
+            )
 
             if success and "git-autosquash temporary state" in output:
                 return True
@@ -79,7 +82,9 @@ class GitStateManager:
             if stash_ref in self._stash_refs:
                 return True
 
-            self.logger.warning(f"Stash {stash_ref} does not appear to be created by git-autosquash")
+            self.logger.warning(
+                f"Stash {stash_ref} does not appear to be created by git-autosquash"
+            )
             return False
 
         except Exception as e:
@@ -294,24 +299,10 @@ def git_state_context(git_ops: GitOps) -> Generator[GitStateManager, None, None]
 def worktree_context(
     git_ops: GitOps, branch: str = "HEAD"
 ) -> Generator[Path, None, None]:
-    """Context manager for temporary worktree with automatic cleanup.
-
-    Usage:
-        with worktree_context(git_ops) as worktree_path:
-            # Work with the temporary worktree
-            pass
-        # Worktree is automatically cleaned up
-    """
-    manager = WorktreeManager(git_ops)
-    try:
-        result = manager.create_worktree(branch)
-        if result.is_err():
-            raise RuntimeError(f"Failed to create worktree: {result.unwrap_err()}")
-
-        worktree_path = result.unwrap()
-        yield worktree_path
-    finally:
-        manager.cleanup_all()
+    """Context manager for temporary worktree - DEPRECATED, removed for simplification."""
+    raise NotImplementedError(
+        "Worktree strategy removed for architectural simplification. Use index strategy instead."
+    )
 
 
 @contextmanager

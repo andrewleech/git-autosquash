@@ -33,7 +33,9 @@ def cmd_strategy_info(args: argparse.Namespace) -> int:
         print("Git-Autosquash Strategy Information")
         print("=" * 40)
         print(f"Current Strategy: {info['preferred_strategy']}")
-        print(f"Worktree Available: {'✓' if info['worktree_available'] else '✗'}")
+        print(
+            f"Worktree Available: {'✗ (removed for simplification)' if not info['worktree_available'] else '✓'}"
+        )
         print(f"Strategies Available: {', '.join(info['strategies_available'])}")
         print(f"Execution Order: {' → '.join(info['execution_order'])}")
 
@@ -44,13 +46,12 @@ def cmd_strategy_info(args: argparse.Namespace) -> int:
             print("Environment Override: None")
 
         print("\nStrategy Descriptions:")
-        print("  worktree - Complete isolation using git worktree (best)")
-        print("  index    - Index manipulation with stash backup (good)")
+        print("  index    - Index manipulation with stash backup (reliable)")
         print("  legacy   - Manual patch application (fallback)")
 
         print("\nConfiguration:")
-        print("  Set GIT_AUTOSQUASH_STRATEGY=worktree|index to override")
-        print("  Default: Auto-detect based on git capabilities")
+        print("  Set GIT_AUTOSQUASH_STRATEGY=index|legacy to override")
+        print("  Default: Uses index strategy (worktree removed for simplification)")
 
         return 0
 
@@ -81,7 +82,16 @@ def cmd_strategy_test(args: argparse.Namespace) -> int:
         print("=" * 45)
 
         # Test all strategies or specific one
-        strategies_to_test = [strategy] if strategy else ["worktree", "index", "legacy"]
+        strategies_to_test = [strategy] if strategy else ["index", "legacy"]
+
+        # Handle worktree strategy requests
+        if strategy == "worktree":
+            print(f"\nTesting {strategy} strategy:")
+            print("  Compatibility: ✗")
+            print(
+                "  Reason: Worktree strategy removed for architectural simplification"
+            )
+            return 0
 
         for strat in strategies_to_test:
             print(f"\nTesting {strat} strategy:")
@@ -129,20 +139,30 @@ def cmd_strategy_set(args: argparse.Namespace) -> int:
     try:
         strategy = args.strategy
 
-        if strategy not in ["worktree", "index", "legacy", "auto"]:
+        if strategy not in ["index", "legacy", "auto", "worktree"]:
             print(f"Error: Invalid strategy '{strategy}'", file=sys.stderr)
-            print("Valid strategies: worktree, index, legacy, auto", file=sys.stderr)
+            print("Valid strategies: index, legacy, auto", file=sys.stderr)
+            return 1
+
+        if strategy == "worktree":
+            print("Error: Worktree strategy is no longer available", file=sys.stderr)
+            print(
+                "Use 'index' strategy instead (equivalent functionality)",
+                file=sys.stderr,
+            )
             return 1
 
         if strategy == "auto":
             # Remove environment override to use auto-detection
             if "GIT_AUTOSQUASH_STRATEGY" in os.environ:
                 print("Removing GIT_AUTOSQUASH_STRATEGY environment variable")
-                print("Strategy will be auto-detected based on git capabilities")
+                print(
+                    "Strategy will default to index (worktree removed for simplification)"
+                )
                 # Note: We can't actually remove it from the current process
                 print("Unset GIT_AUTOSQUASH_STRATEGY in your shell to apply")
             else:
-                print("No environment override set - already using auto-detection")
+                print("No environment override set - using default index strategy")
         else:
             print(f"To use {strategy} strategy, set environment variable:")
             print(f"  export GIT_AUTOSQUASH_STRATEGY={strategy}")
@@ -182,8 +202,8 @@ def add_strategy_subcommands(subparsers):
     test_parser = subparsers.add_parser("strategy-test", help=argparse.SUPPRESS)
     test_parser.add_argument(
         "--strategy",
-        choices=["worktree", "index", "legacy"],
-        help="Test specific strategy (default: test all)",
+        choices=["index", "legacy", "worktree"],
+        help="Test specific strategy (default: test all, worktree deprecated)",
     )
     test_parser.set_defaults(func=cmd_strategy_test)
 
@@ -191,8 +211,8 @@ def add_strategy_subcommands(subparsers):
     set_parser = subparsers.add_parser("strategy-set", help=argparse.SUPPRESS)
     set_parser.add_argument(
         "strategy",
-        choices=["worktree", "index", "legacy", "auto"],
-        help="Strategy to use (auto = auto-detect)",
+        choices=["index", "legacy", "auto", "worktree"],
+        help="Strategy to use (auto = default to index, worktree deprecated)",
     )
     set_parser.set_defaults(func=cmd_strategy_set)
 

@@ -7,10 +7,9 @@ from typing import List, Optional, Literal, Dict, Any
 from git_autosquash.hunk_target_resolver import HunkTargetMapping
 from git_autosquash.git_ops import GitOps
 from git_autosquash.git_native_handler import GitNativeIgnoreHandler
-from git_autosquash.git_worktree_handler import GitWorktreeIgnoreHandler
 
 
-StrategyType = Literal["worktree", "index", "legacy"]
+StrategyType = Literal["index", "legacy"]
 
 
 class CapabilityCache:
@@ -61,12 +60,11 @@ class GitNativeCompleteHandler:
         self.logger = logging.getLogger(__name__)
         self.capability_cache = capability_cache or CapabilityCache()
 
-        # Initialize strategy handlers
-        self.worktree_handler = GitWorktreeIgnoreHandler(git_ops)
+        # Initialize strategy handler
         self.index_handler = GitNativeIgnoreHandler(git_ops)
 
-        # Determine preferred strategy from environment or auto-detect
-        self.preferred_strategy = self._determine_preferred_strategy()
+        # Use index strategy (worktree strategy removed for simplification)
+        self.preferred_strategy = "index"
 
         self.logger.info(
             f"Git-native complete handler initialized with strategy: {self.preferred_strategy}"
@@ -123,70 +121,29 @@ class GitNativeCompleteHandler:
         """Determine the preferred strategy based on environment and capabilities.
 
         Returns:
-            Preferred strategy type
+            Preferred strategy type (simplified to index only)
         """
-        # Check for explicit strategy override
+        # Check for explicit strategy override for backwards compatibility
         env_strategy = os.getenv("GIT_AUTOSQUASH_STRATEGY", "").lower()
-        if env_strategy in ["worktree", "index", "legacy"]:
+        if env_strategy == "worktree":
+            self.logger.warning(
+                "Worktree strategy no longer available, using index strategy"
+            )
+        elif env_strategy in ["index", "legacy"]:
             self.logger.info(f"Using strategy from environment: {env_strategy}")
             return env_strategy  # type: ignore
 
-        # Auto-detect best strategy based on git capabilities
-        if self._check_worktree_support():
-            return "worktree"
-        else:
-            return "index"
-
-    def _check_worktree_support(self) -> bool:
-        """Check if git worktree is available and functional.
-
-        Returns:
-            True if worktree is supported
-        """
-        cache_key = "worktree_support"
-
-        # Check cache first
-        if self.capability_cache.has(cache_key):
-            cached_result = self.capability_cache.get(cache_key)
-            self.logger.debug(f"Using cached worktree support result: {cached_result}")
-            return bool(cached_result)
-
-        # Perform capability check
-        try:
-            success, output = self.git_ops._run_git_command("worktree", "--help")
-            supported = success and "add" in output.lower()
-
-            # Cache the result
-            self.capability_cache.set(cache_key, supported)
-
-            if supported:
-                self.logger.debug("Git worktree support detected and cached")
-            else:
-                self.logger.debug(
-                    "Git worktree not available, using index strategy (cached)"
-                )
-
-            return supported
-
-        except Exception as e:
-            self.logger.debug(f"Error checking worktree support: {e}")
-            # Cache negative result to avoid repeated failures
-            self.capability_cache.set(cache_key, False)
-            return False
+        # Simplified: always use index strategy
+        return "index"
 
     def _get_strategy_execution_order(self) -> List[StrategyType]:
         """Get the order of strategies to try based on preference and fallback.
 
         Returns:
-            List of strategies in execution order
+            List of strategies in execution order (simplified to index only)
         """
-        if self.preferred_strategy == "worktree":
-            return ["worktree", "index"]
-        elif self.preferred_strategy == "index":
-            return ["index", "worktree"]
-        else:
-            # Legacy strategy would use the original manual approach
-            return ["index", "worktree"]
+        # Simplified: only index strategy available
+        return ["index"]
 
     def _execute_strategy(
         self, strategy: StrategyType, ignored_mappings: List[HunkTargetMapping]
@@ -200,9 +157,7 @@ class GitNativeCompleteHandler:
         Returns:
             True if strategy succeeded
         """
-        if strategy == "worktree":
-            return self.worktree_handler.apply_ignored_hunks(ignored_mappings)
-        elif strategy == "index":
+        if strategy == "index":
             return self.index_handler.apply_ignored_hunks(ignored_mappings)
         else:
             # Legacy strategy would be implemented here
@@ -217,8 +172,8 @@ class GitNativeCompleteHandler:
         """
         return {
             "preferred_strategy": self.preferred_strategy,
-            "worktree_available": self._check_worktree_support(),
-            "strategies_available": ["worktree", "index"],
+            "worktree_available": False,  # Worktree strategy removed
+            "strategies_available": ["index"],
             "execution_order": self._get_strategy_execution_order(),
             "environment_override": os.getenv("GIT_AUTOSQUASH_STRATEGY"),
             "capability_cache_size": len(self.capability_cache._cache),
@@ -230,9 +185,14 @@ class GitNativeCompleteHandler:
         Args:
             strategy: Strategy to force
         """
-        if strategy in ["worktree", "index", "legacy"]:
+        if strategy in ["index", "legacy"]:
             self.preferred_strategy = strategy
             self.logger.info(f"Forced strategy changed to: {strategy}")
+        elif strategy == "worktree":
+            self.logger.warning(
+                "Worktree strategy no longer available, using index strategy"
+            )
+            self.preferred_strategy = "index"
         else:
             raise ValueError(f"Invalid strategy: {strategy}")
 
@@ -274,7 +234,7 @@ class GitNativeStrategyManager:
         try:
             success, output = git_ops._run_git_command("worktree", "--help")
             if success and "add" in output.lower():
-                return "worktree"
+                return "index"  # Worktree removed, fallback to index
         except Exception:
             pass
 

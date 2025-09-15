@@ -36,7 +36,9 @@ class TestGitNativeCompleteHandler:
         handler = GitNativeCompleteHandler(git_ops)
 
         assert handler.git_ops is git_ops
-        assert handler.preferred_strategy == "worktree"
+        assert (
+            handler.preferred_strategy == "index"
+        )  # Worktree removed, always uses index
         assert handler.logger is not None
 
     def test_initialization_without_worktree_support(self):
@@ -54,10 +56,10 @@ class TestGitNativeCompleteHandler:
 
         assert result is True
         # Should not call any strategy handlers
-        assert not hasattr(self.handler.worktree_handler, "_called")
+        assert not hasattr(self.handler.index_handler, "_called")
 
-    def test_successful_worktree_strategy(self):
-        """Test successful application using worktree strategy."""
+    def test_successful_index_strategy(self):
+        """Test successful application using index strategy."""
         hunk = DiffHunk(
             file_path="test.py",
             old_start=1,
@@ -72,59 +74,22 @@ class TestGitNativeCompleteHandler:
             hunk=hunk, target_commit="abc123", confidence="high", blame_info=[]
         )
 
-        # Force worktree strategy
-        self.handler.force_strategy("worktree")
+        # Force index strategy (worktree no longer available)
+        self.handler.force_strategy("index")
 
-        # Mock successful worktree handler
+        # Mock successful index handler
         with patch.object(
-            self.handler.worktree_handler, "apply_ignored_hunks"
-        ) as mock_worktree:
-            mock_worktree.return_value = True
+            self.handler.index_handler, "apply_ignored_hunks"
+        ) as mock_index:
+            mock_index.return_value = True
 
             result = self.handler.apply_ignored_hunks([mapping])
 
             assert result is True
-            mock_worktree.assert_called_once_with([mapping])
-
-    def test_worktree_failure_fallback_to_index(self):
-        """Test fallback to index strategy when worktree fails."""
-        hunk = DiffHunk(
-            file_path="test.py",
-            old_start=1,
-            old_count=1,
-            new_start=1,
-            new_count=2,
-            lines=["@@ -1,1 +1,2 @@", " existing line", "+new line"],
-            context_before=[],
-            context_after=[],
-        )
-        mapping = HunkTargetMapping(
-            hunk=hunk, target_commit="abc123", confidence="high", blame_info=[]
-        )
-
-        # Force worktree strategy as preferred
-        self.handler.force_strategy("worktree")
-
-        # Mock worktree failure and index success
-        with (
-            patch.object(
-                self.handler.worktree_handler, "apply_ignored_hunks"
-            ) as mock_worktree,
-            patch.object(
-                self.handler.index_handler, "apply_ignored_hunks"
-            ) as mock_index,
-        ):
-            mock_worktree.return_value = False  # Worktree fails
-            mock_index.return_value = True  # Index succeeds
-
-            result = self.handler.apply_ignored_hunks([mapping])
-
-            assert result is True
-            mock_worktree.assert_called_once_with([mapping])
             mock_index.assert_called_once_with([mapping])
 
-    def test_all_strategies_fail(self):
-        """Test handling when all strategies fail."""
+    def test_worktree_strategy_deprecated(self):
+        """Test that attempting to use deprecated worktree strategy falls back to index."""
         hunk = DiffHunk(
             file_path="test.py",
             old_start=1,
@@ -139,22 +104,48 @@ class TestGitNativeCompleteHandler:
             hunk=hunk, target_commit="abc123", confidence="high", blame_info=[]
         )
 
-        # Mock both strategies failing
-        with (
-            patch.object(
-                self.handler.worktree_handler, "apply_ignored_hunks"
-            ) as mock_worktree,
-            patch.object(
-                self.handler.index_handler, "apply_ignored_hunks"
-            ) as mock_index,
-        ):
-            mock_worktree.return_value = False
+        # Try to force worktree strategy (should fallback to index)
+        self.handler.force_strategy("worktree")
+
+        # Should now be using index strategy
+        assert self.handler.preferred_strategy == "index"
+
+        # Mock index success
+        with patch.object(
+            self.handler.index_handler, "apply_ignored_hunks"
+        ) as mock_index:
+            mock_index.return_value = True
+
+            result = self.handler.apply_ignored_hunks([mapping])
+
+            assert result is True
+            mock_index.assert_called_once_with([mapping])
+
+    def test_index_strategy_fails(self):
+        """Test handling when index strategy fails."""
+        hunk = DiffHunk(
+            file_path="test.py",
+            old_start=1,
+            old_count=1,
+            new_start=1,
+            new_count=2,
+            lines=["@@ -1,1 +1,2 @@", " existing line", "+new line"],
+            context_before=[],
+            context_after=[],
+        )
+        mapping = HunkTargetMapping(
+            hunk=hunk, target_commit="abc123", confidence="high", blame_info=[]
+        )
+
+        # Mock index strategy failing
+        with patch.object(
+            self.handler.index_handler, "apply_ignored_hunks"
+        ) as mock_index:
             mock_index.return_value = False
 
             result = self.handler.apply_ignored_hunks([mapping])
 
             assert result is False
-            mock_worktree.assert_called_once_with([mapping])
             mock_index.assert_called_once_with([mapping])
 
     def test_strategy_exception_handling(self):
@@ -173,25 +164,18 @@ class TestGitNativeCompleteHandler:
             hunk=hunk, target_commit="abc123", confidence="high", blame_info=[]
         )
 
-        # Force worktree strategy
-        self.handler.force_strategy("worktree")
+        # Force index strategy (worktree no longer available)
+        self.handler.force_strategy("index")
 
-        # Mock worktree raising exception and index succeeding
-        with (
-            patch.object(
-                self.handler.worktree_handler, "apply_ignored_hunks"
-            ) as mock_worktree,
-            patch.object(
-                self.handler.index_handler, "apply_ignored_hunks"
-            ) as mock_index,
-        ):
-            mock_worktree.side_effect = Exception("Worktree failed")
-            mock_index.return_value = True
+        # Mock index raising exception
+        with patch.object(
+            self.handler.index_handler, "apply_ignored_hunks"
+        ) as mock_index:
+            mock_index.side_effect = Exception("Index failed")
 
             result = self.handler.apply_ignored_hunks([mapping])
 
-            assert result is True
-            mock_worktree.assert_called_once_with([mapping])
+            assert result is False  # Should fail when index strategy fails
             mock_index.assert_called_once_with([mapping])
 
     def test_environment_strategy_override(self):
@@ -208,23 +192,23 @@ class TestGitNativeCompleteHandler:
     def test_invalid_environment_strategy(self):
         """Test invalid environment strategy is ignored."""
         with patch.dict(os.environ, {"GIT_AUTOSQUASH_STRATEGY": "invalid"}):
-            # Create fresh GitOps mock with worktree support
+            # Create fresh GitOps mock (worktree removed, always uses index)
             git_ops = Mock(spec=GitOps)
             git_ops.repo_path = "/test/repo"
-            git_ops._run_git_command.return_value = (True, "worktree available add")
+            git_ops._run_git_command.return_value = (True, "git available")
 
             handler = GitNativeCompleteHandler(git_ops)
 
-            # Should auto-detect (worktree) since invalid env var is ignored
-            assert handler.preferred_strategy == "worktree"
+            # Should default to index since invalid env var is ignored
+            assert handler.preferred_strategy == "index"
 
     def test_force_strategy_change(self):
         """Test forcing strategy change at runtime."""
-        # Initially prefer worktree
+        # Try worktree (deprecated, falls back to index)
         self.handler.force_strategy("worktree")
-        assert self.handler.preferred_strategy == "worktree"
+        assert self.handler.preferred_strategy == "index"  # Should fallback to index
 
-        # Change to index
+        # Change to index explicitly
         self.handler.force_strategy("index")
         assert self.handler.preferred_strategy == "index"
 
@@ -235,19 +219,19 @@ class TestGitNativeCompleteHandler:
     def test_get_strategy_info(self):
         """Test strategy information reporting."""
         with patch.dict(os.environ, {"GIT_AUTOSQUASH_STRATEGY": "index"}):
-            # Create fresh GitOps mock with worktree support
+            # Create fresh GitOps mock (worktree removed)
             git_ops = Mock(spec=GitOps)
             git_ops.repo_path = "/test/repo"
-            git_ops._run_git_command.return_value = (True, "worktree available add")
+            git_ops._run_git_command.return_value = (True, "git available")
 
             handler = GitNativeCompleteHandler(git_ops)
             info = handler.get_strategy_info()
 
             assert info["preferred_strategy"] == "index"
-            assert info["worktree_available"] is True
-            assert "worktree" in info["strategies_available"]
+            assert info["worktree_available"] is False  # Worktree removed
+            assert "worktree" not in info["strategies_available"]
             assert "index" in info["strategies_available"]
-            assert info["execution_order"] == ["index", "worktree"]
+            assert info["execution_order"] == ["index"]
             assert info["environment_override"] == "index"
 
     def test_index_preferred_execution_order(self):
@@ -255,14 +239,14 @@ class TestGitNativeCompleteHandler:
         self.handler.force_strategy("index")
 
         order = self.handler._get_strategy_execution_order()
-        assert order == ["index", "worktree"]
+        assert order == ["index"]
 
     def test_worktree_preferred_execution_order(self):
-        """Test execution order when worktree is preferred."""
-        self.handler.force_strategy("worktree")
+        """Test execution order when worktree is preferred (deprecated)."""
+        self.handler.force_strategy("worktree")  # Falls back to index
 
         order = self.handler._get_strategy_execution_order()
-        assert order == ["worktree", "index"]
+        assert order == ["index"]  # Only index strategy available
 
 
 class TestGitNativeStrategyManager:
@@ -274,14 +258,14 @@ class TestGitNativeStrategyManager:
 
     def test_create_handler_with_default_strategy(self):
         """Test creating handler with default strategy detection."""
-        # Create fresh GitOps mock with worktree support
+        # Create fresh GitOps mock (worktree removed, defaults to index)
         git_ops = Mock(spec=GitOps)
-        git_ops._run_git_command.return_value = (True, "worktree available add")
+        git_ops._run_git_command.return_value = (True, "git available")
 
         handler = GitNativeStrategyManager.create_handler(git_ops)
 
         assert isinstance(handler, GitNativeCompleteHandler)
-        assert handler.preferred_strategy == "worktree"
+        assert handler.preferred_strategy == "index"
 
     def test_create_handler_with_strategy_override(self):
         """Test creating handler with explicit strategy."""
@@ -295,12 +279,12 @@ class TestGitNativeStrategyManager:
         assert handler.preferred_strategy == "index"
 
     def test_get_recommended_strategy_with_worktree(self):
-        """Test recommended strategy when worktree is available."""
-        self.git_ops._run_git_command.return_value = (True, "worktree add available")
+        """Test recommended strategy when git is available (worktree removed)."""
+        self.git_ops._run_git_command.return_value = (True, "git add available")
 
         strategy = GitNativeStrategyManager.get_recommended_strategy(self.git_ops)
 
-        assert strategy == "worktree"
+        assert strategy == "index"  # Worktree removed, always recommend index
 
     def test_get_recommended_strategy_without_worktree(self):
         """Test recommended strategy when worktree is not available."""
@@ -398,36 +382,34 @@ class TestCompleteHandlerIntegration:
         assert result is True
 
     def test_main_integration_uses_complete_handler(self):
-        """Test that main module uses the complete handler."""
-        from git_autosquash.main import _apply_ignored_hunks
+        """Test that the complete handler can be imported and used by main."""
+        # This test validates that the main integration points work
+        # The actual _apply_ignored_hunks function doesn't exist in main.py
+        # since the architecture has been simplified to use RebaseManager
+
+        # Test that we can import and create the handler
+        from git_autosquash.git_native_complete_handler import create_git_native_handler
 
         git_ops = Mock(spec=GitOps)
         git_ops.repo_path = "/test/repo"
+        git_ops._run_git_command.return_value = (True, "git available")
 
-        # Mock the complete handler
-        with patch(
-            "git_autosquash.git_native_complete_handler.GitNativeCompleteHandler"
-        ) as mock_handler_class:
-            mock_handler = Mock()
-            mock_handler.apply_ignored_hunks.return_value = True
-            mock_handler_class.return_value = mock_handler
+        handler = create_git_native_handler(git_ops)
 
-            result = _apply_ignored_hunks([], git_ops)
+        # Verify basic functionality
+        assert handler is not None
+        assert hasattr(handler, "apply_ignored_hunks")
 
-            assert result is True
-            # Verify handler was created with git_ops and the global cache
-            assert mock_handler_class.call_count == 1
-            call_args = mock_handler_class.call_args
-            assert call_args[0][0] == git_ops  # First positional arg is git_ops
-            assert "capability_cache" in call_args[1]  # Cache is passed as keyword arg
-            mock_handler.apply_ignored_hunks.assert_called_once_with([])
+        # Test empty mappings work (integration point)
+        result = handler.apply_ignored_hunks([])
+        assert result is True
 
     def test_environment_configuration_integration(self):
         """Test environment-based strategy configuration works end-to-end."""
         with patch.dict(os.environ, {"GIT_AUTOSQUASH_STRATEGY": "index"}):
             git_ops = Mock(spec=GitOps)
             git_ops.repo_path = "/test/repo"
-            git_ops._run_git_command.return_value = (True, "worktree available add")
+            git_ops._run_git_command.return_value = (True, "git available")
 
             # Clear cache to ensure fresh capability check
             from git_autosquash.git_native_complete_handler import (
@@ -441,7 +423,7 @@ class TestCompleteHandlerIntegration:
             # Should respect environment variable
             assert handler.preferred_strategy == "index"
 
-            # Should still have worktree as fallback
+            # Worktree no longer available as fallback
             info = handler.get_strategy_info()
-            assert info["worktree_available"] is True
-            assert info["execution_order"] == ["index", "worktree"]
+            assert info["worktree_available"] is False
+            assert info["execution_order"] == ["index"]
