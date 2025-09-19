@@ -256,7 +256,22 @@ int main() {
         rebase_manager = RebaseManager(git_ops, commits["merge_base"])
 
         # Create dummy hunks
-        hunk = conflict_repo.get_simple_hunk()
+        from git_autosquash.hunk_parser import DiffHunk
+
+        hunk = DiffHunk(
+            file_path="conflict_file.c",
+            old_start=1,
+            old_count=1,
+            new_start=1,
+            new_count=1,
+            lines=[
+                "@@ -1,1 +1,1 @@",
+                "-int main() {",
+                "+int main(void) {",
+            ],
+            context_before=[],
+            context_after=[],
+        )
 
         # Attempt multiple operations (simulating race conditions)
         for _ in range(3):

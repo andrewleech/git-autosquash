@@ -294,7 +294,7 @@ class TestBlameAnalyzer:
     ) -> None:
         """Test get_blame_for_old_lines handles command failure."""
         analyzer = blame_analyzer
-        analyzer.git_ops._run_git_command.return_value = (False, "error")
+        analyzer.git_ops._run_git_command.return_value = (False, "error")  # type: ignore[attr-defined]
 
         hunk = create_test_hunk(file_path="test.py", deletions=["old line"])
 
@@ -307,7 +307,7 @@ class TestBlameAnalyzer:
     ) -> None:
         """Test getting blame for context around additions."""
         analyzer = blame_analyzer
-        analyzer.git_ops._run_git_command.return_value = (True, "blame output")
+        analyzer.git_ops._run_git_command.return_value = (True, "blame output")  # type: ignore[attr-defined]
 
         hunk = DiffHunk(
             file_path="test.py",
@@ -327,7 +327,7 @@ class TestBlameAnalyzer:
 
         # Should get context from lines 1-3 (max(1, 0-3) to 0+3)
         # The algorithm uses old_start for context calculation
-        analyzer.git_ops._run_git_command.assert_called_once_with(
+        analyzer.git_ops._run_git_command.assert_called_once_with(  # type: ignore[attr-defined]
             "blame", "-L1,3", "HEAD", "--", "test.py"
         )
         assert result is blame_infos
@@ -337,7 +337,7 @@ class TestBlameAnalyzer:
     ) -> None:
         """Test get_blame_for_context when addition is at file start."""
         analyzer = blame_analyzer
-        analyzer.git_ops._run_git_command.return_value = (True, "")
+        analyzer.git_ops._run_git_command.return_value = (True, "")  # type: ignore[attr-defined]
 
         hunk = create_test_hunk(
             file_path="test.py", new_start=1, additions=["new line"]
@@ -346,7 +346,7 @@ class TestBlameAnalyzer:
         analyzer._get_blame_for_context(hunk)
 
         # Should start from line 1 (max(1, 1-3))
-        analyzer.git_ops._run_git_command.assert_called_once_with(
+        analyzer.git_ops._run_git_command.assert_called_once_with(  # type: ignore[attr-defined]
             "blame", "-L1,4", "HEAD", "--", "test.py"
         )
 

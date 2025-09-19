@@ -55,7 +55,12 @@ class TextualScreenshotCapture:
             # Initialize git operations
             git_ops = GitOps()
             current_branch = git_ops.get_current_branch()
+            if current_branch is None:
+                raise ValueError("Could not determine current branch")
+
             merge_base = git_ops.get_merge_base_with_main(current_branch)
+            if merge_base is None:
+                raise ValueError("Could not determine merge base")
 
             # Parse hunks from current changes
             hunk_parser = HunkParser(git_ops)
