@@ -43,3 +43,31 @@ docs = [
     "mkdocstrings[python]>=0.30.0",
     "pymdown-extensions>=10.16.1",
 ]
+
+[tool.mypy]
+# Exclude problematic test files that depend on external libraries without proper type stubs
+exclude = [
+    "tests/base_test_repository.py",
+    "tests/pyte_screenshot_capture.py",
+    "tests/pexpect_screenshot_capture.py",
+    "tests/screenshot_capture_textual.py",
+    "tests/test_patch_generation_.*\\.py",
+    "tests/error_handling_framework.py",
+]
+
+# General mypy configuration
+strict = false
+warn_return_any = false
+warn_unused_configs = true
+disallow_untyped_defs = false
+
+# Ignore missing imports for external libraries without proper type stubs
+[[tool.mypy.overrides]]
+module = [
+    "psutil",
+    "pexpect",
+    "ptyprocess",
+    "pyte",
+    "PIL.*",
+]
+ignore_missing_imports = true
