@@ -55,7 +55,7 @@ class TestCapabilityCache:
         # Test that cache is properly integrated with handler
         assert handler.capability_cache is cache
 
-        # Test cache operations (since worktree checking removed)
+        # Test cache operations with current architecture
         cache.set("test_capability", True)
         assert cache.has("test_capability")
         assert cache.get("test_capability") is True
@@ -149,18 +149,18 @@ class TestResultPattern:
         """Test StrategyExecutionError structure."""
         underlying = ValueError("underlying issue")
         error = StrategyExecutionError(
-            strategy="worktree",
+            strategy="index",
             operation="apply_hunks",
             message="Strategy failed",
             underlying_error=underlying,
         )
 
-        assert error.strategy == "worktree"
+        assert error.strategy == "index"
         assert error.operation == "apply_hunks"
         assert error.underlying_error == underlying
 
         str_repr = str(error)
-        assert "worktree" in str_repr
+        assert "index" in str_repr
         assert "apply_hunks" in str_repr
         assert "underlying issue" in str_repr
 

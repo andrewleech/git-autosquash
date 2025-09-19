@@ -390,7 +390,7 @@ class TestPathTraversalProtection:
         )
         self.mock_git_ops._run_git_command.return_value = (False, "repo not found")
 
-        # Override the worktree backup mock for this specific failure case
+        # Override the backup mock for this specific failure case
         self.native_handler._create_comprehensive_backup = MagicMock(return_value=None)
 
         hunk = DiffHunk(
@@ -475,7 +475,7 @@ class TestPathTraversalProtection:
             False,
             "stash creation failed",
         )
-        # Override the worktree backup mock for this specific failure case
+        # Override the backup mock for this specific failure case
         self.native_handler._create_comprehensive_backup = MagicMock(return_value=None)
 
         # Use legitimate path - should pass security but fail on git operations

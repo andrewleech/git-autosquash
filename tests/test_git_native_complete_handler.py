@@ -30,7 +30,7 @@ class TestGitNativeCompleteHandler:
         git_ops.repo_path = "/test/repo"
         git_ops._run_git_command.return_value = (
             True,
-            "git-worktree - Manage multiple working trees add",
+            "git-add - Add files to staging area",
         )
 
         handler = GitNativeCompleteHandler(git_ops)
@@ -41,10 +41,10 @@ class TestGitNativeCompleteHandler:
         )  # Worktree removed, always uses index
         assert handler.logger is not None
 
-    def test_initialization_without_worktree_support(self):
-        """Test initialization falls back to index when worktree unavailable."""
-        # Mock worktree support failure
-        self.git_ops._run_git_command.return_value = (False, "command not found")
+    def test_initialization_defaults_to_index(self):
+        """Test initialization defaults to index strategy."""
+        # Mock git command availability
+        self.git_ops._run_git_command.return_value = (True, "git available")
 
         handler = GitNativeCompleteHandler(self.git_ops)
 
@@ -156,18 +156,18 @@ class TestGitNativeCompleteHandler:
     def test_environment_strategy_override(self):
         """Test strategy override from environment variable."""
         with patch.dict(os.environ, {"GIT_AUTOSQUASH_STRATEGY": "index"}):
-            # Mock worktree support available
-            self.git_ops._run_git_command.return_value = (True, "worktree available")
+            # Mock git command available
+            self.git_ops._run_git_command.return_value = (True, "git available")
 
             handler = GitNativeCompleteHandler(self.git_ops)
 
-            # Should prefer index despite worktree being available
+            # Should prefer index as the default strategy
             assert handler.preferred_strategy == "index"
 
     def test_invalid_environment_strategy(self):
         """Test invalid environment strategy is ignored."""
         with patch.dict(os.environ, {"GIT_AUTOSQUASH_STRATEGY": "invalid"}):
-            # Create fresh GitOps mock (worktree removed, always uses index)
+            # Create fresh GitOps mock (uses index strategy)
             git_ops = Mock(spec=GitOps)
             git_ops.repo_path = "/test/repo"
             git_ops._run_git_command.return_value = (True, "git available")
@@ -194,7 +194,7 @@ class TestGitNativeCompleteHandler:
     def test_get_strategy_info(self):
         """Test strategy information reporting."""
         with patch.dict(os.environ, {"GIT_AUTOSQUASH_STRATEGY": "index"}):
-            # Create fresh GitOps mock (worktree removed)
+            # Create fresh GitOps mock
             git_ops = Mock(spec=GitOps)
             git_ops.repo_path = "/test/repo"
             git_ops._run_git_command.return_value = (True, "git available")
@@ -203,7 +203,7 @@ class TestGitNativeCompleteHandler:
             info = handler.get_strategy_info()
 
             assert info["preferred_strategy"] == "index"
-            assert "worktree" not in info["strategies_available"]
+            assert "legacy" in info["strategies_available"]
             assert "index" in info["strategies_available"]
             assert info["execution_order"] == ["index"]
             assert info["environment_override"] == "index"
@@ -232,7 +232,7 @@ class TestGitNativeStrategyManager:
 
     def test_create_handler_with_default_strategy(self):
         """Test creating handler with default strategy detection."""
-        # Create fresh GitOps mock (worktree removed, defaults to index)
+        # Create fresh GitOps mock (defaults to index)
         git_ops = Mock(spec=GitOps)
         git_ops._run_git_command.return_value = (True, "git available")
 
@@ -243,8 +243,8 @@ class TestGitNativeStrategyManager:
 
     def test_create_handler_with_strategy_override(self):
         """Test creating handler with explicit strategy."""
-        # Mock worktree support available
-        self.git_ops._run_git_command.return_value = (True, "worktree available")
+        # Mock git command available
+        self.git_ops._run_git_command.return_value = (True, "git available")
 
         handler = GitNativeStrategyManager.create_handler(
             self.git_ops, strategy="index"
@@ -252,16 +252,16 @@ class TestGitNativeStrategyManager:
 
         assert handler.preferred_strategy == "index"
 
-    def test_get_recommended_strategy_with_worktree(self):
-        """Test recommended strategy when git is available (worktree removed)."""
+    def test_get_recommended_strategy_default(self):
+        """Test recommended strategy defaults to index."""
         self.git_ops._run_git_command.return_value = (True, "git add available")
 
         strategy = GitNativeStrategyManager.get_recommended_strategy(self.git_ops)
 
-        assert strategy == "index"  # Worktree removed, always recommend index
+        assert strategy == "index"  # Default recommendation
 
-    def test_get_recommended_strategy_without_worktree(self):
-        """Test recommended strategy when worktree is not available."""
+    def test_get_recommended_strategy_fallback(self):
+        """Test recommended strategy fallback behavior."""
         self.git_ops._run_git_command.return_value = (False, "command not found")
 
         strategy = GitNativeStrategyManager.get_recommended_strategy(self.git_ops)
@@ -319,7 +319,7 @@ class TestFactoryFunction:
     def test_create_git_native_handler(self):
         """Test the factory function creates correct handler."""
         git_ops = Mock(spec=GitOps)
-        git_ops._run_git_command.return_value = (True, "worktree available")
+        git_ops._run_git_command.return_value = (True, "git available")
 
         handler = create_git_native_handler(git_ops)
 
@@ -336,7 +336,7 @@ class TestCompleteHandlerIntegration:
 
         git_ops = Mock(spec=GitOps)
         git_ops.repo_path = "/test/repo"
-        git_ops._run_git_command.return_value = (True, "worktree available")
+        git_ops._run_git_command.return_value = (True, "git available")
 
         handler = GitNativeCompleteHandler(git_ops)
 

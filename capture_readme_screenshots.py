@@ -429,15 +429,18 @@ class RealScreenshotGenerator:
         # Count final screenshots (excluding intermediate files)
         png_files = list(self.output_dir.glob("*.png"))
         final_screenshots = [
-            png_file for png_file in png_files
+            png_file
+            for png_file in png_files
             if not any(
                 intermediate in png_file.name
                 for intermediate in ["_01_initial", "_tui_loaded", "_interaction"]
             )
         ]
 
-        print(f"📸 Generated {len(final_screenshots)} final screenshots in {self.output_dir}")
-        print(f"📁 Ready for mkdocs integration from docs/screenshots/readme/")
+        print(
+            f"📸 Generated {len(final_screenshots)} final screenshots in {self.output_dir}"
+        )
+        print("📁 Ready for mkdocs integration from docs/screenshots/readme/")
 
 
 async def main():

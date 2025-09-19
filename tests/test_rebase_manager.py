@@ -97,7 +97,7 @@ class TestRebaseManager:
             mock_batch_ops = Mock()
             mock_batch_ops_class.return_value = mock_batch_ops
 
-            # Simulate git topological order: commit2 -> commit3 -> commit1 (newest to oldest)
+            # Simulate git chronological order: commit2 -> commit3 -> commit1 (chronological order)
             mock_batch_ops.get_branch_commits.return_value = [
                 "commit2",
                 "commit3",
@@ -106,8 +106,8 @@ class TestRebaseManager:
 
             result = self.rebase_manager._get_commit_order(commits)
 
-            # Should be ordered by git topology (oldest first)
-            assert result == ["commit1", "commit3", "commit2"]
+            # Should maintain the chronological order from get_branch_commits
+            assert result == ["commit2", "commit3", "commit1"]
 
     def test_get_commit_order_with_missing_commits(self) -> None:
         """Test commit ordering when some commits are not found in branch."""
@@ -125,9 +125,9 @@ class TestRebaseManager:
 
             result = self.rebase_manager._get_commit_order(commits)
 
-            # commit1 and commit2 should be in topological order, commit3 at end (fallback)
-            assert result[0] == "commit1"  # oldest first
-            assert result[1] == "commit2"
+            # commit2 and commit1 should be in chronological order, commit3 at end (fallback)
+            assert result[0] == "commit2"  # first in chronological order
+            assert result[1] == "commit1"
             assert result[2] == "commit3"  # missing commits added at end
 
     def test_handle_working_tree_state_clean(self) -> None:
@@ -262,7 +262,10 @@ class TestRebaseManager:
         mock_file.name = "/tmp/test_todo"
         mock_tempfile.return_value.__enter__.return_value = mock_file
 
-        # Mock successful rebase start - need two calls: rev-list then rebase
+        # Mock successful rebase start - need three calls: merge-base, rev-list, then rebase
+        merge_base_result = Mock()
+        merge_base_result.returncode = 0  # is-ancestor succeeds
+
         rev_list_result = Mock()
         rev_list_result.returncode = 0
         rev_list_result.stdout = "commit123\ncommit456\n"  # Mock commit list output
@@ -270,13 +273,17 @@ class TestRebaseManager:
         rebase_result = Mock()
         rebase_result.returncode = 0
 
-        self.mock_git_ops.run_git_command.side_effect = [rev_list_result, rebase_result]
+        self.mock_git_ops.run_git_command.side_effect = [
+            merge_base_result,
+            rev_list_result,
+            rebase_result,
+        ]
 
         result = self.rebase_manager._start_rebase_edit("commit123")
 
         assert result is True
         mock_file.write.assert_called_once_with("edit commit123\npick commit456\n")
-        assert self.mock_git_ops.run_git_command.call_count == 2
+        assert self.mock_git_ops.run_git_command.call_count == 3
         mock_unlink.assert_called_once_with("/tmp/test_todo")
 
     @patch("tempfile.NamedTemporaryFile")
@@ -317,7 +324,7 @@ class TestRebaseManager:
         self.mock_git_ops.run_git_command.assert_called_once_with(
             [
                 "apply",
-                "--ignore-space-change",
+                "--ignore-whitespace",
                 "--whitespace=nowarn",
                 "/tmp/test_patch",
             ]
