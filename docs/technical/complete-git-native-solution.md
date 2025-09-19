@@ -1,6 +1,6 @@
 # Complete Git-Native Solution
 
-> **⚠️ ARCHITECTURAL UPDATE**: The multi-strategy approach described in this document has been simplified. The worktree strategy has been removed due to unnecessary complexity. The current implementation uses only the index strategy with legacy fallback.
+> **⚠️ ARCHITECTURAL UPDATE**: The multi-strategy approach described in this document has been simplified. The worktree strategy has been removed due to unnecessary complexity. The current implementation uses a simplified 2-strategy architecture with index strategy (recommended) and legacy strategy (fallback).
 
 ## Overview
 
@@ -27,7 +27,7 @@ GitNativeCompleteHandler
 ├── Strategy 2: Index Manipulation (Good - High Compatibility)
 │   ├── Requirements: Any modern git
 │   ├── Benefits: Native operations, no working tree pollution
-│   └── Use Case: Fallback when worktree unavailable
+│   └── Use Case: Fallback for older git versions
 │
 └── Strategy 3: Legacy (Compatibility - Not Implemented)
     ├── Requirements: Any git version
@@ -45,14 +45,11 @@ def _determine_preferred_strategy(self) -> StrategyType:
     
     # 1. Check for explicit override
     env_strategy = os.getenv("GIT_AUTOSQUASH_STRATEGY", "").lower()
-    if env_strategy in ["worktree", "index", "legacy"]:
+    if env_strategy in ["index", "legacy"]:
         return env_strategy
-    
-    # 2. Auto-detect based on git capabilities
-    if self._check_worktree_support():
-        return "worktree"  # Best option
-    else:
-        return "index"     # Compatible fallback
+
+    # 2. Default to index strategy
+    return "index"  # Recommended strategy
 ```
 
 ### Graceful Fallback System
@@ -61,7 +58,7 @@ def _determine_preferred_strategy(self) -> StrategyType:
 def apply_ignored_hunks(self, ignored_mappings: List[HunkTargetMapping]) -> bool:
     """Apply hunks with intelligent fallback between strategies."""
     
-    strategies = self._get_strategy_execution_order()  # ["worktree", "index"]
+    strategies = self._get_strategy_execution_order()  # ["index"] or ["legacy"]
     
     for strategy_name in strategies:
         try:
@@ -82,7 +79,7 @@ Users can control strategy selection via environment variables:
 
 ```bash
 # Force specific strategy
-export GIT_AUTOSQUASH_STRATEGY=worktree
+export GIT_AUTOSQUASH_STRATEGY=index
 export GIT_AUTOSQUASH_STRATEGY=index
 
 # Use auto-detection (default)
@@ -100,34 +97,8 @@ unset GIT_AUTOSQUASH_STRATEGY
 | **Error Recovery** | Atomic | Atomic | Manual |
 | **Parallel Safety** | Yes | Partial | No |
 
-### Worktree Strategy Benefits
 
-```python
-class GitWorktreeIgnoreHandler:
-    """Complete isolation using temporary git worktrees."""
-    
-    def apply_ignored_hunks(self, ignored_mappings) -> bool:
-        # 1. Create isolated worktree environment
-        worktree_path = self._create_temporary_worktree()
-        
-        # 2. Apply changes in complete isolation
-        success = self._apply_hunks_in_worktree(ignored_mappings, worktree_path)
-        
-        # 3. Extract changes back to main repository
-        if success:
-            self._extract_changes_from_worktree(worktree_path)
-        
-        # 4. Atomic cleanup
-        self._cleanup_worktree(worktree_path)
-```
-
-**Advantages:**
-- Complete isolation from main repository state
-- No risk of index contamination
-- Foundation for parallel processing
-- Atomic cleanup via worktree removal
-
-### Index Strategy Benefits
+### Index Strategy Implementation
 
 ```python
 class GitNativeIgnoreHandler:
@@ -166,10 +137,10 @@ git autosquash strategy-info
 # Output:
 # Git-Autosquash Strategy Information
 # ========================================
-# Current Strategy: worktree
-# Worktree Available: ✓
-# Strategies Available: worktree, index
-# Execution Order: worktree → index
+# Current Strategy: index
+# Git Version: Compatible
+# Strategies Available: index, legacy
+# Execution Order: index
 # Environment Override: None
 ```
 
@@ -180,30 +151,30 @@ git autosquash strategy-info
 git autosquash strategy-test
 
 # Test specific strategy
-git autosquash strategy-test --strategy worktree
+git autosquash strategy-test --strategy index
 
 # Output:
 # Testing Git-Native Strategy Compatibility
 # =============================================
-# 
-# Testing worktree strategy:
+#
+# Testing index strategy:
 #   Compatibility: ✓
 #   Basic Function: ✓
-# 
-# Recommended Strategy: worktree
+#
+# Recommended Strategy: index
 ```
 
 ### Strategy Configuration
 
 ```bash
 # Set preferred strategy
-git autosquash strategy-set worktree
 git autosquash strategy-set index
+git autosquash strategy-set legacy
 git autosquash strategy-set auto    # Use auto-detection
 
 # Output:
-# To use worktree strategy, set environment variable:
-#   export GIT_AUTOSQUASH_STRATEGY=worktree
+# To use index strategy, set environment variable:
+#   export GIT_AUTOSQUASH_STRATEGY=index
 # Add this to your shell profile (~/.bashrc, ~/.zshrc, etc.) to persist
 ```
 
@@ -253,13 +224,10 @@ def _validate_file_paths(self, ignored_mappings) -> bool:
 ### Secure Temporary Files (Worktree Strategy)
 
 ```python
-def _create_temporary_worktree(self) -> Optional[str]:
-    """Create secure temporary worktree."""
     
     # Use secure temporary directory
     temp_dir = tempfile.mkdtemp(
         prefix="git-autosquash-", 
-        suffix="-worktree"
     )
     
     # Ensure proper permissions (owner only)
@@ -294,7 +262,7 @@ def apply_ignored_hunks(self, ignored_mappings) -> bool:
 
 ### Strategy-Specific Recovery
 
-- **Worktree**: Atomic cleanup via `git worktree remove`
+- **Index**: State restoration via git stash operations
 - **Index**: Atomic restore via `git read-tree`
 - **Backup**: Native git stash for all strategies
 
@@ -316,7 +284,7 @@ success = handler.apply_ignored_hunks(ignored_mappings)
 from git_autosquash.git_native_complete_handler import GitNativeStrategyManager
 
 # Force specific strategy
-handler = GitNativeStrategyManager.create_handler(git_ops, strategy="worktree")
+handler = GitNativeStrategyManager.create_handler(git_ops, strategy="index")
 success = handler.apply_ignored_hunks(ignored_mappings)
 
 # Get strategy information
@@ -352,7 +320,7 @@ git autosquash
 - Add telemetry for strategy effectiveness
 
 ### Phase 3: Optimization (Future)
-- Implement parallel hunk processing (worktree strategy)
+- Implement batch hunk processing (index strategy)
 - Add caching for repeated operations
 - Optimize memory usage for large changesets
 - Advanced conflict resolution strategies

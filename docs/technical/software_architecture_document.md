@@ -6,7 +6,7 @@
 **Prepared By:** Architecture Analysis Team
 **Document Type:** Technical Architecture Specification
 
-> **⚠️ ARCHITECTURAL UPDATE (v1.1)**: The worktree strategy has been removed from the codebase due to architectural simplification. This document reflects the historical architecture. The current system uses only index-based strategies (Native and Complete handlers).  
+> **⚠️ ARCHITECTURAL UPDATE (v1.1)**: The worktree strategy has been removed from the codebase due to architectural simplification. The current system uses a simplified 2-strategy architecture: Index strategy (direct index manipulation) and Legacy strategy (manual patch application).  
 
 ---
 
@@ -333,20 +333,6 @@ The system follows a **request-response flow** with **event-driven user interact
 - Atomic operation guarantees
 - Comprehensive pre-condition validation
 
-#### Git Worktree Handler (`src/git_autosquash/git_worktree_handler.py`)
-
-**Purpose**: Isolated execution strategy using temporary worktrees for maximum safety.
-
-**Use Cases**:
-- High conflict probability scenarios
-- Experimental operations
-- Recovery from failed operations
-
-**Implementation**:
-- Temporary worktree creation for isolation
-- Independent operation execution
-- Result validation before integration
-- Automatic cleanup on completion or failure
 
 ---
 
@@ -361,7 +347,7 @@ git-autosquash [OPTIONS]
 
 **Options**:
 - `--auto-accept`: Automatically approve high-confidence mappings without user interaction
-- `--strategy {native|complete|worktree}`: Force specific execution strategy
+- `--strategy {index|legacy}`: Force specific execution strategy
 - `--log-level {DEBUG|INFO|WARNING|ERROR}`: Configure logging verbosity
 - `--help`: Display usage information and available options
 
@@ -439,7 +425,7 @@ class BlameInfo:
 
 #### Git Repository Interface
 - **Read Operations**: Status, log, diff, blame, branch information
-- **Write Operations**: Interactive rebase, patch application, worktree management
+- **Write Operations**: Interactive rebase, patch application, index manipulation
 - **Validation**: Repository state, git version, capability detection
 
 #### File System Interface
@@ -966,7 +952,7 @@ class PerformanceMetrics:
 #### Git Version Control System
 - **Minimum Version**: Git 2.25.0 (released January 2020)
 - **Recommended Version**: Git 2.40.0+ for optimal feature support
-- **Required Commands**: `git diff`, `git blame`, `git rebase`, `git stash`, `git worktree`
+- **Required Commands**: `git diff`, `git blame`, `git rebase`, `git stash`
 - **Optional Commands**: `git config` for advanced configuration
 
 #### Python Runtime Environment
@@ -1021,11 +1007,6 @@ class GitCapabilities:
         self.git_ops = git_ops
         self._capabilities_cache = {}
     
-    def supports_worktree(self) -> bool:
-        if 'worktree' not in self._capabilities_cache:
-            result = self.git_ops.run_command(['git', 'worktree', '--help'])
-            self._capabilities_cache['worktree'] = result.is_ok()
-        return self._capabilities_cache['worktree']
     
     def supports_interactive_rebase_autosquash(self) -> bool:
         if 'autosquash' not in self._capabilities_cache:
@@ -1045,7 +1026,6 @@ class FeatureDegradation:
             return UIMode.BASIC_TEXT
     
     def select_execution_strategy(self, capabilities: GitCapabilities) -> StrategyType:
-        if capabilities.supports_worktree():
             return StrategyType.WORKTREE
         elif capabilities.supports_interactive_rebase():
             return StrategyType.COMPLETE
@@ -1168,7 +1148,7 @@ class DeploymentConfig:
     GIT_CONFIG_GLOBAL = os.getenv('GIT_CONFIG_GLOBAL', True)
     
     # Strategy Selection
-    DEFAULT_STRATEGY = os.getenv('AUTOSQUASH_STRATEGY', 'complete')
+    DEFAULT_STRATEGY = os.getenv('AUTOSQUASH_STRATEGY', 'index')
     FORCE_STRATEGY = os.getenv('AUTOSQUASH_FORCE_STRATEGY', None)
     
     # Performance Tuning
@@ -1193,7 +1173,6 @@ class DeploymentDetector:
         
         # Detect git capabilities
         env.git_version = self.detect_git_version()
-        env.supports_worktree = self.test_worktree_support()
         env.supports_interactive_rebase = self.test_rebase_support()
         
         # Detect UI capabilities
@@ -1458,7 +1437,6 @@ classDiagram
     
     class GitWorktreeHandler {
         -git_ops: GitOps
-        -worktree_path: Path
         +execute(mappings) Result
         +can_handle(repository_state) bool
         +get_strategy_name() str
@@ -1992,7 +1970,7 @@ graph TB
 #### Environment Variables
 ```bash
 # Strategy Configuration
-export AUTOSQUASH_STRATEGY="complete"          # native|complete|worktree
+export AUTOSQUASH_STRATEGY="index"          # index|legacy
 export AUTOSQUASH_FORCE_STRATEGY=""            # Force specific strategy
 
 # Performance Configuration
@@ -2015,7 +1993,7 @@ export GIT_EXECUTABLE="git"                    # Git executable path
 #### Git Configuration Integration
 ```bash
 # Set default strategy
-git config --global autosquash.strategy complete
+git config --global autosquash.strategy index
 
 # Configure UI preferences
 git config --global autosquash.ui.mode tui
