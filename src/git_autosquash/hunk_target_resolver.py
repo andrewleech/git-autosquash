@@ -259,24 +259,27 @@ class FallbackTargetProvider:
             method: Fallback method to determine candidate ordering
 
         Returns:
-            List of commit hashes ordered by priority (excludes current HEAD)
+            List of commit hashes ordered by priority
         """
         branch_commits = self.batch_ops.get_branch_commits()
 
-        # Get current HEAD to exclude it from candidates
-        # (HEAD is the commit being split up, so it shouldn't be a target)
-        try:
-            result = self.batch_ops.git_ops.run_git_command(["rev-parse", "HEAD"])
-            if result.returncode == 0:
-                current_head = result.stdout.strip()
-                # Filter out HEAD from all candidates
-                branch_commits = [
-                    commit for commit in branch_commits if commit != current_head
-                ]
-            else:
-                print("WARNING: Could not determine current HEAD for filtering")
-        except Exception as e:
-            print(f"WARNING: Error getting current HEAD: {e}")
+        # Only exclude HEAD if working tree is clean (meaning HEAD commit is being processed)
+        # If there are working tree or staged changes, HEAD should remain as a valid target
+        should_exclude_head = self._should_exclude_head_as_target()
+
+        if should_exclude_head:
+            try:
+                result = self.batch_ops.git_ops.run_git_command(["rev-parse", "HEAD"])
+                if result.returncode == 0:
+                    current_head = result.stdout.strip()
+                    branch_commits = [
+                        commit for commit in branch_commits if commit != current_head
+                    ]
+                    print(
+                        f"DEBUG: Excluded HEAD {current_head[:8]} from fallback candidates (clean working tree)"
+                    )
+            except Exception as e:
+                print(f"WARNING: Error getting current HEAD: {e}")
 
         if method == TargetingMethod.FALLBACK_NEW_FILE:
             # For new files, return commits ordered by recency, merges last
@@ -297,6 +300,26 @@ class FallbackTargetProvider:
         # Default fallback
         ordered_commits = self.batch_ops.get_ordered_commits_by_recency(branch_commits)
         return [commit.commit_hash for commit in ordered_commits]
+
+    def _should_exclude_head_as_target(self) -> bool:
+        """Determine if HEAD should be excluded as a fallback target.
+
+        HEAD should only be excluded when the working tree is clean, meaning
+        we're processing the HEAD commit itself. When there are working tree
+        or staged changes, HEAD should remain as a valid target.
+
+        Returns:
+            True if HEAD should be excluded from fallback candidates
+        """
+        try:
+            status = self.batch_ops.git_ops.get_working_tree_status()
+            # Exclude HEAD only when working tree is completely clean
+            # (meaning we're processing HEAD commit, not working tree changes)
+            return status["is_clean"]
+        except Exception as e:
+            print(f"WARNING: Could not determine working tree status: {e}")
+            # Default to not excluding HEAD if we can't determine status
+            return False
 
 
 class FileConsistencyTracker:
