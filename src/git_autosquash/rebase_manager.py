@@ -89,6 +89,23 @@ class RebaseManager:
                 )
                 print("=" * 80)
 
+            # Restore stash if we created one (success path)
+            if self._stash_ref:
+                try:
+                    result = self.git_ops.run_git_command(
+                        ["stash", "pop", self._stash_ref]
+                    )
+                    if result.returncode != 0:
+                        print(f"DEBUG: Failed to restore stash: {result.stderr}")
+                        print(
+                            "DEBUG: You may need to manually restore with: git stash pop"
+                        )
+                except Exception as e:
+                    print(f"DEBUG: Error restoring stash: {e}")
+                    print("DEBUG: You may need to manually restore with: git stash pop")
+                finally:
+                    self._stash_ref = None
+
             return True
 
         except RebaseConflictError:
@@ -154,10 +171,8 @@ class RebaseManager:
         """Handle working tree state before rebase."""
         status = self.git_ops.get_working_tree_status()
 
-        # Only stash when we have both staged and unstaged changes
-        # In this case, we want to process staged changes and temporarily stash unstaged
         if status.get("has_staged", False) and status.get("has_unstaged", False):
-            # Stash only unstaged changes, keep staged changes in index
+            # Mixed changes: stash only unstaged changes, keep staged changes in index
             result = self.git_ops.run_git_command(
                 ["stash", "push", "--keep-index", "-m", "git-autosquash temp stash"]
             )
@@ -166,6 +181,23 @@ class RebaseManager:
             else:
                 raise subprocess.SubprocessError(
                     f"Failed to stash unstaged changes: {result.stderr}"
+                )
+        elif status.get("has_staged", False) and not status.get("has_unstaged", False):
+            # Staged changes only: stash all changes since git won't start rebase with uncommitted index
+            result = self.git_ops.run_git_command(
+                [
+                    "stash",
+                    "push",
+                    "--staged",
+                    "-m",
+                    "git-autosquash staged changes stash",
+                ]
+            )
+            if result.returncode == 0:
+                self._stash_ref = "stash@{0}"
+            else:
+                raise subprocess.SubprocessError(
+                    f"Failed to stash staged changes: {result.stderr}"
                 )
 
     def _apply_hunks_to_commit(self, target_commit: str, hunks: List[DiffHunk]) -> bool:
