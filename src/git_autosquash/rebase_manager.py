@@ -1,5 +1,6 @@
 """Interactive rebase manager for applying hunk mappings to historical commits."""
 
+import logging
 import os
 import subprocess
 import tempfile
@@ -9,6 +10,8 @@ from git_autosquash.hunk_target_resolver import HunkTargetMapping
 from git_autosquash.git_ops import GitOps
 from git_autosquash.hunk_parser import DiffHunk
 from git_autosquash.batch_git_ops import BatchGitOperations
+
+logger = logging.getLogger(__name__)
 
 
 class RebaseConflictError(Exception):
@@ -171,45 +174,158 @@ class RebaseManager:
         """Handle working tree state before rebase."""
         status = self.git_ops.get_working_tree_status()
 
+        # Validate status data
+        if not isinstance(status, dict):
+            raise ValueError("Invalid working tree status format")
+
+        operation_type = None
+        message = None
+        stash_sha = None
+
         if status.get("has_staged", False) and status.get("has_unstaged", False):
             # Mixed changes: stash only unstaged changes, keep staged changes in index
-            result = self.git_ops.run_git_command(
-                ["stash", "push", "--keep-index", "-m", "git-autosquash temp stash"]
-            )
-            if result.returncode == 0:
-                self._stash_ref = "stash@{0}"
-            else:
-                raise subprocess.SubprocessError(
-                    f"Failed to stash unstaged changes: {result.stderr}"
-                )
+            operation_type = "mixed"
+            message = "git-autosquash: temporary stash of unstaged changes"
+
+            # Use --keep-index to stash only unstaged changes
+            stash_sha = self._create_stash_with_options(message, ["--keep-index"])
+
         elif status.get("has_staged", False) and not status.get("has_unstaged", False):
-            # Staged changes only: stash all changes since git won't start rebase with uncommitted index
-            result = self.git_ops.run_git_command(
-                [
-                    "stash",
-                    "push",
-                    "--staged",
-                    "-m",
-                    "git-autosquash staged changes stash",
-                ]
-            )
-            if result.returncode == 0:
-                self._stash_ref = "stash@{0}"
-            else:
-                raise subprocess.SubprocessError(
-                    f"Failed to stash staged changes: {result.stderr}"
-                )
+            # Staged changes only: must stash before rebase
+            operation_type = "staged_only"
+            message = "git-autosquash: temporary stash of staged changes"
+
+            # Use --staged to stash only staged changes
+            stash_sha = self._create_stash_with_options(message, ["--staged"])
+
         elif not status.get("has_staged", False) and status.get("has_unstaged", False):
-            # Unstaged changes only: stash all working tree changes since git won't start rebase with unstaged changes
-            result = self.git_ops.run_git_command(
-                ["stash", "push", "-m", "git-autosquash unstaged changes stash"]
+            # Unstaged changes only: must stash before rebase
+            operation_type = "unstaged_only"
+            message = "git-autosquash: temporary stash of unstaged changes"
+
+            # Stash all working tree changes
+            stash_sha = self._create_and_store_stash(message)
+
+        else:
+            # Clean working tree, nothing to stash
+            logger.debug("Working tree is clean, no stashing needed")
+            return
+
+        if stash_sha:
+            self._stash_ref = stash_sha
+            logger.info(f"Working tree prepared. Stash SHA: {stash_sha[:8]}")
+        else:
+            raise subprocess.SubprocessError(
+                f"Failed to stash {operation_type} changes"
             )
-            if result.returncode == 0:
-                self._stash_ref = "stash@{0}"
-            else:
-                raise subprocess.SubprocessError(
-                    f"Failed to stash unstaged changes: {result.stderr}"
+
+    def _create_and_store_stash(self, message: str) -> Optional[str]:
+        """Create a stash and return its SHA reference.
+
+        Uses git stash create + store to get a reliable SHA reference
+        instead of assuming stash@{0}.
+
+        Args:
+            message: Description for the stash
+
+        Returns:
+            SHA of created stash, or None if failed or no changes
+        """
+        # Step 1: Create stash object without modifying stash list
+        # This returns a SHA that uniquely identifies the stash
+        create_result = self.git_ops.run_git_command(["stash", "create", message])
+
+        if create_result.returncode != 0:
+            logger.error(f"Failed to create stash: {create_result.stderr}")
+            return None
+
+        stash_sha = create_result.stdout.strip()
+        if not stash_sha:
+            # No changes to stash (working tree might be clean)
+            logger.info("No changes to stash")
+            return None
+
+        # Step 2: Store the stash object in the stash list
+        # This makes it visible in 'git stash list'
+        store_result = self.git_ops.run_git_command(
+            ["stash", "store", "-m", message, stash_sha]
+        )
+
+        if store_result.returncode != 0:
+            logger.error(f"Failed to store stash {stash_sha}: {store_result.stderr}")
+            # The stash object exists but isn't in the list
+            # We can still use it by SHA
+            logger.warning(f"Stash created but not stored in list. SHA: {stash_sha}")
+
+        logger.info(f"Created stash with SHA: {stash_sha}")
+        return stash_sha
+
+    def _create_stash_with_options(
+        self, message: str, options: List[str]
+    ) -> Optional[str]:
+        """Create stash with specific options and return SHA.
+
+        Args:
+            message: Stash message
+            options: List of git stash options (e.g., ['--keep-index'])
+
+        Returns:
+            SHA of created stash, or None if failed
+        """
+        # Use git stash push with options, then get the SHA
+        cmd = ["stash", "push"] + options + ["-m", message]
+        result = self.git_ops.run_git_command(cmd)
+
+        if result.returncode != 0:
+            logger.error(
+                f"Failed to create stash with options {options}: {result.stderr}"
+            )
+            return None
+
+        # Get the SHA of the most recently created stash
+        # Use git stash list to get the SHA of stash@{0}
+        list_result = self.git_ops.run_git_command(
+            ["stash", "list", "--format=%H", "-n", "1"]
+        )
+        if list_result.returncode == 0 and list_result.stdout.strip():
+            stash_sha = list_result.stdout.strip()
+            logger.info(f"Created stash with options {options}, SHA: {stash_sha}")
+            return stash_sha
+
+        logger.error("Failed to retrieve SHA of created stash")
+        return None
+
+    def _restore_stash_by_sha(self, stash_sha: str) -> bool:
+        """Restore stash using its SHA reference.
+
+        Args:
+            stash_sha: SHA of the stash to restore
+
+        Returns:
+            True if successful, False otherwise
+        """
+        logger.info(f"Restoring stash by SHA: {stash_sha[:12]}")
+
+        # Apply the stash
+        result = self.git_ops.run_git_command(["stash", "apply", stash_sha])
+
+        if result.returncode != 0:
+            # Check if it's a conflict during stash application
+            if "CONFLICT" in result.stderr or "conflict" in result.stderr.lower():
+                logger.error(
+                    f"Conflicts occurred while applying stash {stash_sha[:12]}"
                 )
+            else:
+                logger.error(f"Failed to apply stash {stash_sha}: {result.stderr}")
+            return False
+
+        # Successfully applied, now drop the stash
+        logger.info("Stash applied successfully, dropping from list")
+        drop_result = self.git_ops.run_git_command(["stash", "drop", stash_sha])
+        if drop_result.returncode != 0:
+            logger.warning(f"Failed to drop stash (non-critical): {drop_result.stderr}")
+
+        return True
 
     def _apply_hunks_to_commit(self, target_commit: str, hunks: List[DiffHunk]) -> bool:
         """Apply hunks to a specific commit via interactive rebase.
