@@ -138,13 +138,52 @@ class CommitHistoryAnalyzer:
         """Get all commits on current branch since merge base, ordered by recency.
 
         Returns:
-            List of commit hashes from most recent to oldest
+            List of commit hashes from most recent to oldest (excludes HEAD when processing HEAD commit)
         """
         if self._branch_commits_cache is not None:
             return self._branch_commits_cache
 
-        self._branch_commits_cache = self.batch_ops.get_branch_commits()
+        branch_commits = self.batch_ops.get_branch_commits()
+
+        # Exclude HEAD when processing HEAD commit itself (clean working tree)
+        # This ensures HEAD doesn't appear in TUI candidate lists when processing HEAD
+        if self._should_exclude_head_from_suggestions():
+            try:
+                result = self.git_ops.run_git_command(["rev-parse", "HEAD"])
+                if result.returncode == 0:
+                    current_head = result.stdout.strip()
+                    branch_commits = [
+                        commit for commit in branch_commits if commit != current_head
+                    ]
+                    print(
+                        f"DEBUG: Excluded HEAD {current_head[:8]} from TUI commit suggestions (clean working tree)"
+                    )
+            except Exception as e:
+                print(f"WARNING: Error getting current HEAD for TUI filtering: {e}")
+
+        self._branch_commits_cache = branch_commits
         return self._branch_commits_cache
+
+    def _should_exclude_head_from_suggestions(self) -> bool:
+        """Determine if HEAD should be excluded from TUI commit suggestions.
+
+        Uses the same logic as the target resolution - exclude HEAD when
+        processing the HEAD commit itself (clean working tree).
+
+        Returns:
+            True if HEAD should be excluded from TUI suggestions
+        """
+        try:
+            status = self.git_ops.get_working_tree_status()
+            # Exclude HEAD only when working tree is completely clean
+            # (meaning we're processing HEAD commit, not working tree changes)
+            return status["is_clean"]
+        except Exception as e:
+            print(
+                f"WARNING: Could not determine working tree status for TUI suggestions: {e}"
+            )
+            # Default to not excluding HEAD if we can't determine status
+            return False
 
     def _order_by_recency(self, commit_hashes: List[str]) -> List[CommitInfo]:
         """Order commits by recency with merge commits last.
