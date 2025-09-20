@@ -154,16 +154,18 @@ class RebaseManager:
         """Handle working tree state before rebase."""
         status = self.git_ops.get_working_tree_status()
 
-        if not status["is_clean"]:
-            # Stash any uncommitted changes
+        # Only stash when we have both staged and unstaged changes
+        # In this case, we want to process staged changes and temporarily stash unstaged
+        if status.get("has_staged", False) and status.get("has_unstaged", False):
+            # Stash only unstaged changes, keep staged changes in index
             result = self.git_ops.run_git_command(
-                ["stash", "push", "-m", "git-autosquash temp stash"]
+                ["stash", "push", "--keep-index", "-m", "git-autosquash temp stash"]
             )
             if result.returncode == 0:
                 self._stash_ref = "stash@{0}"
             else:
                 raise subprocess.SubprocessError(
-                    f"Failed to stash changes: {result.stderr}"
+                    f"Failed to stash unstaged changes: {result.stderr}"
                 )
 
     def _apply_hunks_to_commit(self, target_commit: str, hunks: List[DiffHunk]) -> bool:

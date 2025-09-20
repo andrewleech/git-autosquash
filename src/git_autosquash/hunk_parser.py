@@ -75,8 +75,9 @@ class HunkParser:
             # Only unstaged changes, diff them
             success, diff_output = self.git_ops._run_git_command("diff")
         else:
-            # Mixed changes, diff all (staged + unstaged)
-            success, diff_output = self.git_ops._run_git_command("diff", "HEAD")
+            # Both staged and unstaged changes - process only staged changes
+            # Unstaged changes will be temporarily stashed by the rebase manager
+            success, diff_output = self.git_ops._run_git_command("diff", "--cached")
 
         if not success:
             return []

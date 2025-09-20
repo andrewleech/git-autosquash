@@ -117,6 +117,126 @@ Recommended approach:
 | Execute | Enter | Start rebase with approved changes |
 | Cancel | Escape or q | Abort operation |
 
+## Working Tree State Handling
+
+git-autosquash intelligently handles different working tree states to ensure you can run it at any time during your development workflow.
+
+### Scenario 1: Clean Working Tree
+When your working tree is clean (no staged or unstaged changes):
+
+```bash
+git status
+# On branch feature/auth
+# Your branch is ahead of 'origin/main' by 3 commits.
+# nothing to commit, working tree clean
+
+git-autosquash
+```
+
+**Behavior**: Processes the HEAD commit, allowing you to split it up and distribute changes to earlier commits.
+
+### Scenario 2: Staged Changes Only
+When you have staged changes ready to commit:
+
+```bash
+git status
+# On branch feature/auth
+# Changes to be committed:
+#   (use "git restore --staged <file>..." to unstage)
+#         modified:   src/auth/login.py
+#         modified:   src/ui/forms.py
+
+git-autosquash
+# No stashing warnings - processes staged changes directly
+```
+
+**Behavior**:
+- No stashing needed
+- Processes only the staged changes
+- Staged changes remain in index after operation
+
+### Scenario 3: Unstaged Changes Only
+When you have unstaged changes in your working tree:
+
+```bash
+git status
+# On branch feature/auth
+# Changes not staged for commit:
+#   (use "git add <file>..." to update what will be committed)
+#         modified:   src/auth/login.py
+#         modified:   src/ui/forms.py
+
+git-autosquash
+# No stashing warnings - processes unstaged changes directly
+```
+
+**Behavior**:
+- No stashing needed
+- Processes the unstaged changes
+- Working tree changes remain after operation
+
+### Scenario 4: Mixed Staged and Unstaged Changes
+When you have both staged and unstaged changes:
+
+```bash
+git status
+# On branch feature/auth
+# Changes to be committed:
+#   (use "git restore --staged <file>..." to unstage)
+#         modified:   src/auth/login.py
+# Changes not staged for commit:
+#   (use "git add <file>..." to update what will be committed)
+#         modified:   src/ui/forms.py
+
+git-autosquash
+# ⚠️  Working tree has both staged and unstaged changes.
+# Unstaged changes will be temporarily stashed while processing staged changes.
+# Choose an option:
+#   c) Continue (unstaged changes will be temporarily stashed)
+#   q) Quit
+```
+
+**Behavior**:
+- Temporarily stashes **only the unstaged changes** (using `git stash --keep-index`)
+- Processes **only the staged changes**
+- Automatically restores unstaged changes after completion
+- Staged changes remain staged if not squashed
+
+### Why This Matters
+
+This intelligent handling allows you to:
+
+1. **Work naturally**: Stage changes you want to squash, keep unstaged changes for future work
+2. **No data loss**: Never lose unstaged work, even during complex rebase operations
+3. **Flexible workflow**: Run git-autosquash at any point without preparation
+4. **Clear intentions**: The tool processes the most "ready" changes (staged > unstaged > HEAD)
+
+### Examples of Mixed Change Workflows
+
+**Example 1: Code review feedback + ongoing development**
+```bash
+# Stage fixes for code review feedback
+git add src/auth/login.py src/docs/api.md
+
+# Keep ongoing work unstaged
+# (modified: src/new_feature.py, tests/test_new.py)
+
+git-autosquash
+# Processes only the staged fixes, unstaged work safely preserved
+```
+
+**Example 2: Bug fix + debug code**
+```bash
+# Stage the actual bug fix
+git add src/auth/security.py
+
+# Keep debug prints unstaged for continued development
+# (modified: src/auth/debug_helpers.py with temporary logging)
+
+git-autosquash
+# Squashes bug fix to appropriate commit, keeps debug code for you
+```
+
 ## Common Scenarios
 
 ### Bug Fix During Feature Work

@@ -75,6 +75,17 @@ git-autosquash uses git blame analysis to trace each modified line back to its o
 
 For complete documentation, architecture details, and advanced usage patterns, see: **https://andrewleech.github.io/git-autosquash/**
 
+## Working Tree State Handling
+
+git-autosquash intelligently handles different working tree states:
+
+- **Clean working tree**: Processes the HEAD commit for splitting up recent changes
+- **Staged changes only**: Processes staged changes directly (no stashing needed)
+- **Unstaged changes only**: Processes unstaged changes directly (no stashing needed)
+- **Both staged and unstaged**: Temporarily stashes unstaged changes, processes staged changes, then restores unstaged changes
+
+This smart handling ensures you can run git-autosquash at any time without losing work, while processing the most appropriate set of changes for your current workflow.
+
 ### Key Features
 
 - **Smart Targeting**: git blame analysis identifies logical target commits

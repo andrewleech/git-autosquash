@@ -423,25 +423,20 @@ def check_repository_state(
     # Check working tree status
     status = git_ops.get_working_tree_status()
 
-    if not status["is_clean"]:
+    # Only warn about stashing when we actually need to stash (both staged and unstaged)
+    if status.get("has_staged", False) and status.get("has_unstaged", False):
         print(
-            "⚠️  Working tree has uncommitted changes. These will be temporarily stashed during operation."
+            "⚠️  Working tree has both staged and unstaged changes. Unstaged changes will be temporarily stashed while processing staged changes."
         )
-        if not status.get("has_staged", False) and not status.get(
-            "has_unstaged", False
-        ):
-            # This shouldn't happen if is_clean is False, but handle it gracefully
-            pass
+        if auto_accept:
+            print(
+                "✓ Auto-accepting mixed changes (unstaged will be temporarily stashed)"
+            )
         else:
-            if auto_accept:
-                print(
-                    "✓ Auto-accepting uncommitted changes (will be temporarily stashed)"
-                )
-            else:
-                choice = _get_user_choice_for_uncommitted_changes()
-                if choice != "continue":
-                    print("Operation cancelled.")
-                    sys.exit(0)
+            choice = _get_user_choice_for_uncommitted_changes()
+            if choice != "continue":
+                print("Operation cancelled.")
+                sys.exit(0)
 
 
 def process_hunks_and_mappings(
