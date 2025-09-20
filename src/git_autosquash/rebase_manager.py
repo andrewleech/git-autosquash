@@ -373,9 +373,6 @@ class RebaseManager:
                 print(f"DEBUG: Failed to read {file_path} from {target_commit}: {e}")
                 continue
 
-            # Track which lines we've already used to prevent duplicates
-            used_lines: Set[int] = set()
-
             # Extract all changes from all hunks for this file
             all_changes = []
             for hunk in file_hunks:
@@ -386,25 +383,152 @@ class RebaseManager:
 
             print(f"DEBUG: Extracted {len(all_changes)} total changes for {file_path}")
 
-            # Process each change with context awareness
+            # Find target lines for all changes first
+            changes_with_targets = []
+            used_lines: Set[int] = set()
+
             for change in all_changes:
                 target_line_num = self._find_target_with_context(
                     change, file_lines, used_lines
                 )
-
                 if target_line_num is not None:
                     used_lines.add(target_line_num)
-                    hunk_lines = self._create_corrected_hunk_for_change(
-                        change, target_line_num, file_lines
-                    )
-                    patch_lines.extend(hunk_lines)
-                    print(f"DEBUG: Created corrected hunk at line {target_line_num}")
+                    changes_with_targets.append((change, target_line_num))
+                    print(f"DEBUG: Mapped change to line {target_line_num}")
                 else:
                     print(
                         f"DEBUG: Could not find target for change: {change['old_line'][:50]}..."
                     )
 
+            # Sort changes by line number
+            changes_with_targets.sort(key=lambda x: x[1])
+
+            # Group overlapping changes to avoid hunk conflicts
+            consolidated_hunks = self._consolidate_overlapping_changes(
+                changes_with_targets, file_lines
+            )
+
+            # Add consolidated hunks to patch
+            for hunk_lines in consolidated_hunks:
+                patch_lines.extend(hunk_lines)
+
         return "\n".join(patch_lines) + "\n"
+
+    def _consolidate_overlapping_changes(
+        self, changes_with_targets: List[tuple], file_lines: List[str]
+    ) -> List[List[str]]:
+        """Consolidate overlapping changes into non-overlapping hunks.
+
+        Args:
+            changes_with_targets: List of (change_dict, target_line_num) tuples sorted by line number
+            file_lines: Current file content
+
+        Returns:
+            List of hunk line lists ready for patch inclusion
+        """
+        if not changes_with_targets:
+            return []
+
+        consolidated_hunks = []
+        current_group: List[tuple] = []
+
+        # Group changes that would create overlapping context
+        for i, (change, line_num) in enumerate(changes_with_targets):
+            if not current_group:
+                # Start new group
+                current_group = [(change, line_num)]
+            else:
+                # Check if this change overlaps with the current group's context
+                group_start = min(line for _, line in current_group) - 6
+                group_end = max(line for _, line in current_group) + 6
+
+                change_start = line_num - 6
+                change_end = line_num + 6
+
+                # If contexts overlap, add to current group
+                if change_start <= group_end and change_end >= group_start:
+                    current_group.append((change, line_num))
+                    print(
+                        f"DEBUG: Consolidating change at line {line_num} with existing group"
+                    )
+                else:
+                    # No overlap, create hunk for current group and start new group
+                    hunk_lines = self._create_consolidated_hunk(
+                        current_group, file_lines
+                    )
+                    if hunk_lines:
+                        consolidated_hunks.append(hunk_lines)
+                    current_group = [(change, line_num)]
+
+        # Process final group
+        if current_group:
+            hunk_lines = self._create_consolidated_hunk(current_group, file_lines)
+            if hunk_lines:
+                consolidated_hunks.append(hunk_lines)
+
+        print(
+            f"DEBUG: Created {len(consolidated_hunks)} consolidated hunks from {len(changes_with_targets)} changes"
+        )
+        return consolidated_hunks
+
+    def _create_consolidated_hunk(
+        self, changes_group: List[tuple], file_lines: List[str]
+    ) -> List[str]:
+        """Create a single hunk containing multiple changes.
+
+        Args:
+            changes_group: List of (change_dict, target_line_num) tuples to include in hunk
+            file_lines: Current file content
+
+        Returns:
+            List of hunk lines, or empty list if creation failed
+        """
+        if not changes_group:
+            return []
+
+        # Determine the overall context range for all changes
+        min_line = min(line_num for _, line_num in changes_group)
+        max_line = max(line_num for _, line_num in changes_group)
+
+        # Expand context to ensure good patch application (6 lines each side)
+        context_start = max(1, min_line - 6)
+        context_end = min(len(file_lines), max_line + 6)
+
+        print(
+            f"DEBUG: Creating consolidated hunk for lines {min_line}-{max_line}, context {context_start}-{context_end}"
+        )
+
+        # Create change mapping for quick lookup
+        changes_by_line = {line_num: change for change, line_num in changes_group}
+
+        # Build the hunk header
+        old_count = context_end - context_start + 1
+        new_count = (
+            old_count  # Same count since we're replacing lines, not adding/removing
+        )
+        hunk_lines = []
+        hunk_lines.append(
+            f"@@ -{context_start},{old_count} +{context_start},{new_count} @@ "
+        )
+
+        # Build the hunk content
+        for line_num in range(context_start, context_end + 1):
+            if line_num > len(file_lines):
+                break
+
+            file_line = file_lines[line_num - 1].rstrip("\n")
+
+            if line_num in changes_by_line:
+                # This line should be changed
+                change = changes_by_line[line_num]
+                new_line = change["new_line"]
+                hunk_lines.append(f"-{file_line}")
+                hunk_lines.append(f"+{new_line}")
+            else:
+                # Context line
+                hunk_lines.append(f" {file_line}")
+
+        return hunk_lines
 
     def _create_corrected_hunk_for_change(
         self, change: Dict, target_line_num: int, file_lines: List[str]
