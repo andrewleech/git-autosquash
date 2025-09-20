@@ -199,6 +199,17 @@ class RebaseManager:
                 raise subprocess.SubprocessError(
                     f"Failed to stash staged changes: {result.stderr}"
                 )
+        elif not status.get("has_staged", False) and status.get("has_unstaged", False):
+            # Unstaged changes only: stash all working tree changes since git won't start rebase with unstaged changes
+            result = self.git_ops.run_git_command(
+                ["stash", "push", "-m", "git-autosquash unstaged changes stash"]
+            )
+            if result.returncode == 0:
+                self._stash_ref = "stash@{0}"
+            else:
+                raise subprocess.SubprocessError(
+                    f"Failed to stash unstaged changes: {result.stderr}"
+                )
 
     def _apply_hunks_to_commit(self, target_commit: str, hunks: List[DiffHunk]) -> bool:
         """Apply hunks to a specific commit via interactive rebase.
