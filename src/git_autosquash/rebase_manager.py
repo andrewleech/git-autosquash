@@ -95,17 +95,17 @@ class RebaseManager:
             # Restore stash if we created one (success path)
             if self._stash_ref:
                 try:
-                    result = self.git_ops.run_git_command(
-                        ["stash", "pop", self._stash_ref]
-                    )
-                    if result.returncode != 0:
-                        print(f"DEBUG: Failed to restore stash: {result.stderr}")
-                        print(
-                            "DEBUG: You may need to manually restore with: git stash pop"
+                    success = self._restore_stash_by_sha(self._stash_ref)
+                    if not success:
+                        logger.error(f"Failed to restore stash: {self._stash_ref[:12]}")
+                        logger.info(
+                            f"Manual restore: git stash apply {self._stash_ref[:12]}"
                         )
                 except Exception as e:
-                    print(f"DEBUG: Error restoring stash: {e}")
-                    print("DEBUG: You may need to manually restore with: git stash pop")
+                    logger.error(f"Error restoring stash: {e}")
+                    logger.info(
+                        f"Manual restore: git stash apply {self._stash_ref[:12]}"
+                    )
                 finally:
                     self._stash_ref = None
 
@@ -272,7 +272,25 @@ class RebaseManager:
         Returns:
             SHA of created stash, or None if failed
         """
-        # Use git stash push with options, then get the SHA
+        # For options that require git stash push, we need to use a different approach
+        # since git stash create doesn't support --staged or --keep-index
+
+        # First, check if this is a standard creation without special options
+        if not options or options == []:
+            return self._create_and_store_stash(message)
+
+        # For --staged: we need to temporarily manipulate the working tree
+        if "--staged" in options:
+            return self._create_staged_only_stash(message)
+
+        # For --keep-index: we need to stash everything then restore index
+        if "--keep-index" in options:
+            return self._create_keep_index_stash(message)
+
+        # Fallback: use the original approach with race condition warning
+        logger.warning(
+            f"Using fallback stash method with race condition risk for options: {options}"
+        )
         cmd = ["stash", "push"] + options + ["-m", message]
         result = self.git_ops.run_git_command(cmd)
 
@@ -282,8 +300,8 @@ class RebaseManager:
             )
             return None
 
-        # Get the SHA of the most recently created stash
-        # Use git stash list to get the SHA of stash@{0}
+        # RACE CONDITION: This assumes stash@{0} is the one we just created
+        # But at least we're warning about it now
         list_result = self.git_ops.run_git_command(
             ["stash", "list", "--format=%H", "-n", "1"]
         )
@@ -295,6 +313,140 @@ class RebaseManager:
         logger.error("Failed to retrieve SHA of created stash")
         return None
 
+    def _create_staged_only_stash(self, message: str) -> Optional[str]:
+        """Create a stash containing only staged changes.
+
+        Uses git stash create after manipulating the working tree to isolate staged changes.
+
+        Args:
+            message: Stash message
+
+        Returns:
+            SHA of created stash, or None if failed
+        """
+        # Strategy: git stash create doesn't support --staged, so we simulate it
+        # 1. Create a temporary commit with staged changes
+        # 2. Use git stash create to capture the difference
+        # 3. Reset the temporary commit
+
+        # Check if there are staged changes
+        status_result = self.git_ops.run_git_command(["diff", "--cached", "--quiet"])
+        if status_result.returncode == 0:
+            logger.info("No staged changes to stash")
+            return None
+
+        # Create a temporary tree object from the index
+        tree_result = self.git_ops.run_git_command(["write-tree"])
+        if tree_result.returncode != 0:
+            logger.error(f"Failed to write tree: {tree_result.stderr}")
+            return None
+
+        tree_sha = tree_result.stdout.strip()
+
+        # Create stash commit object
+        commit_result = self.git_ops.run_git_command(
+            ["commit-tree", tree_sha, "-p", "HEAD", "-m", message]
+        )
+        if commit_result.returncode != 0:
+            logger.error(f"Failed to create commit tree: {commit_result.stderr}")
+            return None
+
+        stash_sha = commit_result.stdout.strip()
+
+        # Store in stash list
+        store_result = self.git_ops.run_git_command(
+            ["stash", "store", "-m", message, stash_sha]
+        )
+        if store_result.returncode != 0:
+            logger.warning(f"Failed to store stash in list: {store_result.stderr}")
+
+        logger.info(f"Created staged-only stash with SHA: {stash_sha}")
+        return stash_sha
+
+    def _create_keep_index_stash(self, message: str) -> Optional[str]:
+        """Create a stash with --keep-index behavior using SHA references.
+
+        Args:
+            message: Stash message
+
+        Returns:
+            SHA of created stash, or None if failed
+        """
+        # Strategy for --keep-index:
+        # 1. Save current index state
+        # 2. Create stash of all changes
+        # 3. Restore index to original state
+
+        # Save index state
+        index_tree_result = self.git_ops.run_git_command(["write-tree"])
+        if index_tree_result.returncode != 0:
+            logger.error(f"Failed to save index state: {index_tree_result.stderr}")
+            return None
+
+        index_tree = index_tree_result.stdout.strip()
+
+        # Create stash of all changes (staged + unstaged)
+        stash_sha = self._create_and_store_stash(message)
+        if not stash_sha:
+            return None
+
+        # Restore index to saved state
+        restore_result = self.git_ops.run_git_command(["read-tree", index_tree])
+        if restore_result.returncode != 0:
+            logger.error(f"Failed to restore index: {restore_result.stderr}")
+            # The stash was created, but we couldn't restore index
+            # This is a partial failure
+            return stash_sha
+
+        logger.info(f"Created keep-index stash with SHA: {stash_sha}")
+        return stash_sha
+
+    def _validate_stash_sha(self, stash_sha: str) -> bool:
+        """Validate that a string is a valid SHA format.
+
+        Args:
+            stash_sha: String to validate
+
+        Returns:
+            True if valid SHA format, False otherwise
+        """
+        import re
+
+        if not stash_sha or not isinstance(stash_sha, str):
+            return False
+
+        # Git SHA-1 is 40 hexadecimal characters
+        # Git SHA-256 is 64 hexadecimal characters (future support)
+        sha_pattern = re.compile(r"^[a-f0-9]{40}$|^[a-f0-9]{64}$")
+        return bool(sha_pattern.match(stash_sha.lower()))
+
+    def _verify_stash_exists(self, stash_sha: str) -> bool:
+        """Verify that a stash SHA exists in the git repository.
+
+        Args:
+            stash_sha: SHA of the stash to verify
+
+        Returns:
+            True if stash exists and is a valid commit, False otherwise
+        """
+        if not self._validate_stash_sha(stash_sha):
+            logger.error(f"Invalid SHA format: {stash_sha}")
+            return False
+
+        # Check if the object exists and is a commit
+        result = self.git_ops.run_git_command(["cat-file", "-t", stash_sha])
+        if result.returncode != 0:
+            logger.error(f"Stash SHA does not exist: {stash_sha}")
+            return False
+
+        if result.stdout.strip() != "commit":
+            logger.error(
+                f"SHA exists but is not a commit: {stash_sha} (type: {result.stdout.strip()})"
+            )
+            return False
+
+        return True
+
     def _restore_stash_by_sha(self, stash_sha: str) -> bool:
         """Restore stash using its SHA reference.
 
@@ -304,6 +456,11 @@ class RebaseManager:
         Returns:
             True if successful, False otherwise
         """
+        # Verify stash exists before attempting to restore
+        if not self._verify_stash_exists(stash_sha):
+            logger.error(f"Cannot restore stash - invalid or missing: {stash_sha[:12]}")
+            return False
+
         logger.info(f"Restoring stash by SHA: {stash_sha[:12]}")
 
         # Apply the stash
@@ -1258,10 +1415,14 @@ class RebaseManager:
         # Restore stash if we created one
         if self._stash_ref:
             try:
-                self.git_ops.run_git_command(["stash", "pop", self._stash_ref])
-            except subprocess.SubprocessError:
-                # Stash pop failed, but don't raise - user can manually recover
-                pass
+                success = self._restore_stash_by_sha(self._stash_ref)
+                if not success:
+                    logger.warning(
+                        f"Failed to restore stash during cleanup: {self._stash_ref[:12]}"
+                    )
+            except Exception as e:
+                # Stash restoration failed, but don't raise - user can manually recover
+                logger.warning(f"Error restoring stash during cleanup: {e}")
             finally:
                 self._stash_ref = None
 

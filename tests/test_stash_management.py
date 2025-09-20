@@ -197,6 +197,11 @@ class TestStashRestoration:
         """Test that stash restoration uses SHA instead of stash@{n}."""
         test_sha = "abc123def456789012345678901234567890abcd"
 
+        # Mock verification (cat-file returns "commit")
+        verify_result = Mock()
+        verify_result.returncode = 0
+        verify_result.stdout = "commit"
+
         # Mock successful stash apply and drop
         apply_result = Mock()
         apply_result.returncode = 0
@@ -204,21 +209,29 @@ class TestStashRestoration:
         drop_result = Mock()
         drop_result.returncode = 0
 
-        mock_git_ops.run_git_command.side_effect = [apply_result, drop_result]
+        mock_git_ops.run_git_command.side_effect = [
+            verify_result,
+            apply_result,
+            drop_result,
+        ]
 
         # Method to be implemented
         rebase_manager._restore_stash_by_sha(test_sha)
 
-        # Verify both calls used the SHA
-        assert mock_git_ops.run_git_command.call_count == 2
+        # Verify all three calls used the SHA
+        assert mock_git_ops.run_git_command.call_count == 3
 
-        # First call should be apply with SHA
-        first_call = mock_git_ops.run_git_command.call_args_list[0][0][0]
-        assert first_call == ["stash", "apply", test_sha]
+        # First call should be verification
+        verify_call = mock_git_ops.run_git_command.call_args_list[0][0][0]
+        assert verify_call == ["cat-file", "-t", test_sha]
 
-        # Second call should be drop with SHA
-        second_call = mock_git_ops.run_git_command.call_args_list[1][0][0]
-        assert second_call == ["stash", "drop", test_sha]
+        # Second call should be apply with SHA
+        apply_call = mock_git_ops.run_git_command.call_args_list[1][0][0]
+        assert apply_call == ["stash", "apply", test_sha]
+
+        # Third call should be drop with SHA
+        drop_call = mock_git_ops.run_git_command.call_args_list[2][0][0]
+        assert drop_call == ["stash", "drop", test_sha]
 
     def test_restore_stash_with_conflicts(self, rebase_manager, mock_git_ops):
         """Test handling conflicts during stash restoration."""
@@ -239,6 +252,11 @@ class TestStashRestoration:
         """Test that stash is dropped after successful restoration."""
         test_sha = "abc123def456789012345678901234567890abcd"
 
+        # Mock verification (cat-file returns "commit")
+        verify_result = Mock()
+        verify_result.returncode = 0
+        verify_result.stdout = "commit"
+
         # Mock successful apply then drop
         apply_result = Mock()
         apply_result.returncode = 0
@@ -246,16 +264,121 @@ class TestStashRestoration:
         drop_result = Mock()
         drop_result.returncode = 0
 
-        mock_git_ops.run_git_command.side_effect = [apply_result, drop_result]
+        mock_git_ops.run_git_command.side_effect = [
+            verify_result,
+            apply_result,
+            drop_result,
+        ]
 
         result = rebase_manager._restore_stash_by_sha(test_sha)
 
         assert result is True
-        assert mock_git_ops.run_git_command.call_count == 2
+        assert mock_git_ops.run_git_command.call_count == 3
 
-        # Verify drop was called with SHA
-        drop_call = mock_git_ops.run_git_command.call_args_list[1]
+        # Verify drop was called with SHA (third call)
+        drop_call = mock_git_ops.run_git_command.call_args_list[2]
         assert drop_call[0][0] == ["stash", "drop", test_sha]
+
+
+class TestStashValidation:
+    """Test stash SHA validation and verification methods."""
+
+    @pytest.fixture
+    def mock_git_ops(self):
+        """Mock GitOps for unit testing."""
+        mock = Mock(spec=GitOps)
+        mock.repo_path = "/test/repo"
+        return mock
+
+    @pytest.fixture
+    def rebase_manager(self, mock_git_ops):
+        """Create RebaseManager with mocked GitOps."""
+        return RebaseManager(mock_git_ops, "merge_base_commit")
+
+    def test_validate_stash_sha_valid_sha1(self, rebase_manager):
+        """Test validation of valid SHA-1 format."""
+        valid_sha = "abc123def456789012345678901234567890abcd"
+        assert rebase_manager._validate_stash_sha(valid_sha) is True
+
+    def test_validate_stash_sha_valid_sha256(self, rebase_manager):
+        """Test validation of valid SHA-256 format (future support)."""
+        valid_sha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        assert rebase_manager._validate_stash_sha(valid_sha) is True
+
+    def test_validate_stash_sha_invalid_short(self, rebase_manager):
+        """Test validation rejects too-short SHAs."""
+        invalid_sha = "abc123"
+        assert rebase_manager._validate_stash_sha(invalid_sha) is False
+
+    def test_validate_stash_sha_invalid_long(self, rebase_manager):
+        """Test validation rejects too-long SHAs."""
+        invalid_sha = "abc123def456789012345678901234567890abcdefabc123def456789012345678901234567890"
+        assert rebase_manager._validate_stash_sha(invalid_sha) is False
+
+    def test_validate_stash_sha_invalid_characters(self, rebase_manager):
+        """Test validation rejects non-hex characters."""
+        invalid_sha = "xyz123def456789012345678901234567890abcd"
+        assert rebase_manager._validate_stash_sha(invalid_sha) is False
+
+    def test_validate_stash_sha_none(self, rebase_manager):
+        """Test validation rejects None."""
+        assert rebase_manager._validate_stash_sha(None) is False
+
+    def test_validate_stash_sha_empty(self, rebase_manager):
+        """Test validation rejects empty string."""
+        assert rebase_manager._validate_stash_sha("") is False
+
+    def test_verify_stash_exists_valid(self, rebase_manager, mock_git_ops):
+        """Test verification of existing commit SHA."""
+        test_sha = "abc123def456789012345678901234567890abcd"
+
+        cat_result = Mock()
+        cat_result.returncode = 0
+        cat_result.stdout = "commit"
+
+        mock_git_ops.run_git_command.return_value = cat_result
+
+        result = rebase_manager._verify_stash_exists(test_sha)
+
+        assert result is True
+        mock_git_ops.run_git_command.assert_called_with(["cat-file", "-t", test_sha])
+
+    def test_verify_stash_exists_invalid_format(self, rebase_manager, mock_git_ops):
+        """Test verification rejects invalid SHA format."""
+        invalid_sha = "invalid_sha"
+
+        result = rebase_manager._verify_stash_exists(invalid_sha)
+
+        assert result is False
+        # Should not call git command for invalid format
+        mock_git_ops.run_git_command.assert_not_called()
+
+    def test_verify_stash_exists_missing_object(self, rebase_manager, mock_git_ops):
+        """Test verification handles missing git objects."""
+        test_sha = "abc123def456789012345678901234567890abcd"
+
+        cat_result = Mock()
+        cat_result.returncode = 1  # Object not found
+
+        mock_git_ops.run_git_command.return_value = cat_result
+
+        result = rebase_manager._verify_stash_exists(test_sha)
+
+        assert result is False
+
+    def test_verify_stash_exists_wrong_type(self, rebase_manager, mock_git_ops):
+        """Test verification rejects non-commit objects."""
+        test_sha = "abc123def456789012345678901234567890abcd"
+
+        cat_result = Mock()
+        cat_result.returncode = 0
+        cat_result.stdout = "blob"  # Not a commit
+
+        mock_git_ops.run_git_command.return_value = cat_result
+
+        result = rebase_manager._verify_stash_exists(test_sha)
+
+        assert result is False
 
 
 class TestWorkingTreeStateIntegration:
