@@ -388,6 +388,28 @@ class HunkTargetResolver:
 
         return mappings
 
+    def _should_exclude_head_from_blame_analysis(self) -> bool:
+        """Determine if HEAD should be excluded from blame analysis.
+
+        HEAD should be excluded from blame analysis when processing the HEAD
+        commit itself (clean working tree), but included when processing
+        working tree or staged changes.
+
+        Returns:
+            True if HEAD should be excluded from blame analysis
+        """
+        try:
+            status = self.git_ops.get_working_tree_status()
+            # Exclude HEAD only when working tree is completely clean
+            # (meaning we're processing HEAD commit, not working tree changes)
+            return status["is_clean"]
+        except Exception as e:
+            print(
+                f"WARNING: Could not determine working tree status for blame analysis: {e}"
+            )
+            # Default to not excluding HEAD if we can't determine status
+            return False
+
     def _resolve_single_hunk(self, hunk: DiffHunk) -> HunkTargetMapping:
         """Resolve target for a single hunk.
 
@@ -424,7 +446,20 @@ class HunkTargetResolver:
             blame_info = self.blame_engine.get_blame_for_context(hunk)
 
         # Filter commits to only those within our branch scope
+        # Exclude HEAD when processing HEAD commit (clean working tree)
         branch_commits = set(self.batch_ops.get_branch_commits())
+        if self._should_exclude_head_from_blame_analysis():
+            try:
+                result = self.git_ops.run_git_command(["rev-parse", "HEAD"])
+                if result.returncode == 0:
+                    current_head = result.stdout.strip()
+                    branch_commits.discard(current_head)
+                    print(
+                        f"DEBUG: Excluded HEAD {current_head[:8]} from blame analysis (clean working tree)"
+                    )
+            except Exception as e:
+                print(f"WARNING: Error getting current HEAD for blame filtering: {e}")
+
         relevant_blame = [
             info for info in blame_info if info.commit_hash in branch_commits
         ]
