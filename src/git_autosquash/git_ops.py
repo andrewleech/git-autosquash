@@ -55,9 +55,17 @@ class GitOps:
                 text=True,
                 check=False,
             )
+
+            # For status --porcelain, preserve leading whitespace as it's significant
+            # For other commands, strip whitespace to avoid trailing newlines
+            if len(args) >= 2 and args[0] == "status" and args[1] == "--porcelain":
+                output = result.stdout.rstrip("\n")  # Only remove trailing newlines
+            else:
+                output = result.stdout.strip()  # Full strip for other commands
+
             return (
                 result.returncode == 0,
-                result.stdout.strip() or result.stderr.strip(),
+                output or result.stderr.strip(),
             )
         except (subprocess.SubprocessError, FileNotFoundError) as e:
             return False, f"Git command failed: {e}"
