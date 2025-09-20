@@ -259,9 +259,24 @@ class FallbackTargetProvider:
             method: Fallback method to determine candidate ordering
 
         Returns:
-            List of commit hashes ordered by priority
+            List of commit hashes ordered by priority (excludes current HEAD)
         """
         branch_commits = self.batch_ops.get_branch_commits()
+
+        # Get current HEAD to exclude it from candidates
+        # (HEAD is the commit being split up, so it shouldn't be a target)
+        try:
+            result = self.batch_ops.git_ops.run_git_command(["rev-parse", "HEAD"])
+            if result.returncode == 0:
+                current_head = result.stdout.strip()
+                # Filter out HEAD from all candidates
+                branch_commits = [
+                    commit for commit in branch_commits if commit != current_head
+                ]
+            else:
+                print("WARNING: Could not determine current HEAD for filtering")
+        except Exception as e:
+            print(f"WARNING: Error getting current HEAD: {e}")
 
         if method == TargetingMethod.FALLBACK_NEW_FILE:
             # For new files, return commits ordered by recency, merges last
