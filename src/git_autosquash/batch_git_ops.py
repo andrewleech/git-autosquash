@@ -75,15 +75,16 @@ class BatchGitOperations:
             if self._branch_commits_cache is not None:
                 return self._branch_commits_cache
 
+            # Get commits in git log order (newest to oldest) for consistent UI display
             success, output = self.git_ops._run_git_command(
-                "rev-list", "--reverse", f"{self.merge_base}..HEAD"
+                "rev-list", f"{self.merge_base}..HEAD"
             )
 
             if not success:
                 self._branch_commits_cache = []
             else:
                 commits = [line.strip() for line in output.split("\n") if line.strip()]
-                # Keep chronological order (oldest first) to align with git's natural processing
+                # Keep git log order (newest first) for consistent display
                 self._branch_commits_cache = commits
 
             return self._branch_commits_cache
@@ -341,25 +342,26 @@ class BatchGitOperations:
     def get_ordered_commits_by_recency(
         self, commit_hashes: List[str]
     ) -> List[BatchCommitInfo]:
-        """Get commits ordered by recency with merge commits last.
+        """Get commits in their original order (preserving git log order).
 
         Args:
-            commit_hashes: List of commit hashes to order
+            commit_hashes: List of commit hashes in git log order
 
         Returns:
-            List of BatchCommitInfo objects ordered by priority
+            List of BatchCommitInfo objects in same order as input
         """
         if not commit_hashes:
             return []
 
         # Batch load all commit info
         commit_info_dict = self.batch_load_commit_info(commit_hashes)
-        commit_infos = [
-            commit_info_dict[h] for h in commit_hashes if h in commit_info_dict
-        ]
 
-        # Sort: non-merge commits by recency first, then merge commits by recency
-        commit_infos.sort(key=lambda c: (c.is_merge, -c.timestamp))
+        # Preserve the original order from git log (as passed in commit_hashes)
+        # This ensures consistent ordering across all hunks in the TUI
+        commit_infos = []
+        for h in commit_hashes:
+            if h in commit_info_dict:
+                commit_infos.append(commit_info_dict[h])
 
         return commit_infos
 

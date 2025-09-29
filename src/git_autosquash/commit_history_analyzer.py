@@ -216,48 +216,38 @@ class CommitHistoryAnalyzer:
     def _order_by_file_relevance(
         self, commit_hashes: List[str], file_path: str
     ) -> List[CommitInfo]:
-        """Order commits by file relevance - commits touching file first.
+        """Get commits in git log order, marking file-relevant ones.
 
         Args:
-            commit_hashes: List of commit hashes to order
+            commit_hashes: List of commit hashes in git log order
             file_path: File path for relevance filtering
 
         Returns:
-            List of CommitInfo objects ordered by file relevance
+            List of CommitInfo objects in git log order (not reordered)
         """
-        # Use batch operations for efficient file relevance ordering
-        relevant_commits, other_commits = self.batch_ops.get_file_relevant_commits(
-            commit_hashes, file_path
-        )
+        # Note: We could mark file-relevant commits here if needed in future
+        # file_commits = set(self.batch_ops.get_commits_touching_file(file_path))
 
-        # Convert to CommitInfo objects
+        # Load all commit info while preserving git log order
+        commit_info_dict = self.batch_ops.batch_load_commit_info(commit_hashes)
+
+        # Convert to CommitInfo objects, maintaining original order
         all_commit_infos = []
-
-        # Add relevant commits first
-        for batch_commit in relevant_commits:
-            commit_info = CommitInfo(
-                commit_hash=batch_commit.commit_hash,
-                short_hash=batch_commit.short_hash,
-                subject=batch_commit.subject,
-                author=batch_commit.author,
-                timestamp=batch_commit.timestamp,
-                is_merge=batch_commit.is_merge,
-            )
-            self._commit_cache[batch_commit.commit_hash] = commit_info
-            all_commit_infos.append(commit_info)
-
-        # Add other commits
-        for batch_commit in other_commits:
-            commit_info = CommitInfo(
-                commit_hash=batch_commit.commit_hash,
-                short_hash=batch_commit.short_hash,
-                subject=batch_commit.subject,
-                author=batch_commit.author,
-                timestamp=batch_commit.timestamp,
-                is_merge=batch_commit.is_merge,
-            )
-            self._commit_cache[batch_commit.commit_hash] = commit_info
-            all_commit_infos.append(commit_info)
+        for commit_hash in commit_hashes:
+            if commit_hash in commit_info_dict:
+                batch_commit = commit_info_dict[commit_hash]
+                commit_info = CommitInfo(
+                    commit_hash=batch_commit.commit_hash,
+                    short_hash=batch_commit.short_hash,
+                    subject=batch_commit.subject,
+                    author=batch_commit.author,
+                    timestamp=batch_commit.timestamp,
+                    is_merge=batch_commit.is_merge,
+                )
+                # Could add a flag here to indicate file relevance if needed
+                # commit_info.touches_file = (commit_hash in file_commits)
+                self._commit_cache[batch_commit.commit_hash] = commit_info
+                all_commit_infos.append(commit_info)
 
         return all_commit_infos
 
