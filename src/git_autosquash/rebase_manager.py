@@ -287,31 +287,77 @@ class RebaseManager:
         if "--keep-index" in options:
             return self._create_keep_index_stash(message)
 
-        # Fallback: use the original approach with race condition warning
+        # For other unsupported options, use atomic stash create approach
+        # This avoids race conditions but may not support all options perfectly
         logger.warning(
-            f"Using fallback stash method with race condition risk for options: {options}"
+            f"Using generic atomic stash for options {options}. "
+            f"Some options may not be fully supported."
         )
-        cmd = ["stash", "push"] + options + ["-m", message]
-        result = self.git_ops.run_git_command(cmd)
 
+        # Save current HEAD for reference
+        head_result = self.git_ops.run_git_command(["rev-parse", "HEAD"])
+        if head_result.returncode != 0:
+            logger.error("Failed to get HEAD reference")
+            return None
+        head_sha = head_result.stdout.strip()
+
+        # Try to create a stash using the atomic approach
+        # First, create a temporary commit with all changes
+        result = self.git_ops.run_git_command(["add", "-A"])
         if result.returncode != 0:
-            logger.error(
-                f"Failed to create stash with options {options}: {result.stderr}"
-            )
+            logger.error(f"Failed to stage all changes: {result.stderr}")
             return None
 
-        # RACE CONDITION: This assumes stash@{0} is the one we just created
-        # But at least we're warning about it now
-        list_result = self.git_ops.run_git_command(
-            ["stash", "list", "--format=%H", "-n", "1"]
+        # Create temporary commit
+        commit_result = self.git_ops.run_git_command(
+            ["commit", "--no-verify", "-m", f"TEMP: {message}"]
         )
-        if list_result.returncode == 0 and list_result.stdout.strip():
-            stash_sha = list_result.stdout.strip()
-            logger.info(f"Created stash with options {options}, SHA: {stash_sha}")
-            return stash_sha
+        if commit_result.returncode != 0:
+            # No changes to stash
+            logger.info("No changes to stash")
+            return None
 
-        logger.error("Failed to retrieve SHA of created stash")
-        return None
+        # Get the commit SHA
+        temp_commit_result = self.git_ops.run_git_command(["rev-parse", "HEAD"])
+        if temp_commit_result.returncode != 0:
+            logger.error("Failed to get temporary commit SHA")
+            # Reset to original state
+            self.git_ops.run_git_command(["reset", "--hard", head_sha])
+            return None
+        # temp_commit_sha would be used here if we needed it for recovery
+        # Currently we just use it to confirm the commit succeeded
+        _ = temp_commit_result.stdout.strip()
+
+        # Reset back to original HEAD but keep changes
+        reset_result = self.git_ops.run_git_command(["reset", "--mixed", head_sha])
+        if reset_result.returncode != 0:
+            logger.error(
+                f"Failed to reset after temporary commit: {reset_result.stderr}"
+            )
+            self.git_ops.run_git_command(["reset", "--hard", head_sha])
+            return None
+
+        # Now create stash from the temporary commit
+        stash_create_result = self.git_ops.run_git_command(["stash", "create", message])
+        if (
+            stash_create_result.returncode != 0
+            or not stash_create_result.stdout.strip()
+        ):
+            logger.error("Failed to create stash from changes")
+            return None
+
+        stash_sha = stash_create_result.stdout.strip()
+
+        # Store the stash
+        store_result = self.git_ops.run_git_command(
+            ["stash", "store", "-m", message, stash_sha]
+        )
+        if store_result.returncode != 0:
+            logger.warning(f"Failed to store stash in list: {store_result.stderr}")
+            # Stash object exists but not in list - still usable
+
+        logger.info(f"Created atomic stash with SHA: {stash_sha[:12]}")
+        return stash_sha
 
     def _create_staged_only_stash(self, message: str) -> Optional[str]:
         """Create a stash containing only staged changes.
@@ -447,6 +493,43 @@ class RebaseManager:
 
         return True
 
+    def _find_stash_ref_by_sha(self, stash_sha: str) -> Optional[str]:
+        """Find stash reference (stash@{n}) for a given SHA.
+
+        Args:
+            stash_sha: The SHA to find in stash list
+
+        Returns:
+            Stash reference like "stash@{0}" if found, None otherwise
+        """
+        if not self._validate_stash_sha(stash_sha):
+            logger.error(f"Invalid SHA format: {stash_sha}")
+            return None
+
+        # List all stashes with their SHAs
+        result = self.git_ops.run_git_command(["stash", "list", "--format=%H %gd"])
+
+        if result.returncode != 0:
+            logger.error(f"Failed to list stashes: {result.stderr}")
+            return None
+
+        # Parse output to find matching SHA
+        for line in result.stdout.strip().split("\n"):
+            if not line:
+                continue
+            parts = line.split(" ", 1)
+            if len(parts) == 2:
+                sha, ref = parts
+                if sha == stash_sha:
+                    # Extract stash@{n} from format like "(stash@{0})"
+                    if ref.startswith("(") and ref.endswith(")"):
+                        ref = ref[1:-1]
+                    logger.debug(f"Found stash reference {ref} for SHA {stash_sha}")
+                    return ref
+
+        logger.warning(f"No stash reference found for SHA {stash_sha}")
+        return None
+
     def _restore_stash_by_sha(self, stash_sha: str) -> bool:
         """Restore stash using its SHA reference.
 
@@ -476,11 +559,28 @@ class RebaseManager:
                 logger.error(f"Failed to apply stash {stash_sha}: {result.stderr}")
             return False
 
-        # Successfully applied, now drop the stash
+        # Successfully applied, now drop the stash using proper reference
         logger.info("Stash applied successfully, dropping from list")
-        drop_result = self.git_ops.run_git_command(["stash", "drop", stash_sha])
-        if drop_result.returncode != 0:
-            logger.warning(f"Failed to drop stash (non-critical): {drop_result.stderr}")
+
+        # Find the stash reference (stash@{n}) for this SHA
+        stash_ref = self._find_stash_ref_by_sha(stash_sha)
+        if stash_ref:
+            # Use stash reference for drop command
+            drop_result = self.git_ops.run_git_command(["stash", "drop", stash_ref])
+            if drop_result.returncode != 0:
+                logger.warning(
+                    f"Failed to drop stash {stash_ref} (non-critical): {drop_result.stderr}"
+                )
+            else:
+                logger.debug(
+                    f"Successfully dropped stash {stash_ref} (SHA: {stash_sha[:12]})"
+                )
+        else:
+            # Stash might have been dropped already or doesn't exist in list
+            logger.warning(
+                f"Could not find stash reference for SHA {stash_sha[:12]}. "
+                "Stash may have been dropped already or created outside stash list."
+            )
 
         return True
 

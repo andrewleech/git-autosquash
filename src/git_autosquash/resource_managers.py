@@ -144,11 +144,38 @@ class GitStateManager:
         # Clean up any remaining stashes
         for stash_ref in self._stash_refs:
             try:
-                success, _ = self.git_ops._run_git_command("stash", "drop", stash_ref)
-                if success:
-                    self.logger.debug(f"Dropped stash {stash_ref}")
+                # If it's a SHA, we need to find the actual stash reference
+                actual_ref = stash_ref
+                if len(stash_ref) >= 7 and not stash_ref.startswith("stash@"):
+                    # Find the stash reference for this SHA
+                    list_result = self.git_ops.run_git_command(
+                        ["stash", "list", "--format=%H %gd"]
+                    )
+                    if list_result.returncode == 0:
+                        for line in list_result.stdout.strip().split("\n"):
+                            if line:
+                                parts = line.split(" ", 1)
+                                if len(parts) == 2:
+                                    sha, ref = parts
+                                    if sha == stash_ref or sha.startswith(
+                                        stash_ref[:12]
+                                    ):
+                                        # Extract stash@{n} from "(stash@{0})"
+                                        if ref.startswith("(") and ref.endswith(")"):
+                                            actual_ref = ref[1:-1]
+                                            self.logger.debug(
+                                                f"Resolved SHA {stash_ref[:12]} to {actual_ref}"
+                                            )
+                                            break
+
+                # Use public API method with proper stash reference
+                result = self.git_ops.run_git_command(["stash", "drop", actual_ref])
+                if result.returncode == 0:
+                    self.logger.debug(f"Dropped stash {actual_ref}")
                 else:
-                    self.logger.warning(f"Failed to drop stash {stash_ref}")
+                    self.logger.warning(
+                        f"Failed to drop stash {actual_ref}: {result.stderr}"
+                    )
             except Exception as e:
                 self.logger.warning(f"Error dropping stash {stash_ref}: {e}")
 

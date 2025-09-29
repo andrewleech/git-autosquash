@@ -202,24 +202,31 @@ class TestStashRestoration:
         verify_result.returncode = 0
         verify_result.stdout = "commit"
 
-        # Mock successful stash apply and drop
+        # Mock successful stash apply
         apply_result = Mock()
         apply_result.returncode = 0
 
+        # Mock stash list for finding reference
+        list_result = Mock()
+        list_result.returncode = 0
+        list_result.stdout = f"{test_sha} (stash@{{0}})\n"
+
+        # Mock drop with proper reference
         drop_result = Mock()
         drop_result.returncode = 0
 
         mock_git_ops.run_git_command.side_effect = [
-            verify_result,
-            apply_result,
-            drop_result,
+            verify_result,  # cat-file -t
+            apply_result,  # stash apply with SHA
+            list_result,  # stash list to find ref
+            drop_result,  # stash drop with ref
         ]
 
         # Method to be implemented
         rebase_manager._restore_stash_by_sha(test_sha)
 
-        # Verify all three calls used the SHA
-        assert mock_git_ops.run_git_command.call_count == 3
+        # Verify all calls
+        assert mock_git_ops.run_git_command.call_count == 4
 
         # First call should be verification
         verify_call = mock_git_ops.run_git_command.call_args_list[0][0][0]
@@ -229,9 +236,13 @@ class TestStashRestoration:
         apply_call = mock_git_ops.run_git_command.call_args_list[1][0][0]
         assert apply_call == ["stash", "apply", test_sha]
 
-        # Third call should be drop with SHA
-        drop_call = mock_git_ops.run_git_command.call_args_list[2][0][0]
-        assert drop_call == ["stash", "drop", test_sha]
+        # Third call should be stash list to find reference
+        list_call = mock_git_ops.run_git_command.call_args_list[2][0][0]
+        assert list_call == ["stash", "list", "--format=%H %gd"]
+
+        # Fourth call should be drop with stash reference, not SHA
+        drop_call = mock_git_ops.run_git_command.call_args_list[3][0][0]
+        assert drop_call == ["stash", "drop", "stash@{0}"]
 
     def test_restore_stash_with_conflicts(self, rebase_manager, mock_git_ops):
         """Test handling conflicts during stash restoration."""
@@ -257,27 +268,34 @@ class TestStashRestoration:
         verify_result.returncode = 0
         verify_result.stdout = "commit"
 
-        # Mock successful apply then drop
+        # Mock successful apply
         apply_result = Mock()
         apply_result.returncode = 0
 
+        # Mock stash list to find reference
+        list_result = Mock()
+        list_result.returncode = 0
+        list_result.stdout = f"{test_sha} (stash@{{1}})\n"
+
+        # Mock successful drop
         drop_result = Mock()
         drop_result.returncode = 0
 
         mock_git_ops.run_git_command.side_effect = [
             verify_result,
             apply_result,
+            list_result,
             drop_result,
         ]
 
         result = rebase_manager._restore_stash_by_sha(test_sha)
 
         assert result is True
-        assert mock_git_ops.run_git_command.call_count == 3
+        assert mock_git_ops.run_git_command.call_count == 4
 
-        # Verify drop was called with SHA (third call)
-        drop_call = mock_git_ops.run_git_command.call_args_list[2]
-        assert drop_call[0][0] == ["stash", "drop", test_sha]
+        # Verify drop was called with stash reference, not SHA
+        drop_call = mock_git_ops.run_git_command.call_args_list[3]
+        assert drop_call[0][0] == ["stash", "drop", "stash@{1}"]
 
 
 class TestStashValidation:
@@ -435,6 +453,303 @@ class TestWorkingTreeStateIntegration:
                 "git-autosquash: temporary stash of unstaged changes", ["--keep-index"]
             )
             assert rebase_manager._stash_ref == expected_sha
+
+
+class TestStashReferenceResolution:
+    """Test SHA to stash reference resolution for proper git stash drop."""
+
+    @pytest.fixture
+    def mock_git_ops(self):
+        """Mock GitOps for unit testing."""
+        mock = Mock(spec=GitOps)
+        mock.repo_path = "/test/repo"
+        return mock
+
+    @pytest.fixture
+    def rebase_manager(self, mock_git_ops):
+        """Create RebaseManager with mocked GitOps."""
+        return RebaseManager(mock_git_ops, "merge_base_commit")
+
+    def test_find_stash_ref_by_sha_success(self, rebase_manager, mock_git_ops):
+        """Test finding stash reference from SHA."""
+        test_sha = "abc123def456789012345678901234567890abcd"
+
+        # Mock stash list output
+        list_result = Mock()
+        list_result.returncode = 0
+        list_result.stdout = (
+            "abc123def456789012345678901234567890abcd (stash@{0})\n"
+            "def456abc789012345678901234567890abcdef (stash@{1})\n"
+        )
+
+        mock_git_ops.run_git_command.return_value = list_result
+
+        result = rebase_manager._find_stash_ref_by_sha(test_sha)
+
+        assert result == "stash@{0}"
+        mock_git_ops.run_git_command.assert_called_with(
+            ["stash", "list", "--format=%H %gd"]
+        )
+
+    def test_find_stash_ref_by_sha_not_found(self, rebase_manager, mock_git_ops):
+        """Test behavior when SHA not found in stash list."""
+        test_sha = "abc123def456789012345678901234567890abcd"
+
+        # Mock stash list with different SHAs
+        list_result = Mock()
+        list_result.returncode = 0
+        list_result.stdout = (
+            "def456abc789012345678901234567890abcdef (stash@{0})\n"
+            "789012def456abc345678901234567890abcdef (stash@{1})\n"
+        )
+
+        mock_git_ops.run_git_command.return_value = list_result
+
+        result = rebase_manager._find_stash_ref_by_sha(test_sha)
+
+        assert result is None
+
+    def test_find_stash_ref_invalid_sha(self, rebase_manager, mock_git_ops):
+        """Test behavior with invalid SHA format."""
+        invalid_sha = "not_a_valid_sha"
+
+        result = rebase_manager._find_stash_ref_by_sha(invalid_sha)
+
+        assert result is None
+        # Should not even try to list stashes for invalid SHA
+        mock_git_ops.run_git_command.assert_not_called()
+
+    def test_restore_with_proper_drop_reference(self, rebase_manager, mock_git_ops):
+        """Test that restore properly finds and uses stash reference for drop."""
+        test_sha = "abc123def456789012345678901234567890abcd"
+
+        # Mock verification
+        verify_result = Mock()
+        verify_result.returncode = 0
+        verify_result.stdout = "commit"
+
+        # Mock apply success
+        apply_result = Mock()
+        apply_result.returncode = 0
+
+        # Mock stash list for finding reference
+        list_result = Mock()
+        list_result.returncode = 0
+        list_result.stdout = f"{test_sha} (stash@{{2}})\n"
+
+        # Mock drop success
+        drop_result = Mock()
+        drop_result.returncode = 0
+
+        mock_git_ops.run_git_command.side_effect = [
+            verify_result,  # cat-file -t
+            apply_result,  # stash apply
+            list_result,  # stash list for finding ref
+            drop_result,  # stash drop with proper ref
+        ]
+
+        result = rebase_manager._restore_stash_by_sha(test_sha)
+
+        assert result is True
+
+        # Verify drop was called with stash@{2}, not the SHA
+        drop_call = mock_git_ops.run_git_command.call_args_list[3][0][0]
+        assert drop_call == ["stash", "drop", "stash@{2}"]
+
+    def test_restore_handles_missing_stash_ref(self, rebase_manager, mock_git_ops):
+        """Test restore when stash was created outside stash list."""
+        test_sha = "abc123def456789012345678901234567890abcd"
+
+        # Mock verification and apply success
+        verify_result = Mock()
+        verify_result.returncode = 0
+        verify_result.stdout = "commit"
+
+        apply_result = Mock()
+        apply_result.returncode = 0
+
+        # Mock empty stash list (SHA not in list)
+        list_result = Mock()
+        list_result.returncode = 0
+        list_result.stdout = ""
+
+        mock_git_ops.run_git_command.side_effect = [
+            verify_result,  # cat-file -t
+            apply_result,  # stash apply
+            list_result,  # stash list returns empty
+        ]
+
+        result = rebase_manager._restore_stash_by_sha(test_sha)
+
+        assert result is True
+        # Should not attempt drop if not found in list
+        assert mock_git_ops.run_git_command.call_count == 3
+
+
+class TestConcurrentStashSafety:
+    """Test safety in concurrent stash operations."""
+
+    @pytest.fixture
+    def mock_git_ops(self):
+        """Mock GitOps for unit testing."""
+        mock = Mock(spec=GitOps)
+        mock.repo_path = "/test/repo"
+        return mock
+
+    @pytest.fixture
+    def rebase_manager(self, mock_git_ops):
+        """Create RebaseManager with mocked GitOps."""
+        return RebaseManager(mock_git_ops, "merge_base_commit")
+
+    def test_atomic_fallback_stash_no_race(self, rebase_manager, mock_git_ops):
+        """Test that fallback method uses atomic operations without race conditions."""
+        # Mock the sequence of commands for atomic stash
+        head_result = Mock()
+        head_result.returncode = 0
+        head_result.stdout = "original_head_sha\n"
+
+        add_result = Mock()
+        add_result.returncode = 0
+
+        commit_result = Mock()
+        commit_result.returncode = 0
+
+        temp_commit_result = Mock()
+        temp_commit_result.returncode = 0
+        temp_commit_result.stdout = "temp_commit_sha\n"
+
+        reset_result = Mock()
+        reset_result.returncode = 0
+
+        create_result = Mock()
+        create_result.returncode = 0
+        create_result.stdout = "stash_sha_created\n"
+
+        store_result = Mock()
+        store_result.returncode = 0
+
+        mock_git_ops.run_git_command.side_effect = [
+            head_result,  # rev-parse HEAD
+            add_result,  # add -A
+            commit_result,  # commit --no-verify
+            temp_commit_result,  # rev-parse HEAD (temp commit)
+            reset_result,  # reset --mixed
+            create_result,  # stash create
+            store_result,  # stash store
+        ]
+
+        # Call with unsupported options to trigger fallback
+        result = rebase_manager._create_stash_with_options(
+            "test message", ["--include-untracked"]
+        )
+
+        assert result == "stash_sha_created"
+        # Verify no stash list commands were used (no race condition)
+        for call in mock_git_ops.run_git_command.call_args_list:
+            assert "list" not in call[0][0]
+
+    def test_no_stash_push_in_critical_paths(self, rebase_manager, mock_git_ops):
+        """Verify that stash push is not used in critical paths."""
+        # Test _create_and_store_stash doesn't use push
+        create_result = Mock()
+        create_result.returncode = 0
+        create_result.stdout = "sha123\n"
+
+        store_result = Mock()
+        store_result.returncode = 0
+
+        mock_git_ops.run_git_command.side_effect = [create_result, store_result]
+
+        _ = rebase_manager._create_and_store_stash("message")
+
+        # Verify no push command was used
+        for call in mock_git_ops.run_git_command.call_args_list:
+            assert call[0][0][1] != "push"
+
+
+class TestErrorRecovery:
+    """Test error handling and recovery scenarios."""
+
+    @pytest.fixture
+    def mock_git_ops(self):
+        """Mock GitOps for unit testing."""
+        mock = Mock(spec=GitOps)
+        mock.repo_path = "/test/repo"
+        return mock
+
+    @pytest.fixture
+    def rebase_manager(self, mock_git_ops):
+        """Create RebaseManager with mocked GitOps."""
+        return RebaseManager(mock_git_ops, "merge_base_commit")
+
+    def test_fallback_cleanup_on_failure(self, rebase_manager, mock_git_ops):
+        """Test cleanup when atomic fallback fails."""
+        head_result = Mock()
+        head_result.returncode = 0
+        head_result.stdout = "original_head_sha\n"
+
+        add_result = Mock()
+        add_result.returncode = 0
+
+        commit_result = Mock()
+        commit_result.returncode = 0
+
+        # Simulate failure getting temp commit SHA
+        temp_commit_result = Mock()
+        temp_commit_result.returncode = 1
+        temp_commit_result.stderr = "error"
+
+        # Mock reset for cleanup
+        reset_result = Mock()
+        reset_result.returncode = 0
+
+        mock_git_ops.run_git_command.side_effect = [
+            head_result,  # rev-parse HEAD
+            add_result,  # add -A
+            commit_result,  # commit --no-verify
+            temp_commit_result,  # rev-parse HEAD fails
+            reset_result,  # reset --hard for cleanup
+        ]
+
+        result = rebase_manager._create_stash_with_options(
+            "test", ["--include-untracked"]
+        )
+
+        assert result is None
+        # Verify cleanup reset was called
+        reset_call = mock_git_ops.run_git_command.call_args_list[-1][0][0]
+        assert reset_call == ["reset", "--hard", "original_head_sha"]
+
+    def test_stash_drop_failure_non_critical(self, rebase_manager, mock_git_ops):
+        """Test that stash drop failure doesn't break restoration."""
+        test_sha = "abc123def456789012345678901234567890abcd"
+
+        verify_result = Mock()
+        verify_result.returncode = 0
+        verify_result.stdout = "commit"
+
+        apply_result = Mock()
+        apply_result.returncode = 0
+
+        list_result = Mock()
+        list_result.returncode = 0
+        list_result.stdout = f"{test_sha} (stash@{{0}})\n"
+
+        # Drop fails
+        drop_result = Mock()
+        drop_result.returncode = 1
+        drop_result.stderr = "permission denied"
+
+        mock_git_ops.run_git_command.side_effect = [
+            verify_result,
+            apply_result,
+            list_result,
+            drop_result,
+        ]
+
+        # Should still return success since apply worked
+        result = rebase_manager._restore_stash_by_sha(test_sha)
+        assert result is True
 
 
 @pytest.mark.integration

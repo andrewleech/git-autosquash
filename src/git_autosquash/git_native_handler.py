@@ -488,23 +488,74 @@ class GitNativeIgnoreHandler(CliStrategy):
             self.logger.error(f"Force restore failed: {result.stderr}")
             return False
 
+    def _find_stash_ref_by_sha(self, stash_sha: str) -> Optional[str]:
+        """Find stash reference (stash@{n}) for a given SHA.
+
+        Args:
+            stash_sha: The SHA to find in stash list
+
+        Returns:
+            Stash reference like "stash@{0}" if found, None otherwise
+        """
+        # List all stashes with their SHAs
+        result = self.git_ops.run_git_command(["stash", "list", "--format=%H %gd"])
+
+        if result.returncode != 0:
+            self.logger.error(f"Failed to list stashes: {result.stderr}")
+            return None
+
+        # Parse output to find matching SHA
+        for line in result.stdout.strip().split("\n"):
+            if not line:
+                continue
+            parts = line.split(" ", 1)
+            if len(parts) == 2:
+                sha, ref = parts
+                if sha == stash_sha or sha.startswith(stash_sha[:12]):
+                    # Extract stash@{n} from format like "(stash@{0})"
+                    if ref.startswith("(") and ref.endswith(")"):
+                        ref = ref[1:-1]
+                    self.logger.debug(
+                        f"Found stash reference {ref} for SHA {stash_sha[:12]}"
+                    )
+                    return ref
+
+        self.logger.warning(f"No stash reference found for SHA {stash_sha[:12]}")
+        return None
+
     def _cleanup_stash(self, stash_ref: str) -> None:
         """Clean up backup stash.
 
         Args:
-            stash_ref: Stash reference to clean up
+            stash_ref: Stash reference (SHA or stash@{n}) to clean up
         """
         self.logger.debug(f"Cleaning up backup stash: {stash_ref}")
 
-        result = self.git_ops.run_git_command(["stash", "drop", stash_ref])
+        # If it looks like a SHA, find the proper stash reference
+        actual_ref = stash_ref
+        if len(stash_ref) >= 7 and not stash_ref.startswith("stash@"):
+            found_ref = self._find_stash_ref_by_sha(stash_ref)
+            if found_ref:
+                actual_ref = found_ref
+                self.logger.debug(f"Resolved SHA {stash_ref[:12]} to {actual_ref}")
+            else:
+                self.logger.warning(
+                    f"Could not find stash reference for SHA {stash_ref[:12]}. "
+                    "Stash may have been dropped already."
+                )
+                return
+
+        result = self.git_ops.run_git_command(["stash", "drop", actual_ref])
 
         if result.returncode == 0:
             self.logger.debug("✓ Backup stash cleaned up")
         else:
             self.logger.warning(
-                f"Failed to clean up stash {stash_ref}: {result.stderr}"
+                f"Failed to clean up stash {actual_ref}: {result.stderr}"
             )
-            self.logger.warning("Stash may need manual cleanup with: git stash drop")
+            self.logger.warning(
+                f"Stash may need manual cleanup with: git stash drop {actual_ref}"
+            )
 
     def get_stash_info(self) -> List[dict]:
         """Get information about current stashes for debugging.
