@@ -145,9 +145,9 @@ class BlameAnalysisEngine:
                 continue
 
             # Parse blame line format:
-            # commit_hash (author timestamp line_num) line_content
+            # commit_hash path (author timestamp line_num) line_content
             match = re.match(
-                r"^([a-f0-9]+)\s+\(([^)]+)\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} [+-]\d{4})\s+(\d+)\)\s*(.*)",
+                r"^([a-f0-9]+)\s+\S+\s+\(([^)]+)\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} [+-]\d{4})\s+(\d+)\)\s*(.*)",
                 line,
             )
             if match:
