@@ -66,6 +66,86 @@ uv run twine check dist/*              # Validate package
 # Documentation
 uv run mkdocs serve                     # Local docs server
 uv run mkdocs build                     # Build docs
+
+# Screenshot generation
+python scripts/generate_screenshots.py  # Generate all screenshots
+python scripts/generate_screenshots.py --hero-only  # Hero only
+```
+
+## Screenshot Generation
+
+**OFFICIAL APPROACH**: Use `scripts/generate_screenshots.py` for all screenshot generation.
+
+This is the recommended and supported method for capturing screenshots of the git-autosquash TUI. It uses Textual's built-in screenshot capabilities (`app.run_test()` with Pilot) to generate character-perfect SVG screenshots.
+
+### Why Textual's Native Screenshots?
+
+- **Character-accurate**: Captures Textual's internal rendering, not terminal emulation
+- **High quality**: SVG output is scalable and perfect for documentation
+- **Reliable**: No cursor positioning issues that plague terminal capture tools
+- **Programmatic**: Full control over app state and interactions
+- **Maintainable**: Uses official Textual testing framework
+
+### Do NOT Use:
+
+- **termshot**: Has known cursor positioning issues that break with complex TUI apps like Textual
+- **pexpect** (tests/pexpect_screenshot_capture.py): Legacy approach, replaced by Textual native
+- **pyte** (tests/pyte_screenshot_capture.py): Legacy approach with timing issues
+- **capture_readme_screenshots.py**: Legacy wrapper around pexpect, superseded by new script
+
+### Usage Examples:
+
+```bash
+# Generate all screenshots (hero + workflow)
+python scripts/generate_screenshots.py
+
+# Generate only hero screenshot for quick testing
+python scripts/generate_screenshots.py --hero-only
+
+# Custom output directory
+python scripts/generate_screenshots.py --output-dir docs/images
+
+# Custom terminal size
+python scripts/generate_screenshots.py --width 140 --height 50
+```
+
+### Programmatic Usage:
+
+```python
+from scripts.generate_screenshots import TextualScreenshotGenerator
+
+async def capture_custom_screenshot():
+    generator = TextualScreenshotGenerator(
+        output_dir=Path("screenshots"),
+        terminal_size=(120, 40)
+    )
+
+    # Capture with custom interactions
+    await generator.capture_app_screenshot(
+        name="my_screenshot",
+        interactions=[
+            {"type": "wait", "duration": 1.0},
+            {"type": "key", "keys": ["j", "space", "tab"]},
+            {"type": "wait", "duration": 0.5},
+        ]
+    )
+
+    generator.cleanup()
+```
+
+### Converting SVG to PNG:
+
+If PNG format is needed for certain platforms:
+
+```bash
+# Using Inkscape
+inkscape screenshot.svg --export-filename=screenshot.png --export-width=1920
+
+# Using ImageMagick
+convert -density 300 screenshot.svg screenshot.png
+
+# Using cairosvg (Python)
+cairosvg screenshot.svg -o screenshot.png -d 300
 ```
 
 ## Test Execution Patterns
