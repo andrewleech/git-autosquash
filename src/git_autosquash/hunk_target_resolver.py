@@ -94,6 +94,7 @@ class BlameAnalysisEngine:
         """
         success, blame_output = self.git_ops._run_git_command(
             "blame",
+            "--porcelain",
             f"-L{hunk.old_start},{hunk.old_start + hunk.old_count - 1}",
             "HEAD~1",
             "--",
@@ -103,7 +104,7 @@ class BlameAnalysisEngine:
         if not success:
             return []
 
-        return self._parse_blame_output(blame_output)
+        return self._parse_blame_output_porcelain(blame_output)
 
     def get_blame_for_context(self, hunk: DiffHunk) -> List[BlameInfo]:
         """Get blame information for context around an addition.
@@ -119,13 +120,18 @@ class BlameAnalysisEngine:
         end_line = hunk.new_start + context_lines
 
         success, blame_output = self.git_ops._run_git_command(
-            "blame", f"-L{start_line},{end_line}", "HEAD~1", "--", hunk.file_path
+            "blame",
+            "--porcelain",
+            f"-L{start_line},{end_line}",
+            "HEAD~1",
+            "--",
+            hunk.file_path,
         )
 
         if not success:
             return []
 
-        return self._parse_blame_output(blame_output)
+        return self._parse_blame_output_porcelain(blame_output)
 
     def _parse_blame_output(self, blame_output: str) -> List[BlameInfo]:
         """Parse git blame output into BlameInfo objects.
@@ -168,6 +174,81 @@ class BlameAnalysisEngine:
 
         return blame_infos
 
+    def _parse_blame_output_porcelain(self, blame_output: str) -> List[BlameInfo]:
+        """Parse git blame --porcelain output into BlameInfo objects.
+
+        The porcelain format is stable across git versions and designed for machine parsing.
+        Format per line:
+            <40-byte hex sha> <original line> <final line> [<num lines in group>]
+            author <author name>
+            author-mail <author email>
+            author-time <timestamp>
+            author-tz <timezone>
+            ... (other fields)
+            filename <filename>
+            \t<line content>
+
+        Args:
+            blame_output: Raw git blame --porcelain output
+
+        Returns:
+            List of parsed BlameInfo objects
+        """
+        import re
+
+        blame_infos = []
+        lines = blame_output.split("\n")
+        i = 0
+
+        while i < len(lines):
+            line = lines[i].strip()
+            if not line:
+                i += 1
+                continue
+
+            # Parse header line: <commit> <original line> <final line> [<num lines>]
+            match = re.match(r"^([a-f0-9]{40})\s+(\d+)\s+(\d+)", line)
+            if not match:
+                i += 1
+                continue
+
+            commit_hash = match.group(1)
+            line_number = int(match.group(3))  # final line number
+
+            # Parse metadata fields until we hit the tab-indented line content
+            author = ""
+            timestamp = ""
+            line_content = ""
+            i += 1
+
+            while i < len(lines):
+                meta_line = lines[i]
+
+                # Line content is tab-indented
+                if meta_line.startswith("\t"):
+                    line_content = meta_line[1:]  # Remove leading tab
+                    i += 1
+                    break
+
+                # Parse author and timestamp fields
+                if meta_line.startswith("author "):
+                    author = meta_line[7:]  # Remove "author " prefix
+                elif meta_line.startswith("author-time "):
+                    timestamp = meta_line[12:]  # Unix timestamp
+
+                i += 1
+
+            blame_info = BlameInfo(
+                commit_hash=commit_hash,
+                author=author,
+                timestamp=timestamp,
+                line_number=line_number,
+                line_content=line_content,
+            )
+            blame_infos.append(blame_info)
+
+        return blame_infos
+
     def get_contextual_blame(
         self, hunk: DiffHunk, branch_commits: set
     ) -> List[BlameInfo]:
@@ -203,14 +284,19 @@ class BlameAnalysisEngine:
 
         # Get blame for the context range
         success, blame_output = self.git_ops._run_git_command(
-            "blame", f"-L{start_line},{end_line}", "HEAD~1", "--", hunk.file_path
+            "blame",
+            "--porcelain",
+            f"-L{start_line},{end_line}",
+            "HEAD~1",
+            "--",
+            hunk.file_path,
         )
 
         if not success:
             return []
 
         # Parse blame output and expand short hashes
-        raw_blame_infos = self._parse_blame_output(blame_output)
+        raw_blame_infos = self._parse_blame_output_porcelain(blame_output)
 
         # Collect short hashes and expand them using batch operations
         short_hashes = [
