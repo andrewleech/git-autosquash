@@ -993,21 +993,26 @@ class RebaseManager:
             if line_num > len(file_lines):
                 break
 
-            file_line = file_lines[line_num - 1].rstrip("\n")
-
+            # Check if we need to insert additions before this line
             if line_num in changes_by_line:
                 change = changes_by_line[line_num]
-                new_line = change["new_line"]
 
                 if change.get("is_addition", False):
-                    # Pure addition: only add the new line, no deletion
+                    # Pure addition: insert new line before this line
+                    new_line = change["new_line"]
                     hunk_lines.append(f"+{new_line}")
+                    # Then output the current line as context
+                    file_line = file_lines[line_num - 1].rstrip("\n")
+                    hunk_lines.append(f" {file_line}")
                 else:
-                    # Modification: replace old line with new line
+                    # Modification: replace this line
+                    file_line = file_lines[line_num - 1].rstrip("\n")
+                    new_line = change["new_line"]
                     hunk_lines.append(f"-{file_line}")
                     hunk_lines.append(f"+{new_line}")
             else:
                 # Context line
+                file_line = file_lines[line_num - 1].rstrip("\n")
                 hunk_lines.append(f" {file_line}")
 
         return hunk_lines
