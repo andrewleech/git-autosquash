@@ -676,42 +676,99 @@ class RebaseManager:
             files_to_hunks[hunk.file_path].append(hunk)
         return files_to_hunks
 
-    def _extract_hunk_changes(self, hunk: DiffHunk) -> List[Dict]:
+    def _extract_hunk_changes(self, hunk: DiffHunk) -> List[Dict[str, Any]]:
         """Extract all changes from a hunk, handling multiple changes per hunk.
 
         Returns:
             List of change dictionaries with 'old_line', 'new_line', and 'context'
         """
-        changes = []
-        current_change = {}
+        changes: List[Dict[str, Any]] = []
+        current_change: Dict[str, Any] = {}
+        context_before: List[str] = []
 
         for line in hunk.lines:
             if line.startswith("@@"):
                 continue
+            elif line.startswith(" "):
+                # Context line
+                context_line = line[1:].rstrip("\n")
+                context_before.append(context_line)
+                # Keep only last 3 context lines
+                if len(context_before) > 3:
+                    context_before.pop(0)
             elif line.startswith("-") and not line.startswith("---"):
                 current_change["old_line"] = line[1:].rstrip("\n")
+                current_change["context_before"] = context_before.copy()
             elif line.startswith("+") and not line.startswith("+++"):
-                current_change["new_line"] = line[1:].rstrip("\n")
-                # If we have both old and new, add the change
+                new_line = line[1:].rstrip("\n")
+
                 if "old_line" in current_change:
+                    # Modification: both old and new line
+                    current_change["new_line"] = new_line
                     changes.append(current_change.copy())
                     current_change = {}
+                else:
+                    # Pure addition: only new line, use context to find insertion point
+                    changes.append(
+                        {
+                            "new_line": new_line,
+                            "context_before": context_before.copy(),
+                            "is_addition": True,
+                        }
+                    )
 
         return changes
 
     def _find_target_with_context(
-        self, change: Dict, file_lines: List[str], used_lines: Set[int]
+        self, change: Dict[str, Any], file_lines: List[str], used_lines: Set[int]
     ) -> Optional[int]:
         """Find target line using context awareness to avoid duplicates.
 
         Args:
-            change: Dictionary with 'old_line' and 'new_line'
+            change: Dictionary with 'old_line' and 'new_line' (modifications) or
+                   'new_line' and 'context_before' (additions)
             file_lines: Current file content
             used_lines: Set of line numbers already processed
 
         Returns:
             Target line number (1-based) or None if not found
         """
+        # Handle pure additions using context matching
+        if change.get("is_addition", False):
+            context_before = change.get("context_before", [])
+            if not context_before:
+                print(
+                    "DEBUG: Pure addition without context, cannot determine insertion point"
+                )
+                return None
+
+            # Find where the context sequence appears in the file
+            for i in range(len(file_lines) - len(context_before) + 1):
+                # Check if context matches
+                matches = True
+                for j, ctx_line in enumerate(context_before):
+                    file_line = file_lines[i + j].rstrip("\n").strip()
+                    if file_line != ctx_line.strip():
+                        matches = False
+                        break
+
+                if matches:
+                    # Insert after the context
+                    insertion_line = i + len(context_before) + 1  # 1-based
+                    if insertion_line not in used_lines:
+                        print(
+                            f"DEBUG: Found insertion point for addition at line {insertion_line}"
+                        )
+                        return insertion_line
+
+            print("DEBUG: Could not find context match for addition")
+            return None
+
+        # Handle modifications (existing logic)
+        if "old_line" not in change:
+            print("DEBUG: Change has neither old_line nor is_addition flag")
+            return None
+
         old_line = change["old_line"].strip()
         candidates = []
 
@@ -731,12 +788,11 @@ class RebaseManager:
             print(f"DEBUG: Found unique match at line {candidates[0]}")
             return candidates[0]
 
-        # Multiple candidates - this is where we had the issue before
+        # Multiple candidates
         print(f"DEBUG: Multiple candidates for '{old_line}': {candidates}")
         print(f"DEBUG: Used lines: {sorted(used_lines)}")
 
-        # For now, use the first unused candidate
-        # TODO: Could add more sophisticated context matching here
+        # Use the first unused candidate
         selected = candidates[0]
         print(f"DEBUG: Selected first unused candidate: {selected}")
         return selected
@@ -919,11 +975,14 @@ class RebaseManager:
         # Create change mapping for quick lookup
         changes_by_line = {line_num: change for change, line_num in changes_group}
 
+        # Count additions to adjust new_count in hunk header
+        num_additions = sum(
+            1 for change, _ in changes_group if change.get("is_addition", False)
+        )
+
         # Build the hunk header
         old_count = context_end - context_start + 1
-        new_count = (
-            old_count  # Same count since we're replacing lines, not adding/removing
-        )
+        new_count = old_count + num_additions  # Add count for pure additions
         hunk_lines = []
         hunk_lines.append(
             f"@@ -{context_start},{old_count} +{context_start},{new_count} @@ "
@@ -937,11 +996,16 @@ class RebaseManager:
             file_line = file_lines[line_num - 1].rstrip("\n")
 
             if line_num in changes_by_line:
-                # This line should be changed
                 change = changes_by_line[line_num]
                 new_line = change["new_line"]
-                hunk_lines.append(f"-{file_line}")
-                hunk_lines.append(f"+{new_line}")
+
+                if change.get("is_addition", False):
+                    # Pure addition: only add the new line, no deletion
+                    hunk_lines.append(f"+{new_line}")
+                else:
+                    # Modification: replace old line with new line
+                    hunk_lines.append(f"-{file_line}")
+                    hunk_lines.append(f"+{new_line}")
             else:
                 # Context line
                 hunk_lines.append(f" {file_line}")
@@ -949,7 +1013,7 @@ class RebaseManager:
         return hunk_lines
 
     def _create_corrected_hunk_for_change(
-        self, change: Dict, target_line_num: int, file_lines: List[str]
+        self, change: Dict[str, Any], target_line_num: int, file_lines: List[str]
     ) -> List[str]:
         """Create a corrected hunk for a single change at a specific line number.
 
