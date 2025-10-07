@@ -2,6 +2,10 @@
 """
 Textual-Native Screenshot Capture System
 
+⚠️  DEPRECATED: This was an experimental implementation.
+    Use scripts/generate_screenshots.py for the official production-ready version.
+    See CLAUDE.md "Screenshot Generation" section for details.
+
 This module uses pytest-textual-snapshot to capture high-quality SVG screenshots
 of the git-autosquash TUI interface, replacing the pyte-based approach with
 official Textual tooling.

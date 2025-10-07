@@ -1,6 +1,10 @@
 """
 Pyte-based TUI Screenshot Capture System
 
+⚠️  DEPRECATED: This approach had timing and reliability issues.
+    Use scripts/generate_screenshots.py for Textual-native screenshots.
+    See CLAUDE.md "Screenshot Generation" section for details.
+
 This module provides screenshot capture using the pyte terminal emulator,
 which allows us to capture TUI output as text/ANSI without relying on
 Textual's private screenshot APIs.

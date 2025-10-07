@@ -2,6 +2,10 @@
 """
 Pexpect-based TUI Screenshot Capture System
 
+⚠️  DEPRECATED: This approach has timing and reliability issues.
+    Use scripts/generate_screenshots.py for Textual-native screenshots.
+    See CLAUDE.md "Screenshot Generation" section for details.
+
 This module uses pexpect to properly interact with git-autosquash's input() calls
 and pyte to capture the TUI output as images.
 """

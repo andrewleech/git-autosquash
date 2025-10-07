@@ -2,6 +2,10 @@
 """
 Real Application Screenshot Generator for git-autosquash
 
+⚠️  DEPRECATED: This script uses pexpect for terminal capture.
+    Use scripts/generate_screenshots.py instead for Textual-native screenshots.
+    See CLAUDE.md "Screenshot Generation" section for details.
+
 This script generates authentic screenshots by running the real git-autosquash
 application on realistic test repositories and capturing actual terminal output.
 """
