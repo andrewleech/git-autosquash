@@ -1,0 +1,17 @@
+git-autosquash - Progress Tracking
+
+📊 REBASE PROGRESS: Step 3 of 5
+
+✅ Completed:
+  ✓ Backup created (ORIG_HEAD)
+  ✓ src/auth.py:45-52 → abc1234
+  ✓ src/dashboard.py:15-23 → def5678
+
+🔄 Current:
+  → tests/test_auth.py:67-70 → ghi9012 "Update auth tests"
+
+⏳ Remaining:
+  - src/utils.py:85-90 → jkl3456
+  - Finalize rebase
+
+Estimated time: 30 seconds

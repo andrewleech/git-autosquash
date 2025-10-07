@@ -1,0 +1,7 @@
+ config.json        | 15 +++++++--------
+                                         src/auth.py        |  3 ++-
+                                                                     src/dashboard.py   |  5 +++--
+                                                                                                   src/utils.py       |
+18 ++++++++++++++++++
+                      tests/test_auth.py |  7 +++++++
+                                                      5 files changed, 37 insertions(+), 11 deletions(-)

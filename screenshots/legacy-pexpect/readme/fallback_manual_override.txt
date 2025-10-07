@@ -1,0 +1,20 @@
+git-autosquash - Manual Override
+
+🎯 SUGGESTED TARGET: def5678 "Add dashboard feature"
+   Confidence: 75% (Medium)
+
+💡 YOU CAN OVERRIDE THIS SUGGESTION
+
+┌─ Alternative Targets ──────────────────────────────────┐
+│ ◯ abc1234 "Fix login validation" (High confidence)    │
+│ ◯ def5678 "Add dashboard feature" ← SUGGESTED          │
+│ ◯ ghi9012 "Update auth tests" (Low confidence)        │
+│ ◯ [Custom] Enter different commit hash                │
+│ ◯ [Skip] Leave in working directory                   │
+└────────────────────────────────────────────────────────┘
+
+Sometimes you know better than the algorithm! 
+Use manual override when:
+- You remember the real context
+- Suggested target doesn't make sense
+- You want to group related changes

@@ -539,16 +539,19 @@ python3 capture_readme_screenshots.py
 
 ### Screenshot Implementation
 
-The screenshot system uses pyte terminal emulator to capture real application output:
+**Official Method**: Use Textual's native screenshot capabilities via `scripts/generate_screenshots.py`.
 
-```python
-from capture_readme_screenshots import RealScreenshotGenerator
+This is the recommended approach, replacing legacy pexpect/pyte methods. See [CLAUDE.md](../../CLAUDE.md#screenshot-generation) for complete documentation.
 
-# Initialize generator
-generator = RealScreenshotGenerator()
+```bash
+# Generate all screenshots
+python scripts/generate_screenshots.py
 
-# Generate all screenshots using real git-autosquash
-await generator.generate_all_screenshots()
+# Generate only hero screenshot
+python scripts/generate_screenshots.py --hero-only
+
+# Custom output directory
+python scripts/generate_screenshots.py --output-dir screenshots/new
 ```
 
 The system creates realistic git repositories with:
@@ -559,20 +562,28 @@ The system creates realistic git repositories with:
 
 ### Screenshot Specifications
 
-- **Terminal Size**: 120 columns × 40 rows
-- **Background**: Dark terminal theme (12, 12, 12)
-- **Font**: Monospace (DejaVu Sans Mono, Monaco, or Consola)
-- **Capture Method**: pyte terminal emulator with real application interaction
-- **Image Format**: PNG with lossless compression
+- **Terminal Size**: 120 columns × 40 rows (customizable)
+- **Capture Method**: Textual's `app.run_test()` with Pilot framework
+- **Source Format**: SVG (scalable, character-perfect)
+- **Distribution Format**: PNG (converted from SVG for git-lfs compatibility)
+- **Conversion**: ImageMagick/Inkscape at 200-300 DPI
 
 ### Updating Screenshots
 
 When TUI interface or workflow changes, regenerate screenshots:
 
-1. **Modify interaction sequences** in `capture_readme_screenshots.py`
+1. **Modify interaction sequences** in `scripts/generate_screenshots.py`
 2. **Update test repository structure** in `scripts/screenshot_test_repo.py` if needed
-3. **Run generation script** to capture new real application screenshots
-4. **Verify all expected screenshots** were generated correctly
+3. **Generate screenshots**: `python scripts/generate_screenshots.py --output-dir /tmp/new`
+4. **Convert SVG to PNG**:
+   ```bash
+   cd /tmp/new
+   for svg in *.svg; do
+       convert -density 200 "$svg" "${svg%.svg}.png"
+   done
+   ```
+5. **Copy to screenshots/readme**: `cp /tmp/new/*.png screenshots/readme/`
+6. **Verify all expected screenshots** were generated correctly
 
 ### Screenshot Naming Convention
 

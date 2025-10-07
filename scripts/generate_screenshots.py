@@ -171,51 +171,234 @@ class TextualScreenshotGenerator:
             ],
         )
 
+    async def capture_bash_command_screenshot(
+        self, name: str, command: List[str], wait_duration: float = 0.5
+    ) -> Path:
+        """Capture a screenshot of a bash command output (not TUI).
+
+        This is useful for workflow_step_01 (git status) and other
+        non-TUI steps that show command-line output.
+
+        Args:
+            name: Screenshot filename (without extension)
+            command: Command to run as list (e.g., ["git", "status"])
+            wait_duration: How long to wait before capturing
+
+        Returns:
+            Path to the captured screenshot file
+        """
+        # For bash commands, we'll create a simple text-based screenshot
+        # This is a placeholder - in production, you'd use pexpect or similar
+        screenshot_path = self.output_dir / f"{name}.{self.format}"
+
+        # Create a placeholder that indicates this needs bash command capture
+        if self.format == "svg":
+            svg_content = f"""<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400">
+  <rect width="1200" height="400" fill="#0c0c0c"/>
+  <text x="600" y="200" text-anchor="middle" fill="white" font-family="monospace" font-size="14">
+    Bash command screenshot: {" ".join(command)}
+  </text>
+  <text x="600" y="230" text-anchor="middle" fill="gray" font-family="monospace" font-size="12">
+    TODO: Implement bash command capture
+  </text>
+</svg>"""
+            screenshot_path.write_text(svg_content)
+
+        print(f"✓ Captured (placeholder): {screenshot_path.name}")
+        return screenshot_path
+
     async def generate_workflow_screenshots(self) -> List[Path]:
-        """Generate step-by-step workflow screenshots."""
+        """Generate complete workflow screenshots (steps 01-06)."""
         screenshots = []
 
-        # Step 1: Initial state
+        # Step 1: Git status before running (bash command, not TUI)
+        screenshots.append(
+            await self.capture_bash_command_screenshot(
+                "workflow_step_01",
+                ["git", "status"],
+            )
+        )
+
+        # Step 2: TUI with analysis complete, nothing selected yet
         screenshots.append(
             await self.capture_app_screenshot(
-                "workflow_01_initial",
+                "workflow_step_02",
                 interactions=[
-                    {"type": "wait", "duration": 0.8},
+                    {"type": "wait", "duration": 1.0},
                 ],
             )
         )
 
-        # Step 2: After selecting first hunk
+        # Step 3: User navigating and selecting hunks
         screenshots.append(
             await self.capture_app_screenshot(
-                "workflow_02_select_first",
+                "workflow_step_03",
                 interactions=[
                     {"type": "wait", "duration": 0.8},
-                    {"type": "key", "keys": ["space"]},
+                    {"type": "key", "keys": ["space"]},  # Select first
+                    {"type": "wait", "duration": 0.3},
+                    {"type": "key", "keys": ["j"]},  # Move down
+                    {"type": "wait", "duration": 0.2},
+                    {"type": "key", "keys": ["space"]},  # Select second
                     {"type": "wait", "duration": 0.3},
                 ],
             )
         )
 
-        # Step 3: Navigate and select more hunks
+        # Step 4: Reviewing target commits panel (tab to targets)
         screenshots.append(
             await self.capture_app_screenshot(
-                "workflow_03_multi_select",
+                "workflow_step_04",
                 interactions=[
                     {"type": "wait", "duration": 0.8},
-                    {"type": "key", "keys": ["space", "j", "space"]},
+                    {"type": "key", "keys": ["space"]},  # Select one hunk
+                    {"type": "wait", "duration": 0.3},
+                    {"type": "key", "keys": ["tab"]},  # Switch to target panel
                     {"type": "wait", "duration": 0.3},
                 ],
             )
         )
 
-        # Step 4: View target commits
+        # Step 5: Execution progress/confirmation
+        # Note: This would normally show the execution dialog or progress
+        # For now, we'll show the app with items selected ready to execute
         screenshots.append(
             await self.capture_app_screenshot(
-                "workflow_04_view_targets",
+                "workflow_step_05",
                 interactions=[
                     {"type": "wait", "duration": 0.8},
-                    {"type": "key", "keys": ["tab"]},
+                    {"type": "key", "keys": ["space", "j", "space"]},  # Select multiple
+                    {"type": "wait", "duration": 0.5},
+                ],
+            )
+        )
+
+        # Step 6: Final git log showing clean history (bash command)
+        screenshots.append(
+            await self.capture_bash_command_screenshot(
+                "workflow_step_06",
+                ["git", "log", "--oneline", "-10"],
+            )
+        )
+
+        return screenshots
+
+    async def generate_feature_screenshots(self) -> List[Path]:
+        """Generate feature demonstration screenshots."""
+        screenshots = []
+
+        # Feature: Smart targeting (show blame analysis results)
+        screenshots.append(
+            await self.capture_app_screenshot(
+                "feature_smart_targeting",
+                interactions=[
+                    {"type": "wait", "duration": 1.0},
+                ],
+            )
+        )
+
+        # Feature: Interactive TUI (show rich interactions)
+        screenshots.append(
+            await self.capture_app_screenshot(
+                "feature_interactive_tui",
+                interactions=[
+                    {"type": "wait", "duration": 0.8},
+                    {"type": "key", "keys": ["j", "j"]},  # Navigate down
+                    {"type": "wait", "duration": 0.3},
+                ],
+            )
+        )
+
+        # Feature: Safety first (show unapproved state by default)
+        screenshots.append(
+            await self.capture_app_screenshot(
+                "feature_safety_first",
+                interactions=[
+                    {"type": "wait", "duration": 1.0},
+                ],
+            )
+        )
+
+        # Feature: Conflict resolution
+        # Note: This would require a special test case with conflicts
+        # For now, create a placeholder
+        screenshots.append(
+            await self.capture_bash_command_screenshot(
+                "feature_conflict_resolution",
+                ["echo", "Conflict resolution placeholder"],
+            )
+        )
+
+        return screenshots
+
+    async def generate_comparison_screenshots(self) -> List[Path]:
+        """Generate before/after comparison views."""
+        screenshots = []
+
+        # Comparison: Before - messy git status
+        screenshots.append(
+            await self.capture_bash_command_screenshot(
+                "comparison_before_traditional",
+                ["git", "status", "--short"],
+            )
+        )
+
+        # Comparison: Before - scattered git diff
+        screenshots.append(
+            await self.capture_bash_command_screenshot(
+                "comparison_before_diff",
+                ["git", "diff", "--stat"],
+            )
+        )
+
+        # Comparison: After - clean git log
+        screenshots.append(
+            await self.capture_bash_command_screenshot(
+                "comparison_after_autosquash",
+                ["git", "log", "--oneline", "--graph", "-8"],
+            )
+        )
+
+        return screenshots
+
+    async def generate_fallback_screenshots(self) -> List[Path]:
+        """Generate fallback scenario demonstrations."""
+        screenshots = []
+
+        # Fallback: New file (no git history)
+        # This requires the test repo to have a new file scenario
+        screenshots.append(
+            await self.capture_app_screenshot(
+                "fallback_new_file_fallback",
+                interactions=[
+                    {"type": "wait", "duration": 1.0},
+                    # Navigate to a hunk that shows fallback UI
+                    {"type": "key", "keys": ["j", "j", "j"]},
+                    {"type": "wait", "duration": 0.3},
+                ],
+            )
+        )
+
+        # Fallback: Ambiguous blame (multiple potential targets)
+        screenshots.append(
+            await self.capture_app_screenshot(
+                "fallback_ambiguous_blame_fallback",
+                interactions=[
+                    {"type": "wait", "duration": 1.0},
+                ],
+            )
+        )
+
+        # Fallback: Manual override (user selecting different target)
+        screenshots.append(
+            await self.capture_app_screenshot(
+                "fallback_manual_override",
+                interactions=[
+                    {"type": "wait", "duration": 0.8},
+                    {"type": "key", "keys": ["tab"]},  # Switch to targets panel
+                    {"type": "wait", "duration": 0.3},
+                    {"type": "key", "keys": ["j"]},  # Navigate targets
                     {"type": "wait", "duration": 0.3},
                 ],
             )
@@ -233,8 +416,17 @@ class TextualScreenshotGenerator:
             print("📸 Hero screenshot...")
             screenshots["hero"] = [await self.generate_hero_screenshot()]
 
-            print("\n📸 Workflow screenshots...")
+            print("\n📸 Workflow screenshots (steps 01-06)...")
             screenshots["workflow"] = await self.generate_workflow_screenshots()
+
+            print("\n📸 Feature screenshots...")
+            screenshots["features"] = await self.generate_feature_screenshots()
+
+            print("\n📸 Comparison screenshots...")
+            screenshots["comparisons"] = await self.generate_comparison_screenshots()
+
+            print("\n📸 Fallback screenshots...")
+            screenshots["fallbacks"] = await self.generate_fallback_screenshots()
 
             print(
                 f"\n✨ Generated {sum(len(v) for v in screenshots.values())} screenshots"
