@@ -152,7 +152,12 @@ def _create_patch_for_hunk(hunk) -> str:
 
 
 def _execute_rebase(
-    approved_mappings, git_ops, merge_base, resolver, blame_ref="HEAD"
+    approved_mappings,
+    git_ops,
+    merge_base,
+    resolver,
+    blame_ref="HEAD",
+    source_commit=None,
 ) -> bool:
     """Execute the interactive rebase to apply approved mappings.
 
@@ -162,6 +167,7 @@ def _execute_rebase(
         merge_base: Merge base commit hash
         resolver: HunkTargetResolver for getting commit summaries
         blame_ref: Git ref to use for blame operations (default: HEAD)
+        source_commit: Source commit SHA being processed (if --source was a commit)
 
     Returns:
         True if successful, False if aborted or failed
@@ -189,7 +195,9 @@ def _execute_rebase(
         print("\nStarting rebase operation...")
 
         # Execute the squash operation
-        success = rebase_manager.execute_squash(approved_mappings)
+        success = rebase_manager.execute_squash(
+            approved_mappings, source_commit=source_commit
+        )
 
         if success:
             return True
@@ -527,6 +535,7 @@ def run_interactive_ui(
     git_ops: GitOps,
     merge_base: str,
     blame_ref: str = "HEAD",
+    source_commit=None,
 ) -> bool:
     """Run the interactive TUI for user selections.
 
@@ -535,6 +544,7 @@ def run_interactive_ui(
         git_ops: GitOps instance
         merge_base: Merge base commit hash
         blame_ref: Git ref to use for blame operations (default: HEAD)
+        source_commit: Source commit SHA being processed (if --source was a commit)
 
     Returns:
         True if user approved changes, False if cancelled
@@ -557,6 +567,7 @@ def run_interactive_ui(
                 merge_base,
                 HunkTargetResolver(git_ops, merge_base, blame_ref=blame_ref),
                 blame_ref=blame_ref,
+                source_commit=source_commit,
             )
             if result:
                 print("✓ Successfully applied selected hunks")
@@ -689,15 +700,20 @@ def main() -> None:
         merge_base = get_merge_base(git_ops, current_branch)
         check_repository_state(git_ops, merge_base, args.auto_accept)
 
-        # Compute blame_ref based on source
+        # Compute blame_ref and source_commit based on source
         source = args.source.lower()
         if source in ["head", "HEAD"]:
             blame_ref = "HEAD~1"
+            source_commit = None  # Processing HEAD, not a historical commit
         elif source not in ["auto", "working-tree", "index"]:
             # Assume it's a commit SHA
             blame_ref = f"{args.source}~1"
+            source_commit = (
+                args.source
+            )  # This is the source commit to exclude from rebase
         else:
             blame_ref = "HEAD"
+            source_commit = None
 
         # Phase 3: Process hunks and create mappings
         automatic_mappings, fallback_mappings = process_hunks_and_mappings(
@@ -734,6 +750,7 @@ def main() -> None:
                         merge_base,
                         HunkTargetResolver(git_ops, merge_base, blame_ref=blame_ref),
                         blame_ref=blame_ref,
+                        source_commit=source_commit,
                     )
                 else:
                     success = True  # No rebase needed
@@ -744,7 +761,11 @@ def main() -> None:
 
             if all_mappings:
                 success = run_interactive_ui(
-                    all_mappings, git_ops, merge_base, blame_ref=blame_ref
+                    all_mappings,
+                    git_ops,
+                    merge_base,
+                    blame_ref=blame_ref,
+                    source_commit=source_commit,
                 )
             else:
                 print("No hunks found to process.")
