@@ -394,11 +394,17 @@ class FallbackTargetProvider:
 
         HEAD should only be excluded when the working tree is clean, meaning
         we're processing the HEAD commit itself. When there are working tree
-        or staged changes, HEAD should remain as a valid target.
+        or staged changes, HEAD should remain as a valid target. When processing
+        historical commits with --source, HEAD should also remain as a valid target.
 
         Returns:
             True if HEAD should be excluded from fallback candidates
         """
+        # When processing historical commits (blame_ref != "HEAD"), HEAD is a valid target
+        # and should not be excluded. Only exclude HEAD when processing HEAD itself.
+        if hasattr(self.batch_ops, "blame_ref") and self.batch_ops.blame_ref != "HEAD":
+            return False
+
         try:
             status = self.batch_ops.git_ops.get_working_tree_status()
             # Exclude HEAD only when working tree is completely clean
@@ -485,11 +491,16 @@ class HunkTargetResolver:
 
         HEAD should be excluded from blame analysis when processing the HEAD
         commit itself (clean working tree), but included when processing
-        working tree or staged changes.
+        working tree or staged changes OR when processing historical commits.
 
         Returns:
             True if HEAD should be excluded from blame analysis
         """
+        # When processing historical commits (blame_ref != "HEAD"), HEAD is a valid target
+        # and should not be excluded. Only exclude HEAD when processing HEAD itself.
+        if self.blame_ref != "HEAD":
+            return False
+
         try:
             status = self.git_ops.get_working_tree_status()
             # Exclude HEAD only when working tree is completely clean
