@@ -72,16 +72,18 @@ class HunkTargetMapping:
 class BlameAnalysisEngine:
     """Core engine for analyzing git blame information."""
 
-    def __init__(self, git_ops: GitOps, merge_base: str):
+    def __init__(self, git_ops: GitOps, merge_base: str, blame_ref: str = "HEAD"):
         """Initialize blame analysis engine.
 
         Args:
             git_ops: GitOps instance for running git commands
             merge_base: Merge base commit hash to limit scope
+            blame_ref: Git ref to use for blame operations (default: HEAD)
         """
         self.git_ops = git_ops
         self.merge_base = merge_base
-        self.batch_ops = BatchGitOperations(git_ops, merge_base)
+        self.blame_ref = blame_ref
+        self.batch_ops = BatchGitOperations(git_ops, merge_base, blame_ref=blame_ref)
 
     def get_blame_for_old_lines(self, hunk: DiffHunk) -> List[BlameInfo]:
         """Get blame information for lines being deleted/modified.
@@ -96,7 +98,7 @@ class BlameAnalysisEngine:
             "blame",
             "--porcelain",
             f"-L{hunk.old_start},{hunk.old_start + hunk.old_count - 1}",
-            "HEAD~1",
+            self.blame_ref,
             "--",
             hunk.file_path,
         )
@@ -123,7 +125,7 @@ class BlameAnalysisEngine:
             "blame",
             "--porcelain",
             f"-L{start_line},{end_line}",
-            "HEAD~1",
+            self.blame_ref,
             "--",
             hunk.file_path,
         )
@@ -287,7 +289,7 @@ class BlameAnalysisEngine:
             "blame",
             "--porcelain",
             f"-L{start_line},{end_line}",
-            "HEAD~1",
+            self.blame_ref,
             "--",
             hunk.file_path,
         )
@@ -443,17 +445,21 @@ class FileConsistencyTracker:
 class HunkTargetResolver:
     """Main resolver that orchestrates hunk target resolution."""
 
-    def __init__(self, git_ops: GitOps, merge_base: str):
+    def __init__(self, git_ops: GitOps, merge_base: str, blame_ref: str = "HEAD"):
         """Initialize hunk target resolver.
 
         Args:
             git_ops: GitOps instance for running git commands
             merge_base: Merge base commit hash to limit scope
+            blame_ref: Git ref to use for blame operations (default: HEAD)
         """
         self.git_ops = git_ops
         self.merge_base = merge_base
-        self.batch_ops = BatchGitOperations(git_ops, merge_base)
-        self.blame_engine = BlameAnalysisEngine(git_ops, merge_base)
+        self.blame_ref = blame_ref
+        self.batch_ops = BatchGitOperations(git_ops, merge_base, blame_ref=blame_ref)
+        self.blame_engine = BlameAnalysisEngine(
+            git_ops, merge_base, blame_ref=blame_ref
+        )
         self.fallback_provider = FallbackTargetProvider(self.batch_ops)
         self.consistency_tracker = FileConsistencyTracker()
 

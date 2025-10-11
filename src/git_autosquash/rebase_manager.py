@@ -214,10 +214,14 @@ class RebaseManager:
         if stash_sha:
             self._stash_ref = stash_sha
             logger.info(f"Working tree prepared. Stash SHA: {stash_sha[:8]}")
-        else:
-            raise subprocess.SubprocessError(
-                f"Failed to stash {operation_type} changes"
+        elif operation_type is not None:
+            # Stash returned None but operation_type was set
+            # This means status reported changes but there were no actual changes to stash
+            # This can happen when processing historical commits with --source
+            logger.debug(
+                f"No actual changes to stash despite status indicating {operation_type} changes"
             )
+            # Continue without stashing - working tree is effectively clean
 
     def _create_and_store_stash(self, message: str) -> Optional[str]:
         """Create a stash and return its SHA reference.

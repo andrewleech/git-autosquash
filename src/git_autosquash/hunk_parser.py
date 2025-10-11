@@ -51,33 +51,54 @@ class HunkParser:
         """
         self.git_ops = git_ops
 
-    def get_diff_hunks(self, line_by_line: bool = False) -> List[DiffHunk]:
+    def get_diff_hunks(
+        self, line_by_line: bool = False, source: str = "auto"
+    ) -> List[DiffHunk]:
         """Extract hunks from current working tree or staged changes.
 
         Args:
             line_by_line: If True, split hunks line-by-line for finer granularity
+            source: What to process - 'auto' (detect based on tree status),
+                   'working-tree', 'index', 'head', or a commit SHA
 
         Returns:
             List of DiffHunk objects representing changes
         """
-        # Get working tree status to determine what to diff
-        status = self.git_ops.get_working_tree_status()
+        if source == "auto":
+            # Auto-detect based on working tree status
+            status = self.git_ops.get_working_tree_status()
 
-        if status["is_clean"]:
-            # Working tree is clean, diff HEAD~1 to get previous commit changes
+            if status["is_clean"]:
+                # Working tree is clean, diff HEAD~1 to get previous commit changes
+                success, diff_output = self.git_ops._run_git_command(
+                    "show", "--format=", "HEAD"
+                )
+            elif status["has_staged"] and not status["has_unstaged"]:
+                # Only staged changes, diff them
+                success, diff_output = self.git_ops._run_git_command("diff", "--cached")
+            elif not status["has_staged"] and status["has_unstaged"]:
+                # Only unstaged changes, diff them
+                success, diff_output = self.git_ops._run_git_command("diff")
+            else:
+                # Both staged and unstaged changes - process only staged changes
+                # Unstaged changes will be temporarily stashed by the rebase manager
+                success, diff_output = self.git_ops._run_git_command("diff", "--cached")
+        elif source == "working-tree":
+            # Explicitly diff working tree (unstaged changes)
+            success, diff_output = self.git_ops._run_git_command("diff")
+        elif source == "index":
+            # Explicitly diff staged changes
+            success, diff_output = self.git_ops._run_git_command("diff", "--cached")
+        elif source == "head" or source == "HEAD":
+            # Diff HEAD commit
             success, diff_output = self.git_ops._run_git_command(
                 "show", "--format=", "HEAD"
             )
-        elif status["has_staged"] and not status["has_unstaged"]:
-            # Only staged changes, diff them
-            success, diff_output = self.git_ops._run_git_command("diff", "--cached")
-        elif not status["has_staged"] and status["has_unstaged"]:
-            # Only unstaged changes, diff them
-            success, diff_output = self.git_ops._run_git_command("diff")
         else:
-            # Both staged and unstaged changes - process only staged changes
-            # Unstaged changes will be temporarily stashed by the rebase manager
-            success, diff_output = self.git_ops._run_git_command("diff", "--cached")
+            # Assume it's a commit SHA
+            success, diff_output = self.git_ops._run_git_command(
+                "show", "--format=", source
+            )
 
         if not success:
             return []
@@ -230,7 +251,7 @@ class HunkParser:
         return split_hunks
 
     def get_file_content_at_lines(
-        self, file_path: str, start_line: int, end_line: int
+        self, file_path: str, start_line: int, end_line: int, ref: str = "HEAD"
     ) -> List[str]:
         """Get file content at specific line range for context.
 
@@ -238,12 +259,13 @@ class HunkParser:
             file_path: Path to the file
             start_line: Starting line number (1-based)
             end_line: Ending line number (1-based, inclusive)
+            ref: Git ref to use for file content (default: HEAD)
 
         Returns:
             List of lines from the file, empty list on error
         """
         # Use git show with line range for efficiency on large files
-        success, output = self.git_ops._run_git_command("show", f"HEAD:{file_path}")
+        success, output = self.git_ops._run_git_command("show", f"{ref}:{file_path}")
 
         if not success:
             return []

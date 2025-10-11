@@ -48,16 +48,20 @@ class HunkTargetMapping:
 class BlameAnalyzer:
     """Analyzes git blame to determine target commits for hunks."""
 
-    def __init__(self, git_ops: GitOps, merge_base: str) -> None:
+    def __init__(
+        self, git_ops: GitOps, merge_base: str, blame_ref: str = "HEAD"
+    ) -> None:
         """Initialize BlameAnalyzer.
 
         Args:
             git_ops: GitOps instance for running git commands
             merge_base: Merge base commit hash to limit scope
+            blame_ref: Git ref to use for blame operations (default: HEAD)
         """
         self.git_ops = git_ops
         self.merge_base = merge_base
-        self.batch_ops = BatchGitOperations(git_ops, merge_base)
+        self.blame_ref = blame_ref
+        self.batch_ops = BatchGitOperations(git_ops, merge_base, blame_ref=blame_ref)
         self._branch_commits_cache: Optional[Set[str]] = None
         self._commit_timestamp_cache: Dict[str, int] = {}
         self._file_target_cache: Dict[str, str] = {}  # Track previous targets by file
@@ -188,11 +192,11 @@ class BlameAnalyzer:
         Returns:
             List of BlameInfo objects for the deleted lines
         """
-        # Run blame on the file at HEAD (before changes)
+        # Run blame on the file at configured ref (before changes)
         success, blame_output = self.git_ops._run_git_command(
             "blame",
             f"-L{hunk.old_start},{hunk.old_start + hunk.old_count - 1}",
-            "HEAD",
+            self.blame_ref,
             "--",
             hunk.file_path,
         )
@@ -215,12 +219,12 @@ class BlameAnalyzer:
         # The insertion happens at new_start, so we look around old_start
         context_lines = 3
 
-        # For pure additions, old_start is where the insertion point was in HEAD
+        # For pure additions, old_start is where the insertion point was at blame_ref
         start_line = max(1, hunk.old_start - context_lines)
         end_line = hunk.old_start + context_lines
 
         success, blame_output = self.git_ops._run_git_command(
-            "blame", f"-L{start_line},{end_line}", "HEAD", "--", hunk.file_path
+            "blame", f"-L{start_line},{end_line}", self.blame_ref, "--", hunk.file_path
         )
 
         if not success:
@@ -330,7 +334,7 @@ class BlameAnalyzer:
         return line_count
 
     def _try_get_line_count_from_head(self, file_path: str) -> Optional[int]:
-        """Try to get line count from HEAD version of file.
+        """Try to get line count from blame_ref version of file.
 
         Args:
             file_path: Path to file
@@ -338,7 +342,9 @@ class BlameAnalyzer:
         Returns:
             Line count if successful, None otherwise
         """
-        success, output = self.git_ops._run_git_command("show", f"HEAD:{file_path}")
+        success, output = self.git_ops._run_git_command(
+            "show", f"{self.blame_ref}:{file_path}"
+        )
         if success and output is not None:
             return len(output.split("\n")) if output else 1
         return None
@@ -417,7 +423,7 @@ class BlameAnalyzer:
 
         # Get the file content to check line contents
         success, file_content = self.git_ops._run_git_command(
-            "show", f"HEAD:{file_path}"
+            "show", f"{self.blame_ref}:{file_path}"
         )
         if not success:
             # If we can't read the file, assume all lines are meaningful
@@ -503,7 +509,7 @@ class BlameAnalyzer:
             List of BlameInfo objects (usually just one)
         """
         success, blame_output = self.git_ops._run_git_command(
-            "blame", f"-L{line_num},{line_num}", "HEAD", "--", file_path
+            "blame", f"-L{line_num},{line_num}", self.blame_ref, "--", file_path
         )
 
         if not success:

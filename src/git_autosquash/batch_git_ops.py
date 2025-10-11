@@ -42,15 +42,19 @@ class BlameInfo:
 class BatchGitOperations:
     """Efficient batch operations for git commands to reduce subprocess overhead."""
 
-    def __init__(self, git_ops: GitOps, merge_base: str) -> None:
+    def __init__(
+        self, git_ops: GitOps, merge_base: str, blame_ref: str = "HEAD"
+    ) -> None:
         """Initialize batch operations.
 
         Args:
             git_ops: GitOps instance for git command execution
             merge_base: Merge base commit hash
+            blame_ref: Git ref to use for blame operations (default: HEAD)
         """
         self.git_ops = git_ops
         self.merge_base = merge_base
+        self.blame_ref = blame_ref
         self.logger = logging.getLogger(__name__)
 
         # Bounded caches to prevent memory growth
@@ -459,7 +463,7 @@ class BatchGitOperations:
         blame_args = ["blame"]
         for start, end in line_ranges:
             blame_args.extend(["-L", f"{start},{end}"])
-        blame_args.extend(["HEAD", "--", file_path])
+        blame_args.extend([self.blame_ref, "--", file_path])
 
         success, blame_output = self.git_ops._run_git_command(*blame_args)
         if not success:
