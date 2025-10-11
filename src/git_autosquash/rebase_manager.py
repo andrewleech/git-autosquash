@@ -696,7 +696,19 @@ class RebaseManager:
                 # Keep only last 3 context lines
                 if len(context_before) > 3:
                     context_before.pop(0)
+
+                # If we have a pending deletion and hit context, finalize it
+                if "old_line" in current_change and "new_line" not in current_change:
+                    current_change["is_deletion"] = True
+                    changes.append(current_change.copy())
+                    current_change = {}
             elif line.startswith("-") and not line.startswith("---"):
+                # If we already have a pending deletion, finalize it first
+                if "old_line" in current_change and "new_line" not in current_change:
+                    current_change["is_deletion"] = True
+                    changes.append(current_change.copy())
+                    current_change = {}
+
                 current_change["old_line"] = line[1:].rstrip("\n")
                 current_change["context_before"] = context_before.copy()
             elif line.startswith("+") and not line.startswith("+++"):
@@ -716,6 +728,11 @@ class RebaseManager:
                             "is_addition": True,
                         }
                     )
+
+        # Finalize any pending deletion at end of hunk
+        if "old_line" in current_change and "new_line" not in current_change:
+            current_change["is_deletion"] = True
+            changes.append(current_change.copy())
 
         return changes
 
@@ -870,8 +887,12 @@ class RebaseManager:
                     changes_with_targets.append((change, target_line_num))
                     print(f"DEBUG: Mapped change to line {target_line_num}")
                 else:
+                    # Handle both additions (with new_line) and modifications/deletions (with old_line)
+                    change_preview = change.get("old_line", change.get("new_line", ""))[
+                        :50
+                    ]
                     print(
-                        f"DEBUG: Could not find target for change: {change['old_line'][:50]}..."
+                        f"DEBUG: Could not find target for change: {change_preview}..."
                     )
 
             # Sort changes by line number
@@ -975,14 +996,19 @@ class RebaseManager:
         # Create change mapping for quick lookup
         changes_by_line = {line_num: change for change, line_num in changes_group}
 
-        # Count additions to adjust new_count in hunk header
+        # Count additions and deletions to adjust new_count in hunk header
         num_additions = sum(
             1 for change, _ in changes_group if change.get("is_addition", False)
+        )
+        num_deletions = sum(
+            1 for change, _ in changes_group if change.get("is_deletion", False)
         )
 
         # Build the hunk header
         old_count = context_end - context_start + 1
-        new_count = old_count + num_additions  # Add count for pure additions
+        new_count = (
+            old_count + num_additions - num_deletions
+        )  # Adjust for additions and deletions
         hunk_lines = []
         hunk_lines.append(
             f"@@ -{context_start},{old_count} +{context_start},{new_count} @@ "
@@ -993,7 +1019,7 @@ class RebaseManager:
             if line_num > len(file_lines):
                 break
 
-            # Check if we need to insert additions before this line
+            # Check if we need to insert additions/deletions/modifications at this line
             if line_num in changes_by_line:
                 change = changes_by_line[line_num]
 
@@ -1004,6 +1030,11 @@ class RebaseManager:
                     # Then output the current line as context
                     file_line = file_lines[line_num - 1].rstrip("\n")
                     hunk_lines.append(f" {file_line}")
+                elif change.get("is_deletion", False):
+                    # Pure deletion: remove this line (only output - line, no + line)
+                    file_line = file_lines[line_num - 1].rstrip("\n")
+                    hunk_lines.append(f"-{file_line}")
+                    # Don't output context line after deletion - the line is being removed
                 else:
                     # Modification: replace this line
                     file_line = file_lines[line_num - 1].rstrip("\n")
@@ -1076,6 +1107,12 @@ class RebaseManager:
         Returns:
             Rebase todo content
         """
+        # Get current HEAD commit
+        head_result = self.git_ops.run_git_command(["rev-parse", "HEAD"])
+        if head_result.returncode != 0:
+            return f"edit {target_commit}\n"
+        current_head = head_result.stdout.strip()
+
         # Check if target commit is reachable from HEAD
         reachable_result = self.git_ops.run_git_command(
             ["merge-base", "--is-ancestor", target_commit, "HEAD"]
@@ -1115,8 +1152,19 @@ class RebaseManager:
         if not commit_list:
             return f"edit {target_commit}\n"
 
-        # For now, always use comprehensive approach to avoid losing commits
-        # TODO: Implement proper conflict-avoiding strategy that preserves subsequent commits
+        # Check if HEAD is in the commit list (retroactive squash scenario)
+        # If we're squashing changes FROM HEAD to an ancestor, exclude HEAD from rebase
+        if current_head in commit_list:
+            print(
+                f"DEBUG: Detected retroactive squash from HEAD {current_head[:8]} to ancestor {target_commit[:8]}"
+            )
+            print("DEBUG: Excluding HEAD from rebase to avoid conflicts")
+            # Remove HEAD from the list
+            commit_list = [c for c in commit_list if c != current_head]
+
+            if not commit_list:
+                # Only HEAD was in the list, use simple edit
+                return f"edit {target_commit}\n"
 
         # Use comprehensive rebase approach
         print(

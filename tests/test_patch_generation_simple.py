@@ -286,3 +286,102 @@ class TestPatchGenerationRegression:
 
         assert isinstance(consolidated, dict)
         assert len(consolidated) == 0
+
+
+class TestDeletionHunkSupport:
+    """Tests for pure deletion hunk support."""
+
+    def test_extract_pure_deletion_hunk(self, simple_repo):
+        """Test that pure deletion hunks are correctly extracted."""
+        commits = simple_repo.create_simple_scenario()
+        git_ops = simple_repo.git_ops
+        rebase_manager = RebaseManager(git_ops, commits["initial_commit"])
+
+        # Create a pure deletion hunk (only - lines, no + lines)
+        hunk = DiffHunk(
+            file_path="test.py",
+            old_start=2,
+            old_count=2,
+            new_start=2,
+            new_count=1,
+            lines=[
+                "@@ -2,2 +2,1 @@",
+                " def function_one():",
+                "-    #if OLD_CONFIG",
+                " def function_two():",
+            ],
+            context_before=[],
+            context_after=[],
+        )
+
+        # Extract changes from the hunk
+        changes = rebase_manager._extract_hunk_changes(hunk)
+
+        # Should extract one deletion
+        assert len(changes) == 1, f"Expected 1 change, got {len(changes)}"
+
+        change = changes[0]
+        assert "old_line" in change, "Change should have old_line"
+        assert "is_deletion" in change, "Change should have is_deletion flag"
+        assert change["is_deletion"] is True, "is_deletion should be True"
+        assert "new_line" not in change, "Deletion should not have new_line"
+        assert change["old_line"] == "    #if OLD_CONFIG"
+
+    def test_deletion_hunk_patch_generation(self, simple_repo):
+        """Test that deletion hunks generate correct patch syntax."""
+        commits = simple_repo.create_simple_scenario()
+        git_ops = simple_repo.git_ops
+        rebase_manager = RebaseManager(git_ops, commits["initial_commit"])
+
+        # Checkout initial commit to get file content
+        git_ops.run_git_command(["checkout", commits["initial_commit"]])
+
+        test_file = simple_repo.repo_path / "test.py"
+        file_content = test_file.read_text()
+        file_lines = file_content.splitlines(keepends=True)
+
+        # Create change representing a deletion
+        change = {
+            "old_line": "    #if OLD_CONFIG",
+            "is_deletion": True,
+            "context_before": ["def function_one():"],
+        }
+
+        # Find target line
+        target_line = rebase_manager._find_target_with_context(
+            change, file_lines, set()
+        )
+
+        assert target_line is not None, "Should find target line for deletion"
+
+        # Create consolidated hunk with deletion
+        changes_group = [(change, target_line)]
+        hunk_lines = rebase_manager._create_consolidated_hunk(changes_group, file_lines)
+
+        assert len(hunk_lines) > 0, "Should generate hunk lines"
+
+        # Check hunk header - should have decremented new_count
+        header = hunk_lines[0]
+        assert header.startswith("@@"), f"First line should be hunk header: {header}"
+        assert " @@" in header, f"Header should be properly formatted: {header}"
+
+        # Verify deletion syntax - should have - line but no corresponding + line
+        deletion_line = "-    #if OLD_CONFIG"
+        assert any(deletion_line in line for line in hunk_lines), (
+            f"Should have deletion line: {deletion_line}\nHunk lines: {hunk_lines}"
+        )
+
+        # Count - and + lines
+        minus_lines = [line for line in hunk_lines if line.startswith("-")]
+        plus_lines = [line for line in hunk_lines if line.startswith("+")]
+
+        # For pure deletion, should have - lines but no + lines for the deleted content
+        assert len(minus_lines) > 0, "Should have deletion lines"
+        # The deletion should not have a corresponding addition
+        deletion_found = any("#if OLD_CONFIG" in line for line in minus_lines)
+        addition_found = any("#if OLD_CONFIG" in line for line in plus_lines)
+
+        assert deletion_found, "Should have deletion of OLD_CONFIG line"
+        assert not addition_found, (
+            "Should not have addition of OLD_CONFIG line (pure deletion)"
+        )
