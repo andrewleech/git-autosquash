@@ -587,19 +587,19 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#your-first-git-autosquash-session" class="md-nav__link">
+  <a href="#your-first-session" class="md-nav__link">
     <span class="md-ellipsis">
-      Your First git-autosquash Session
+      Your First Session
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Your First git-autosquash Session">
+    <nav class="md-nav" aria-label="Your First Session">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#step-1-set-up-a-test-scenario" class="md-nav__link">
+  <a href="#step-1-set-up-test-scenario" class="md-nav__link">
     <span class="md-ellipsis">
-      Step 1: Set Up a Test Scenario
+      Step 1: Set Up Test Scenario
     </span>
   </a>
   
@@ -615,9 +615,9 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#step-3-navigate-the-tui-interface" class="md-nav__link">
+  <a href="#step-3-navigate-tui-interface" class="md-nav__link">
     <span class="md-ellipsis">
-      Step 3: Navigate the TUI Interface
+      Step 3: Navigate TUI Interface
     </span>
   </a>
   
@@ -648,18 +648,18 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#step-5-execute-the-squash" class="md-nav__link">
+  <a href="#step-5-execute-squash" class="md-nav__link">
     <span class="md-ellipsis">
-      Step 5: Execute the Squash
+      Step 5: Execute Squash
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#step-6-verify-the-results" class="md-nav__link">
+  <a href="#step-6-verify-results" class="md-nav__link">
     <span class="md-ellipsis">
-      Step 6: Verify the Results
+      Step 6: Verify Results
     </span>
   </a>
   
@@ -681,18 +681,36 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#what-git-autosquash-does" class="md-nav__link">
+  <a href="#analysis-phase" class="md-nav__link">
     <span class="md-ellipsis">
-      What git-autosquash Does
+      Analysis Phase
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#confidence-levels-explained" class="md-nav__link">
+  <a href="#approval-phase" class="md-nav__link">
     <span class="md-ellipsis">
-      Confidence Levels Explained
+      Approval Phase
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#execution-phase" class="md-nav__link">
+    <span class="md-ellipsis">
+      Execution Phase
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#confidence-levels" class="md-nav__link">
+    <span class="md-ellipsis">
+      Confidence Levels
     </span>
   </a>
   
@@ -704,46 +722,46 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#common-first-time-questions" class="md-nav__link">
+  <a href="#safety-and-recovery" class="md-nav__link">
     <span class="md-ellipsis">
-      Common First-Time Questions
+      Safety and Recovery
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Common First-Time Questions">
+    <nav class="md-nav" aria-label="Safety and Recovery">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#what-if-i-make-a-mistake" class="md-nav__link">
+  <a href="#mistake-prevention" class="md-nav__link">
     <span class="md-ellipsis">
-      "What if I make a mistake?"
+      Mistake Prevention
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#what-if-there-are-conflicts" class="md-nav__link">
+  <a href="#conflict-resolution" class="md-nav__link">
     <span class="md-ellipsis">
-      "What if there are conflicts?"
+      Conflict Resolution
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#can-i-undo-the-changes" class="md-nav__link">
+  <a href="#undoing-changes" class="md-nav__link">
     <span class="md-ellipsis">
-      "Can I undo the changes?"
+      Undoing Changes
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#what-files-should-i-avoid-squashing" class="md-nav__link">
+  <a href="#files-to-avoid" class="md-nav__link">
     <span class="md-ellipsis">
-      "What files should I avoid squashing?"
+      Files to Avoid
     </span>
   </a>
   
@@ -764,9 +782,9 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#quick-reference" class="md-nav__link">
+  <a href="#keyboard-reference" class="md-nav__link">
     <span class="md-ellipsis">
-      Quick Reference
+      Keyboard Reference
     </span>
   </a>
   
@@ -1060,163 +1078,137 @@
 
 
 <h1 id="getting-started">Getting Started<a class="headerlink" href="#getting-started" title="Permanent link">&para;</a></h1>
-<p>This guide will walk you through your first experience with git-autosquash, from setup to successfully distributing changes back to historical commits.</p>
-<div class="admonition note">
-<p class="admonition-title">Current Implementation Status</p>
-<p>git-autosquash is actively being developed. All core functionality is implemented and working: diff analysis, git blame integration, TUI interface, and interactive rebase execution. Some advanced features and edge case handling are still being refined.</p>
-</div>
+<p>This guide covers your first git-autosquash session, from setup to successfully distributing changes back to historical commits.</p>
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
-<p>Before starting, make sure you have:</p>
 <ul>
 <li><a href="../../installation/">Installed git-autosquash</a></li>
-<li>A Git repository with some commit history</li>
+<li>Git repository with commit history</li>
 <li>Working directory changes or staged changes to distribute</li>
 </ul>
-<h2 id="your-first-git-autosquash-session">Your First git-autosquash Session<a class="headerlink" href="#your-first-git-autosquash-session" title="Permanent link">&para;</a></h2>
-<h3 id="step-1-set-up-a-test-scenario">Step 1: Set Up a Test Scenario<a class="headerlink" href="#step-1-set-up-a-test-scenario" title="Permanent link">&para;</a></h3>
-<p>Let's create a realistic scenario. We'll assume you've been working on a feature and made several changes:</p>
+<h2 id="your-first-session">Your First Session<a class="headerlink" href="#your-first-session" title="Permanent link">&para;</a></h2>
+<h3 id="step-1-set-up-test-scenario">Step 1: Set Up Test Scenario<a class="headerlink" href="#step-1-set-up-test-scenario" title="Permanent link">&para;</a></h3>
+<p>Create a realistic scenario where you have changes to distribute:</p>
 <p><img alt="Git Status Check" src="../../screenshots/readme/workflow_step_01.png" /></p>
 <h3 id="step-2-run-git-autosquash">Step 2: Run git-autosquash<a class="headerlink" href="#step-2-run-git-autosquash" title="Permanent link">&para;</a></h3>
-<p>Simply run the command:</p>
+<p>Execute the analysis:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>git-autosquash
 </span></code></pre></div>
-<p>You'll see initial analysis output:</p>
+<p>Initial analysis output:</p>
 <p><img alt="Analysis and Launch" src="../../screenshots/readme/workflow_step_02.png" /></p>
-<div class="admonition info">
-<p class="admonition-title">What's Happening?</p>
-<ul>
-<li>git-autosquash analyzes your branch and finds the merge base with main/master</li>
-<li>It parses your changes into individual "hunks" (code sections)</li>
-<li>For each hunk, it runs git blame to find which commit last modified those lines</li>
-<li>It launches an interactive TUI to show you the proposed mappings</li>
-</ul>
-</div>
-<h3 id="step-3-navigate-the-tui-interface">Step 3: Navigate the TUI Interface<a class="headerlink" href="#step-3-navigate-the-tui-interface" title="Permanent link">&para;</a></h3>
-<p>The TUI opens with three main sections:</p>
+<p>Process:
+- Analyzes your branch and finds merge base with main/master
+- Parses changes into individual hunks (code sections)
+- Runs git blame to find which commit last modified each line
+- Launches interactive TUI with proposed mappings</p>
+<h3 id="step-3-navigate-tui-interface">Step 3: Navigate TUI Interface<a class="headerlink" href="#step-3-navigate-tui-interface" title="Permanent link">&para;</a></h3>
+<p>The TUI displays three sections:</p>
 <p><img alt="TUI Interface Overview" src="../../screenshots/readme/feature_interactive_tui.png" /></p>
 <h3 id="step-4-review-and-approve-changes">Step 4: Review and Approve Changes<a class="headerlink" href="#step-4-review-and-approve-changes" title="Permanent link">&para;</a></h3>
 <p>For each hunk mapping:</p>
 <ol>
-<li><strong>Review the target commit</strong>: Check if the mapping makes sense</li>
-<li><strong>Examine the diff</strong>: The right panel shows exactly what will be changed</li>
-<li><strong>Check confidence level</strong>: </li>
-<li><strong>High</strong>: Strong evidence this change belongs in the target commit</li>
-<li><strong>Medium</strong>: Likely correct but review carefully</li>
-<li>
-<p><strong>Low</strong>: Uncertain mapping, consider carefully</p>
-</li>
-<li>
-<p><strong>Approve or reject</strong>: Check the box to approve squashing this hunk</p>
-</li>
+<li><strong>Review target commit</strong>: Verify mapping makes sense</li>
+<li><strong>Examine diff</strong>: Right panel shows exact changes</li>
+<li><strong>Check confidence level</strong>:</li>
+<li><strong>High</strong>: Strong evidence this change belongs in target commit</li>
+<li><strong>Medium</strong>: Likely correct, review carefully</li>
+<li><strong>Low</strong>: Uncertain mapping, consider carefully</li>
+<li><strong>Approve or reject</strong>: Check box to approve squashing</li>
 </ol>
 <h4 id="keyboard-navigation">Keyboard Navigation<a class="headerlink" href="#keyboard-navigation" title="Permanent link">&para;</a></h4>
 <ul>
 <li><strong>↑/↓ or j/k</strong>: Navigate between hunk mappings</li>
-<li><strong>Space</strong>: Toggle approval checkbox for selected hunk</li>
+<li><strong>Space</strong>: Toggle approval checkbox</li>
 <li><strong>Enter</strong>: Approve all hunks and continue</li>
 <li><strong>a</strong>: Toggle all hunks at once</li>
-<li><strong>Escape</strong>: Cancel the operation</li>
+<li><strong>Escape</strong>: Cancel operation</li>
 </ul>
-<h3 id="step-5-execute-the-squash">Step 5: Execute the Squash<a class="headerlink" href="#step-5-execute-the-squash" title="Permanent link">&para;</a></h3>
-<p>After approving the changes you want, press <strong>Enter</strong> to execute:</p>
+<h3 id="step-5-execute-squash">Step 5: Execute Squash<a class="headerlink" href="#step-5-execute-squash" title="Permanent link">&para;</a></h3>
+<p>After approving changes, press <strong>Enter</strong>:</p>
 <p><img alt="Execution Progress" src="../../screenshots/readme/workflow_step_05.png" /></p>
-<h3 id="step-6-verify-the-results">Step 6: Verify the Results<a class="headerlink" href="#step-6-verify-the-results" title="Permanent link">&para;</a></h3>
-<p>Check your git history to see the changes:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># View the updated commits</span>
+<h3 id="step-6-verify-results">Step 6: Verify Results<a class="headerlink" href="#step-6-verify-results" title="Permanent link">&para;</a></h3>
+<p>Check git history:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># View updated commits</span>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>git<span class="w"> </span>log<span class="w"> </span>--oneline<span class="w"> </span>-10
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
 </span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># Check specific commit changes</span>
 </span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>git<span class="w"> </span>show<span class="w"> </span>abc1234
 </span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>git<span class="w"> </span>show<span class="w"> </span>def5678
 </span></code></pre></div>
-<p>You'll see that your changes have been incorporated into the appropriate historical commits!</p>
+<p>Changes are incorporated into appropriate historical commits.</p>
 <h2 id="understanding-the-process">Understanding the Process<a class="headerlink" href="#understanding-the-process" title="Permanent link">&para;</a></h2>
-<h3 id="what-git-autosquash-does">What git-autosquash Does<a class="headerlink" href="#what-git-autosquash-does" title="Permanent link">&para;</a></h3>
-<ol>
-<li><strong>Analysis Phase</strong>:</li>
-<li>Parses your working directory changes into hunks</li>
+<h3 id="analysis-phase">Analysis Phase<a class="headerlink" href="#analysis-phase" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Parses working directory changes into hunks</li>
 <li>Runs git blame on each changed line range</li>
-<li>Identifies the commit that last modified those lines</li>
-<li>
-<p>Filters commits to only include those on your current branch</p>
-</li>
-<li>
-<p><strong>Approval Phase</strong>:</p>
-</li>
-<li>Shows you proposed hunk → commit mappings</li>
-<li>Lets you review diffs and approve/reject each mapping</li>
-<li>
-<p>Provides confidence levels based on blame analysis</p>
-</li>
-<li>
-<p><strong>Execution Phase</strong>:</p>
-</li>
+<li>Identifies commit that last modified those lines</li>
+<li>Filters commits to current branch only</li>
+</ul>
+<h3 id="approval-phase">Approval Phase<a class="headerlink" href="#approval-phase" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Shows proposed hunk → commit mappings</li>
+<li>Provides diff review and approve/reject controls</li>
+<li>Displays confidence levels based on blame analysis</li>
+</ul>
+<h3 id="execution-phase">Execution Phase<a class="headerlink" href="#execution-phase" title="Permanent link">&para;</a></h3>
+<ul>
 <li>Groups approved hunks by target commit</li>
 <li>Executes interactive rebase to edit historical commits</li>
-<li>Applies patches to amend the appropriate commits</li>
-<li>Handles conflicts and provides guidance for resolution</li>
-</ol>
-<h3 id="confidence-levels-explained">Confidence Levels Explained<a class="headerlink" href="#confidence-levels-explained" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong>High Confidence</strong>: All lines in the hunk were last modified by the target commit</li>
-<li><strong>Medium Confidence</strong>: Most lines match the target commit, some uncertainty</li>
-<li><strong>Low Confidence</strong>: Mixed blame results or newer commits involved</li>
+<li>Applies patches to amend appropriate commits</li>
+<li>Handles conflicts with resolution guidance</li>
 </ul>
-<div class="admonition tip">
-<p class="admonition-title">Start Conservative</p>
-<p>On your first few uses, only approve "high confidence" mappings until you're comfortable with the process.</p>
-</div>
-<h2 id="common-first-time-questions">Common First-Time Questions<a class="headerlink" href="#common-first-time-questions" title="Permanent link">&para;</a></h2>
-<h3 id="what-if-i-make-a-mistake">"What if I make a mistake?"<a class="headerlink" href="#what-if-i-make-a-mistake" title="Permanent link">&para;</a></h3>
-<p>git-autosquash includes several safety features:
-- All changes start as unapproved (you must explicitly approve them)
-- You can cancel at any time with Escape
-- If something goes wrong, git-autosquash attempts automatic rollback
-- You can always use <code>git rebase --abort</code> to manually undo an in-progress rebase</p>
-<h3 id="what-if-there-are-conflicts">"What if there are conflicts?"<a class="headerlink" href="#what-if-there-are-conflicts" title="Permanent link">&para;</a></h3>
-<p>When conflicts occur, git-autosquash:
-1. Pauses the rebase at the conflicted commit
-2. Shows you exactly which files have conflicts
-3. Provides clear instructions for resolution:
+<h3 id="confidence-levels">Confidence Levels<a class="headerlink" href="#confidence-levels" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>High</strong>: All lines last modified by target commit</li>
+<li><strong>Medium</strong>: Most lines match target commit, some uncertainty</li>
+<li><strong>Low</strong>: Mixed blame results or newer commits involved</li>
+</ul>
+<p>Start conservative: Only approve "high confidence" mappings initially.</p>
+<h2 id="safety-and-recovery">Safety and Recovery<a class="headerlink" href="#safety-and-recovery" title="Permanent link">&para;</a></h2>
+<h3 id="mistake-prevention">Mistake Prevention<a class="headerlink" href="#mistake-prevention" title="Permanent link">&para;</a></h3>
+<ul>
+<li>All changes start unapproved (explicit approval required)</li>
+<li>Cancel anytime with Escape</li>
+<li>Automatic rollback on errors</li>
+<li>Manual undo: <code>git rebase --abort</code></li>
+</ul>
+<h3 id="conflict-resolution">Conflict Resolution<a class="headerlink" href="#conflict-resolution" title="Permanent link">&para;</a></h3>
+<p>When conflicts occur:
+1. Rebase pauses at conflicted commit
+2. Shows conflicted files
+3. Provides resolution instructions:
    <div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>⚠️ Rebase conflicts detected:
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>  src/auth/login.py
 </span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>To resolve conflicts:
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>1. Edit the conflicted files to resolve conflicts
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>2. Stage the resolved files: git add &lt;files&gt;
-</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>3. Continue the rebase: git rebase --continue
-</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>4. Or abort the rebase: git rebase --abort
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>To resolve:
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>1. Edit conflicted files
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>2. Stage resolved files: git add &lt;files&gt;
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>3. Continue: git rebase --continue
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>4. Or abort: git rebase --abort
 </span></code></pre></div></p>
-<h3 id="can-i-undo-the-changes">"Can I undo the changes?"<a class="headerlink" href="#can-i-undo-the-changes" title="Permanent link">&para;</a></h3>
-<p>If you need to undo a completed git-autosquash operation:</p>
-<ol>
-<li>
-<p><strong>If you haven't pushed yet</strong>: Use <code>git reflog</code> to find the commit before git-autosquash ran, then <code>git reset --hard &lt;commit&gt;</code></p>
-</li>
-<li>
-<p><strong>If you have pushed</strong>: You'll need to force push (be careful on shared branches) or create new commits that revert the changes</p>
-</li>
-</ol>
-<h3 id="what-files-should-i-avoid-squashing">"What files should I avoid squashing?"<a class="headerlink" href="#what-files-should-i-avoid-squashing" title="Permanent link">&para;</a></h3>
-<p>Be cautious with:
-- Files that have been heavily modified by multiple commits
-- Configuration files that change frequently<br />
-- Files where the blame information might not represent logical ownership
-- Large refactoring changes that span multiple commits</p>
-<h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
-<p>Now that you've completed your first git-autosquash session:</p>
+<h3 id="undoing-changes">Undoing Changes<a class="headerlink" href="#undoing-changes" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Learn about <a href="../basic-workflow/">Basic Workflow</a> patterns</li>
-<li>Explore <a href="../advanced-usage/">Advanced Usage</a> options like <code>--line-by-line</code></li>
-<li>Check out <a href="../../examples/basic-scenarios/">Example Scenarios</a> for common use cases</li>
-<li>Review <a href="../troubleshooting/">Troubleshooting</a> for tips on handling edge cases</li>
+<li><strong>Before push</strong>: Use <code>git reflog</code> to find pre-autosquash commit, then <code>git reset --hard &lt;commit&gt;</code></li>
+<li><strong>After push</strong>: Force push (careful on shared branches) or create revert commits</li>
 </ul>
-<h2 id="quick-reference">Quick Reference<a class="headerlink" href="#quick-reference" title="Permanent link">&para;</a></h2>
+<h3 id="files-to-avoid">Files to Avoid<a class="headerlink" href="#files-to-avoid" title="Permanent link">&para;</a></h3>
+<p>Be cautious with:
+- Files modified by multiple commits heavily
+- Frequently changing configuration files
+- Files where blame doesn't represent logical ownership
+- Large refactoring spanning multiple commits</p>
+<h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../basic-workflow/">Basic Workflow</a> patterns</li>
+<li><a href="../advanced-usage/">Advanced Usage</a> options like <code>--line-by-line</code></li>
+<li><a href="../../examples/basic-scenarios/">Example Scenarios</a> for common use cases</li>
+<li><a href="../troubleshooting/">Troubleshooting</a> for edge cases</li>
+</ul>
+<h2 id="keyboard-reference">Keyboard Reference<a class="headerlink" href="#keyboard-reference" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
 <th>Action</th>
-<th>Keyboard Shortcut</th>
+<th>Shortcut</th>
 </tr>
 </thead>
 <tbody>

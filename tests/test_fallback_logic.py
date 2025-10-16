@@ -386,6 +386,13 @@ class TestCommitHistoryAnalyzer:
             other_commits,
         )
 
+        # Mock batch_load_commit_info to return commit info dictionary
+        self.analyzer.batch_ops.batch_load_commit_info.return_value = {
+            "file_commit1": file_relevant_commits[0],
+            "file_commit2": file_relevant_commits[1],
+            "other": other_commits[0],
+        }
+
         suggestions = self.analyzer.get_commit_suggestions(
             CommitSelectionStrategy.FILE_RELEVANCE, "test.py"
         )

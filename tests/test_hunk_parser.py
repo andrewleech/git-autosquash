@@ -166,7 +166,11 @@ class TestHunkParser:
 
     @patch.object(HunkParser, "_parse_diff_output")
     def test_get_diff_hunks_mixed_changes(self, mock_parse: Mock) -> None:
-        """Test get_diff_hunks with both staged and unstaged changes."""
+        """Test get_diff_hunks with both staged and unstaged changes.
+
+        When both staged and unstaged changes exist, git-autosquash processes
+        the staged changes only. Unstaged changes are stashed temporarily.
+        """
         git_ops = Mock(spec=GitOps)
         git_ops.get_working_tree_status.return_value = {
             "is_clean": False,
@@ -179,7 +183,8 @@ class TestHunkParser:
         parser = HunkParser(git_ops)
         parser.get_diff_hunks()
 
-        git_ops._run_git_command.assert_called_once_with("diff", "HEAD")
+        # Should process staged changes (--cached) when both staged and unstaged exist
+        git_ops._run_git_command.assert_called_once_with("diff", "--cached")
         mock_parse.assert_called_once_with("diff output")
 
     def test_get_diff_hunks_command_failure(self) -> None:

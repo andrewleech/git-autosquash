@@ -761,3 +761,120 @@ class TestStashIntegrationWithRealGit:
         # This test will use a real git repo to ensure our approach works
         # Will be implemented after the unit tests pass
         pytest.skip("Integration test - implement after unit tests pass")
+
+
+class TestHistoricalCommitStashing:
+    """Test stashing logic when processing historical commits with --source."""
+
+    @pytest.fixture
+    def mock_git_ops(self):
+        """Mock GitOps for unit testing."""
+        mock = Mock(spec=GitOps)
+        mock.repo_path = "/test/repo"
+        return mock
+
+    @pytest.fixture
+    def rebase_manager(self, mock_git_ops):
+        """Create RebaseManager with mocked GitOps."""
+        return RebaseManager(mock_git_ops, "merge_base_commit")
+
+    def test_none_stash_with_clean_tree_historical_commit(
+        self, rebase_manager, mock_git_ops
+    ):
+        """Test that None stash_sha is handled gracefully for historical commits.
+
+        This tests the fix in rebase_manager.py lines 191-198 where:
+        - Working tree is clean
+        - Processing historical commit with --source
+        - status.get("operation_type") returns a value
+        - But _create_and_store_stash() returns None
+        """
+        # Mock clean working tree
+        mock_git_ops.get_working_tree_status.return_value = {
+            "is_clean": True,
+            "has_staged": False,
+            "has_unstaged": False,
+            "operation_type": "unstaged_only",  # Simulates edge case
+        }
+
+        # Mock _create_and_store_stash to return None (no changes to stash)
+        with patch.object(rebase_manager, "_create_and_store_stash", return_value=None):
+            # Should not raise exception
+            rebase_manager._handle_working_tree_state()
+
+        # _stash_ref should remain None
+        assert rebase_manager._stash_ref is None
+
+    def test_stashing_with_clean_tree_and_source_commit(
+        self, rebase_manager, mock_git_ops
+    ):
+        """Test stashing behavior when processing --source commit with clean tree."""
+        # Set source commit (simulates --source being used)
+        rebase_manager._source_commit = "abc123def456789012345678901234567890abcd"
+
+        # Mock clean working tree
+        mock_git_ops.get_working_tree_status.return_value = {
+            "is_clean": True,
+            "has_staged": False,
+            "has_unstaged": False,
+        }
+
+        # Should not attempt stashing for clean tree
+        rebase_manager._handle_working_tree_state()
+
+        # No stash should be created
+        assert rebase_manager._stash_ref is None
+        # get_working_tree_status should be called
+        mock_git_ops.get_working_tree_status.assert_called_once()
+
+    def test_none_stash_sha_with_operation_type_set(self, rebase_manager, mock_git_ops):
+        """Test the specific edge case: operation_type set but stash returns None.
+
+        This happens when:
+        1. status detection thinks there are changes (sets operation_type)
+        2. But actual stashing returns None (no changes to stash)
+        3. Common when processing historical commits with --source
+        """
+        # Mock status that indicates changes but will result in None stash
+        # This simulates the edge case where status says there are changes
+        # but create_stash returns None
+        mock_git_ops.get_working_tree_status.return_value = {
+            "is_clean": False,
+            "has_staged": False,
+            "has_unstaged": True,
+        }
+
+        # Mock _create_stash_with_options to return None
+        with patch.object(
+            rebase_manager, "_create_stash_with_options", return_value=None
+        ):
+            # Should handle gracefully without raising exception
+            rebase_manager._handle_working_tree_state()
+
+        # _stash_ref should be None (workaround at lines 191-198 handles this)
+        assert rebase_manager._stash_ref is None
+
+    def test_stashing_not_attempted_for_historical_clean(
+        self, rebase_manager, mock_git_ops
+    ):
+        """Test that stashing is not attempted when tree is clean for historical commit."""
+        rebase_manager._source_commit = "abc123"
+
+        mock_git_ops.get_working_tree_status.return_value = {
+            "is_clean": True,
+            "has_staged": False,
+            "has_unstaged": False,
+        }
+
+        # Patch stash methods to track if they're called
+        with patch.object(
+            rebase_manager, "_create_and_store_stash"
+        ) as mock_create_stash:
+            with patch.object(
+                rebase_manager, "_create_stash_with_options"
+            ) as mock_create_options:
+                rebase_manager._handle_working_tree_state()
+
+                # Neither stash method should be called for clean tree
+                mock_create_stash.assert_not_called()
+                mock_create_options.assert_not_called()

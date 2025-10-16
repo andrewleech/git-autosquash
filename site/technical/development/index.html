@@ -1207,14 +1207,16 @@
 </span><span id="__span-22-4"><a href="#__codelineno-22-4" id="__codelineno-22-4" name="__codelineno-22-4"></a><span class="c1"># Screenshots saved to screenshots/readme/ as PNG files</span>
 </span></code></pre></div>
 <h3 id="screenshot-implementation">Screenshot Implementation<a class="headerlink" href="#screenshot-implementation" title="Permanent link">¶</a></h3>
-<p>The screenshot system uses pyte terminal emulator to capture real application output:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-23-1"><a href="#__codelineno-23-1" id="__codelineno-23-1" name="__codelineno-23-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">capture_readme_screenshots</span><span class="w"> </span><span class="kn">import</span> <span class="n">RealScreenshotGenerator</span>
-</span><span id="__span-23-2"><a href="#__codelineno-23-2" id="__codelineno-23-2" name="__codelineno-23-2"></a>
-</span><span id="__span-23-3"><a href="#__codelineno-23-3" id="__codelineno-23-3" name="__codelineno-23-3"></a><span class="c1"># Initialize generator</span>
-</span><span id="__span-23-4"><a href="#__codelineno-23-4" id="__codelineno-23-4" name="__codelineno-23-4"></a><span class="n">generator</span> <span class="o">=</span> <span class="n">RealScreenshotGenerator</span><span class="p">()</span>
-</span><span id="__span-23-5"><a href="#__codelineno-23-5" id="__codelineno-23-5" name="__codelineno-23-5"></a>
-</span><span id="__span-23-6"><a href="#__codelineno-23-6" id="__codelineno-23-6" name="__codelineno-23-6"></a><span class="c1"># Generate all screenshots using real git-autosquash</span>
-</span><span id="__span-23-7"><a href="#__codelineno-23-7" id="__codelineno-23-7" name="__codelineno-23-7"></a><span class="k">await</span> <span class="n">generator</span><span class="o">.</span><span class="n">generate_all_screenshots</span><span class="p">()</span>
+<p><strong>Official Method</strong>: Use Textual's native screenshot capabilities via <code>scripts/generate_screenshots.py</code>.</p>
+<p>This is the recommended approach, replacing legacy pexpect/pyte methods. See <a href="../../CLAUDE.md#screenshot-generation">CLAUDE.md</a> for complete documentation.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-23-1"><a href="#__codelineno-23-1" id="__codelineno-23-1" name="__codelineno-23-1"></a><span class="c1"># Generate all screenshots</span>
+</span><span id="__span-23-2"><a href="#__codelineno-23-2" id="__codelineno-23-2" name="__codelineno-23-2"></a>python<span class="w"> </span>scripts/generate_screenshots.py
+</span><span id="__span-23-3"><a href="#__codelineno-23-3" id="__codelineno-23-3" name="__codelineno-23-3"></a>
+</span><span id="__span-23-4"><a href="#__codelineno-23-4" id="__codelineno-23-4" name="__codelineno-23-4"></a><span class="c1"># Generate only hero screenshot</span>
+</span><span id="__span-23-5"><a href="#__codelineno-23-5" id="__codelineno-23-5" name="__codelineno-23-5"></a>python<span class="w"> </span>scripts/generate_screenshots.py<span class="w"> </span>--hero-only
+</span><span id="__span-23-6"><a href="#__codelineno-23-6" id="__codelineno-23-6" name="__codelineno-23-6"></a>
+</span><span id="__span-23-7"><a href="#__codelineno-23-7" id="__codelineno-23-7" name="__codelineno-23-7"></a><span class="c1"># Custom output directory</span>
+</span><span id="__span-23-8"><a href="#__codelineno-23-8" id="__codelineno-23-8" name="__codelineno-23-8"></a>python<span class="w"> </span>scripts/generate_screenshots.py<span class="w"> </span>--output-dir<span class="w"> </span>screenshots/new
 </span></code></pre></div>
 <p>The system creates realistic git repositories with:
 - Meaningful Python project structure (auth, dashboard, tests, utils)
@@ -1223,18 +1225,25 @@
 - Files with and without git history for fallback scenarios</p>
 <h3 id="screenshot-specifications">Screenshot Specifications<a class="headerlink" href="#screenshot-specifications" title="Permanent link">¶</a></h3>
 <ul>
-<li><strong>Terminal Size</strong>: 120 columns × 40 rows</li>
-<li><strong>Background</strong>: Dark terminal theme (12, 12, 12)</li>
-<li><strong>Font</strong>: Monospace (DejaVu Sans Mono, Monaco, or Consola)</li>
-<li><strong>Capture Method</strong>: pyte terminal emulator with real application interaction</li>
-<li><strong>Image Format</strong>: PNG with lossless compression</li>
+<li><strong>Terminal Size</strong>: 120 columns × 40 rows (customizable)</li>
+<li><strong>Capture Method</strong>: Textual's <code>app.run_test()</code> with Pilot framework</li>
+<li><strong>Source Format</strong>: SVG (scalable, character-perfect)</li>
+<li><strong>Distribution Format</strong>: PNG (converted from SVG for git-lfs compatibility)</li>
+<li><strong>Conversion</strong>: ImageMagick/Inkscape at 200-300 DPI</li>
 </ul>
 <h3 id="updating-screenshots">Updating Screenshots<a class="headerlink" href="#updating-screenshots" title="Permanent link">¶</a></h3>
 <p>When TUI interface or workflow changes, regenerate screenshots:</p>
 <ol>
-<li><strong>Modify interaction sequences</strong> in <code>capture_readme_screenshots.py</code></li>
+<li><strong>Modify interaction sequences</strong> in <code>scripts/generate_screenshots.py</code></li>
 <li><strong>Update test repository structure</strong> in <code>scripts/screenshot_test_repo.py</code> if needed</li>
-<li><strong>Run generation script</strong> to capture new real application screenshots</li>
+<li><strong>Generate screenshots</strong>: <code>python scripts/generate_screenshots.py --output-dir /tmp/new</code></li>
+<li><strong>Convert SVG to PNG</strong>:
+   <div class="language-bash highlight"><pre><span></span><code><span id="__span-24-1"><a href="#__codelineno-24-1" id="__codelineno-24-1" name="__codelineno-24-1"></a><span class="nb">cd</span><span class="w"> </span>/tmp/new
+</span><span id="__span-24-2"><a href="#__codelineno-24-2" id="__codelineno-24-2" name="__codelineno-24-2"></a><span class="k">for</span><span class="w"> </span>svg<span class="w"> </span><span class="k">in</span><span class="w"> </span>*.svg<span class="p">;</span><span class="w"> </span><span class="k">do</span>
+</span><span id="__span-24-3"><a href="#__codelineno-24-3" id="__codelineno-24-3" name="__codelineno-24-3"></a><span class="w">    </span>convert<span class="w"> </span>-density<span class="w"> </span><span class="m">200</span><span class="w"> </span><span class="s2">"</span><span class="nv">$svg</span><span class="s2">"</span><span class="w"> </span><span class="s2">"</span><span class="si">${</span><span class="nv">svg</span><span class="p">%.svg</span><span class="si">}</span><span class="s2">.png"</span>
+</span><span id="__span-24-4"><a href="#__codelineno-24-4" id="__codelineno-24-4" name="__codelineno-24-4"></a><span class="k">done</span>
+</span></code></pre></div></li>
+<li><strong>Copy to screenshots/readme</strong>: <code>cp /tmp/new/*.png screenshots/readme/</code></li>
 <li><strong>Verify all expected screenshots</strong> were generated correctly</li>
 </ol>
 <h3 id="screenshot-naming-convention">Screenshot Naming Convention<a class="headerlink" href="#screenshot-naming-convention" title="Permanent link">¶</a></h3>
@@ -1250,14 +1259,14 @@
 <h2 id="release-process">Release Process<a class="headerlink" href="#release-process" title="Permanent link">¶</a></h2>
 <h3 id="version-management">Version Management<a class="headerlink" href="#version-management" title="Permanent link">¶</a></h3>
 <p>Uses <code>setuptools-scm</code> for automatic versioning from git tags:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-24-1"><a href="#__codelineno-24-1" id="__codelineno-24-1" name="__codelineno-24-1"></a><span class="c1"># Check current version</span>
-</span><span id="__span-24-2"><a href="#__codelineno-24-2" id="__codelineno-24-2" name="__codelineno-24-2"></a>git-autosquash<span class="w"> </span>--version
-</span><span id="__span-24-3"><a href="#__codelineno-24-3" id="__codelineno-24-3" name="__codelineno-24-3"></a>
-</span><span id="__span-24-4"><a href="#__codelineno-24-4" id="__codelineno-24-4" name="__codelineno-24-4"></a><span class="c1"># Create release</span>
-</span><span id="__span-24-5"><a href="#__codelineno-24-5" id="__codelineno-24-5" name="__codelineno-24-5"></a>git<span class="w"> </span>tag<span class="w"> </span>v1.2.3
-</span><span id="__span-24-6"><a href="#__codelineno-24-6" id="__codelineno-24-6" name="__codelineno-24-6"></a>git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>v1.2.3
-</span><span id="__span-24-7"><a href="#__codelineno-24-7" id="__codelineno-24-7" name="__codelineno-24-7"></a>
-</span><span id="__span-24-8"><a href="#__codelineno-24-8" id="__codelineno-24-8" name="__codelineno-24-8"></a><span class="c1"># Version automatically derived from tag</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-25-1"><a href="#__codelineno-25-1" id="__codelineno-25-1" name="__codelineno-25-1"></a><span class="c1"># Check current version</span>
+</span><span id="__span-25-2"><a href="#__codelineno-25-2" id="__codelineno-25-2" name="__codelineno-25-2"></a>git-autosquash<span class="w"> </span>--version
+</span><span id="__span-25-3"><a href="#__codelineno-25-3" id="__codelineno-25-3" name="__codelineno-25-3"></a>
+</span><span id="__span-25-4"><a href="#__codelineno-25-4" id="__codelineno-25-4" name="__codelineno-25-4"></a><span class="c1"># Create release</span>
+</span><span id="__span-25-5"><a href="#__codelineno-25-5" id="__codelineno-25-5" name="__codelineno-25-5"></a>git<span class="w"> </span>tag<span class="w"> </span>v1.2.3
+</span><span id="__span-25-6"><a href="#__codelineno-25-6" id="__codelineno-25-6" name="__codelineno-25-6"></a>git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>v1.2.3
+</span><span id="__span-25-7"><a href="#__codelineno-25-7" id="__codelineno-25-7" name="__codelineno-25-7"></a>
+</span><span id="__span-25-8"><a href="#__codelineno-25-8" id="__codelineno-25-8" name="__codelineno-25-8"></a><span class="c1"># Version automatically derived from tag</span>
 </span></code></pre></div>
 <h3 id="release-workflow">Release Workflow<a class="headerlink" href="#release-workflow" title="Permanent link">¶</a></h3>
 <ol>
@@ -1269,8 +1278,8 @@
 </li>
 <li>
 <p><strong>Create Release</strong>:
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-25-1"><a href="#__codelineno-25-1" id="__codelineno-25-1" name="__codelineno-25-1"></a>git<span class="w"> </span>tag<span class="w"> </span>-a<span class="w"> </span>v1.2.3<span class="w"> </span>-m<span class="w"> </span><span class="s2">"Release version 1.2.3"</span>
-</span><span id="__span-25-2"><a href="#__codelineno-25-2" id="__codelineno-25-2" name="__codelineno-25-2"></a>git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>v1.2.3
+   <div class="language-bash highlight"><pre><span></span><code><span id="__span-26-1"><a href="#__codelineno-26-1" id="__codelineno-26-1" name="__codelineno-26-1"></a>git<span class="w"> </span>tag<span class="w"> </span>-a<span class="w"> </span>v1.2.3<span class="w"> </span>-m<span class="w"> </span><span class="s2">"Release version 1.2.3"</span>
+</span><span id="__span-26-2"><a href="#__codelineno-26-2" id="__codelineno-26-2" name="__codelineno-26-2"></a>git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>v1.2.3
 </span></code></pre></div></p>
 </li>
 <li>
@@ -1283,9 +1292,9 @@
 </li>
 <li>
 <p><strong>Verify Release</strong>:
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-26-1"><a href="#__codelineno-26-1" id="__codelineno-26-1" name="__codelineno-26-1"></a><span class="c1"># Test installation from PyPI</span>
-</span><span id="__span-26-2"><a href="#__codelineno-26-2" id="__codelineno-26-2" name="__codelineno-26-2"></a>pipx<span class="w"> </span>install<span class="w"> </span>git-autosquash<span class="o">==</span><span class="m">1</span>.2.3
-</span><span id="__span-26-3"><a href="#__codelineno-26-3" id="__codelineno-26-3" name="__codelineno-26-3"></a>git-autosquash<span class="w"> </span>--version
+   <div class="language-bash highlight"><pre><span></span><code><span id="__span-27-1"><a href="#__codelineno-27-1" id="__codelineno-27-1" name="__codelineno-27-1"></a><span class="c1"># Test installation from PyPI</span>
+</span><span id="__span-27-2"><a href="#__codelineno-27-2" id="__codelineno-27-2" name="__codelineno-27-2"></a>pipx<span class="w"> </span>install<span class="w"> </span>git-autosquash<span class="o">==</span><span class="m">1</span>.2.3
+</span><span id="__span-27-3"><a href="#__codelineno-27-3" id="__codelineno-27-3" name="__codelineno-27-3"></a>git-autosquash<span class="w"> </span>--version
 </span></code></pre></div></p>
 </li>
 </ol>

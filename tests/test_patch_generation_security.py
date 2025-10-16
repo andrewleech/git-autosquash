@@ -754,7 +754,7 @@ void boundary_function() { }
         git_ops = GitOps(str(repo.repo_path))
 
         # Verify repository path is correctly set
-        assert git_ops.repo_path == str(repo.repo_path), (
+        assert str(git_ops.repo_path) == str(repo.repo_path), (
             "GitOps should track correct repository path"
         )
 

@@ -10,6 +10,7 @@ from git_autosquash.hunk_target_resolver import HunkTargetMapping
 from git_autosquash.git_ops import GitOps
 from git_autosquash.hunk_parser import DiffHunk
 from git_autosquash.batch_git_ops import BatchGitOperations
+from git_autosquash.squash_context import SquashContext
 
 logger = logging.getLogger(__name__)
 
@@ -43,16 +44,18 @@ class RebaseManager:
         self._stash_ref: Optional[str] = None
         self._original_branch: Optional[str] = None
         self._batch_ops: Optional[BatchGitOperations] = None
-        self._source_commit: Optional[str] = None
+        self._context: Optional[SquashContext] = None
 
     def execute_squash(
-        self, mappings: List[HunkTargetMapping], source_commit: Optional[str] = None
+        self,
+        mappings: List[HunkTargetMapping],
+        context: SquashContext,
     ) -> bool:
         """Execute the squash operation for approved mappings.
 
         Args:
             mappings: List of approved hunk to commit mappings
-            source_commit: Optional source commit SHA to exclude from rebase (for --source commits)
+            context: SquashContext for --source commits and blame configuration
 
         Returns:
             True if successful, False if user aborted
@@ -64,8 +67,7 @@ class RebaseManager:
         if not mappings:
             return True
 
-        # Store source commit for rebase sequence generation
-        self._source_commit = source_commit
+        self._context = context
 
         # Store original branch for cleanup
         self._original_branch = self.git_ops.get_current_branch()
@@ -1179,10 +1181,10 @@ class RebaseManager:
 
         # Check if source commit is in the commit list
         # When using --source <commit>, exclude that commit from rebase since its changes are being squashed
-        if hasattr(self, "_source_commit") and self._source_commit:
+        if self._context and self._context.source_commit:
             # Get full SHA of source commit for comparison
             source_result = self.git_ops.run_git_command(
-                ["rev-parse", self._source_commit]
+                ["rev-parse", self._context.source_commit]
             )
             if source_result.returncode == 0:
                 source_sha = source_result.stdout.strip()

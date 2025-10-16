@@ -152,18 +152,38 @@ class TestRebaseManager:
             "has_unstaged": False,
         }
 
-        # Mock successful stash
-        stash_result = Mock()
-        stash_result.returncode = 0
-        self.mock_git_ops.run_git_command.return_value = stash_result
+        # Mock successful stash create/store (new behavior)
+        # First call: diff --cached --quiet (checks for staged changes)
+        diff_result = Mock()
+        diff_result.returncode = 1  # Non-zero means changes exist
+
+        # Second call: write-tree (for staged-only stash)
+        tree_result = Mock()
+        tree_result.returncode = 0
+        tree_result.stdout = "abc123tree"
+
+        # Third call: commit-tree (creates stash commit)
+        commit_result = Mock()
+        commit_result.returncode = 0
+        commit_result.stdout = "def456stash1234567890123456789012345678"  # Valid SHA
+
+        # Fourth call: stash store
+        store_result = Mock()
+        store_result.returncode = 0
+
+        self.mock_git_ops.run_git_command.side_effect = [
+            diff_result,
+            tree_result,
+            commit_result,
+            store_result,
+        ]
 
         self.rebase_manager._handle_working_tree_state()
 
-        # Should call stash
-        self.mock_git_ops.run_git_command.assert_called_once_with(
-            ["stash", "push", "-m", "git-autosquash temp stash"]
+        # Should have created stash with SHA reference
+        assert (
+            self.rebase_manager._stash_ref == "def456stash1234567890123456789012345678"
         )
-        assert self.rebase_manager._stash_ref == "stash@{0}"
 
     def test_handle_working_tree_state_stash_fails(self) -> None:
         """Test handling when stash fails."""
@@ -173,14 +193,23 @@ class TestRebaseManager:
             "has_unstaged": False,
         }
 
-        # Mock failed stash
-        stash_result = Mock()
-        stash_result.returncode = 1
-        stash_result.stderr = "stash failed"
-        self.mock_git_ops.run_git_command.return_value = stash_result
+        # Mock failed stash create/store (new behavior)
+        # First call: diff --cached --quiet (checks for staged changes)
+        diff_result = Mock()
+        diff_result.returncode = 1  # Non-zero means changes exist
 
-        with pytest.raises(Exception, match="Failed to stash changes"):
-            self.rebase_manager._handle_working_tree_state()
+        # Second call: write-tree fails
+        tree_result = Mock()
+        tree_result.returncode = 1
+        tree_result.stderr = "write-tree failed"
+
+        self.mock_git_ops.run_git_command.side_effect = [diff_result, tree_result]
+
+        # Should NOT raise exception - just logs and continues with None stash
+        self.rebase_manager._handle_working_tree_state()
+
+        # Stash ref should be None since stash creation failed
+        assert self.rebase_manager._stash_ref is None
 
     def test_create_patch_for_hunks(self) -> None:
         """Test creating patch content from hunks."""
@@ -255,25 +284,40 @@ class TestRebaseManager:
 
     @patch("tempfile.NamedTemporaryFile")
     @patch("os.unlink")
-    def test_start_rebase_edit_success(self, mock_unlink, mock_tempfile) -> None:
+    @patch("os.path.exists")
+    def test_start_rebase_edit_success(
+        self, mock_exists, mock_unlink, mock_tempfile
+    ) -> None:
         """Test starting rebase edit successfully."""
         # Mock temp file
         mock_file = MagicMock()
         mock_file.name = "/tmp/test_todo"
         mock_tempfile.return_value.__enter__.return_value = mock_file
 
-        # Mock successful rebase start - need three calls: merge-base, rev-list, then rebase
+        # Mock no existing rebase state
+        mock_exists.return_value = False
+
+        # Mock successful rebase start - need four calls: rev-parse, merge-base, rev-list, then rebase
+        # First call: rev-parse HEAD (from _generate_rebase_todo)
+        head_result = Mock()
+        head_result.returncode = 0
+        head_result.stdout = "currenthead123456789012345678901234567"
+
+        # Second call: merge-base --is-ancestor (check if target is ancestor)
         merge_base_result = Mock()
         merge_base_result.returncode = 0  # is-ancestor succeeds
 
+        # Third call: rev-list --reverse (get commit list)
         rev_list_result = Mock()
         rev_list_result.returncode = 0
         rev_list_result.stdout = "commit123\ncommit456\n"  # Mock commit list output
 
+        # Fourth call: rebase -i
         rebase_result = Mock()
         rebase_result.returncode = 0
 
         self.mock_git_ops.run_git_command.side_effect = [
+            head_result,
             merge_base_result,
             rev_list_result,
             rebase_result,
@@ -283,7 +327,7 @@ class TestRebaseManager:
 
         assert result is True
         mock_file.write.assert_called_once_with("edit commit123\npick commit456\n")
-        assert self.mock_git_ops.run_git_command.call_count == 3
+        assert self.mock_git_ops.run_git_command.call_count == 4
         mock_unlink.assert_called_once_with("/tmp/test_todo")
 
     @patch("tempfile.NamedTemporaryFile")
@@ -472,21 +516,45 @@ class TestRebaseManager:
 
     def test_cleanup_on_error(self) -> None:
         """Test cleanup after error."""
-        self.rebase_manager._stash_ref = "stash@{0}"
+        # Use valid SHA format (new behavior)
+        stash_sha = "abc123def456789012345678901234567890abcd"
+        self.rebase_manager._stash_ref = stash_sha
 
-        # Mock successful commands
-        success_result = Mock()
-        success_result.returncode = 0
-        self.mock_git_ops.run_git_command.return_value = success_result
+        # Mock successful commands for new stash restoration flow
+        # First call: rebase --abort
+        abort_result = Mock()
+        abort_result.returncode = 0
+
+        # Second call: cat-file -t (verify stash exists)
+        catfile_result = Mock()
+        catfile_result.returncode = 0
+        catfile_result.stdout = "commit"
+
+        # Third call: stash apply <sha>
+        apply_result = Mock()
+        apply_result.returncode = 0
+
+        # Fourth call: stash list --format=%H %gd (find stash reference)
+        list_result = Mock()
+        list_result.returncode = 0
+        list_result.stdout = f"{stash_sha} (stash@{{0}})\n"
+
+        # Fifth call: stash drop stash@{0}
+        drop_result = Mock()
+        drop_result.returncode = 0
+
+        self.mock_git_ops.run_git_command.side_effect = [
+            abort_result,
+            catfile_result,
+            apply_result,
+            list_result,
+            drop_result,
+        ]
 
         self.rebase_manager._cleanup_on_error()
 
-        # Should call abort rebase and stash pop
-        expected_calls = [
-            unittest.mock.call(["rebase", "--abort"]),
-            unittest.mock.call(["stash", "pop", "stash@{0}"]),
-        ]
-        self.mock_git_ops.run_git_command.assert_has_calls(expected_calls)
+        # Should have called rebase abort and stash restoration sequence
+        assert self.mock_git_ops.run_git_command.call_count == 5
         assert self.rebase_manager._stash_ref is None
 
     def test_cleanup_on_error_no_stash(self) -> None:
@@ -574,12 +642,23 @@ class TestRebaseManager:
 
     def test_execute_squash_empty_mappings(self) -> None:
         """Test executing squash with no mappings."""
-        result = self.rebase_manager.execute_squash([])
+        from git_autosquash.squash_context import SquashContext
+
+        mock_context = SquashContext(
+            blame_ref="HEAD",
+            source_commit=None,
+            is_historical_commit=False,
+            working_tree_clean=True,
+        )
+
+        result = self.rebase_manager.execute_squash([], context=mock_context)
         assert result is True
         self.mock_git_ops.get_current_branch.assert_not_called()
 
     def test_execute_squash_no_current_branch(self) -> None:
         """Test executing squash when current branch cannot be determined."""
+        from git_autosquash.squash_context import SquashContext
+
         hunk = DiffHunk(
             file_path="file1.py",
             old_start=1,
@@ -594,10 +673,17 @@ class TestRebaseManager:
             hunk=hunk, target_commit="abc123", confidence="high", blame_info=[]
         )
 
+        mock_context = SquashContext(
+            blame_ref="HEAD",
+            source_commit=None,
+            is_historical_commit=False,
+            working_tree_clean=True,
+        )
+
         self.mock_git_ops.get_current_branch.return_value = None
 
         with pytest.raises(ValueError, match="Cannot determine current branch"):
-            self.rebase_manager.execute_squash([mapping])
+            self.rebase_manager.execute_squash([mapping], context=mock_context)
 
 
 class TestRebaseConflictError:

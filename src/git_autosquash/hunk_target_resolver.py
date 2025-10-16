@@ -7,6 +7,7 @@ from enum import Enum
 from git_autosquash.git_ops import GitOps
 from git_autosquash.hunk_parser import DiffHunk
 from git_autosquash.batch_git_ops import BatchGitOperations
+from git_autosquash.squash_context import SquashContext
 
 
 class TargetingMethod(Enum):
@@ -329,13 +330,15 @@ class BlameAnalysisEngine:
 class FallbackTargetProvider:
     """Provides fallback target candidates when blame analysis fails."""
 
-    def __init__(self, batch_ops: BatchGitOperations):
+    def __init__(self, batch_ops: BatchGitOperations, context: SquashContext):
         """Initialize fallback target provider.
 
         Args:
             batch_ops: BatchGitOperations instance for efficient git operations
+            context: SquashContext for centralized blame/HEAD exclusion logic
         """
         self.batch_ops = batch_ops
+        self.context = context
 
     def get_fallback_candidates(
         self, file_path: str, method: TargetingMethod
@@ -400,20 +403,7 @@ class FallbackTargetProvider:
         Returns:
             True if HEAD should be excluded from fallback candidates
         """
-        # When processing historical commits (blame_ref != "HEAD"), HEAD is a valid target
-        # and should not be excluded. Only exclude HEAD when processing HEAD itself.
-        if hasattr(self.batch_ops, "blame_ref") and self.batch_ops.blame_ref != "HEAD":
-            return False
-
-        try:
-            status = self.batch_ops.git_ops.get_working_tree_status()
-            # Exclude HEAD only when working tree is completely clean
-            # (meaning we're processing HEAD commit, not working tree changes)
-            return status["is_clean"]
-        except Exception as e:
-            print(f"WARNING: Could not determine working tree status: {e}")
-            # Default to not excluding HEAD if we can't determine status
-            return False
+        return self.context.should_exclude_head_from_fallback()
 
 
 class FileConsistencyTracker:
@@ -451,22 +441,30 @@ class FileConsistencyTracker:
 class HunkTargetResolver:
     """Main resolver that orchestrates hunk target resolution."""
 
-    def __init__(self, git_ops: GitOps, merge_base: str, blame_ref: str = "HEAD"):
+    def __init__(
+        self,
+        git_ops: GitOps,
+        merge_base: str,
+        context: SquashContext,
+        blame_ref: str = "HEAD",
+    ):
         """Initialize hunk target resolver.
 
         Args:
             git_ops: GitOps instance for running git commands
             merge_base: Merge base commit hash to limit scope
+            context: SquashContext for centralized blame/HEAD exclusion logic
             blame_ref: Git ref to use for blame operations (default: HEAD)
         """
         self.git_ops = git_ops
         self.merge_base = merge_base
         self.blame_ref = blame_ref
+        self.context = context
         self.batch_ops = BatchGitOperations(git_ops, merge_base, blame_ref=blame_ref)
         self.blame_engine = BlameAnalysisEngine(
             git_ops, merge_base, blame_ref=blame_ref
         )
-        self.fallback_provider = FallbackTargetProvider(self.batch_ops)
+        self.fallback_provider = FallbackTargetProvider(self.batch_ops, context=context)
         self.consistency_tracker = FileConsistencyTracker()
 
     def resolve_targets(self, hunks: List[DiffHunk]) -> List[HunkTargetMapping]:
@@ -496,22 +494,7 @@ class HunkTargetResolver:
         Returns:
             True if HEAD should be excluded from blame analysis
         """
-        # When processing historical commits (blame_ref != "HEAD"), HEAD is a valid target
-        # and should not be excluded. Only exclude HEAD when processing HEAD itself.
-        if self.blame_ref != "HEAD":
-            return False
-
-        try:
-            status = self.git_ops.get_working_tree_status()
-            # Exclude HEAD only when working tree is completely clean
-            # (meaning we're processing HEAD commit, not working tree changes)
-            return status["is_clean"]
-        except Exception as e:
-            print(
-                f"WARNING: Could not determine working tree status for blame analysis: {e}"
-            )
-            # Default to not excluding HEAD if we can't determine status
-            return False
+        return self.context.should_exclude_head_from_blame()
 
     def _resolve_single_hunk(self, hunk: DiffHunk) -> HunkTargetMapping:
         """Resolve target for a single hunk.

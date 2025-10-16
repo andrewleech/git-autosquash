@@ -69,11 +69,20 @@ class TestBlameAnalysisEngineEdgeCases:
             assert isinstance(result, list)
 
     def test_unicode_in_blame_output(self):
-        """Test handling of unicode characters in blame output."""
-        unicode_blame = (
-            "abc123 (Tëst Üser 2023-01-01 12:00:00 +0000    1) "
-            "print('Hëllo Wörld with émojis 🚀')"
-        )
+        """Test handling of unicode characters in blame output (porcelain format)."""
+        # Git blame --porcelain format with unicode
+        unicode_blame = """abc123def456789012345678901234567890abcd 1 1 1
+author Tëst Üser
+author-mail <test@example.com>
+author-time 1640995200
+author-tz +0000
+committer Tëst Üser
+committer-mail <test@example.com>
+committer-time 1640995200
+committer-tz +0000
+summary Test commit
+filename test.py
+\tprint('Hëllo Wörld with émojis 🚀')"""
 
         self.mock_git_ops._run_git_command.return_value = (True, unicode_blame)
 
@@ -94,9 +103,20 @@ class TestBlameAnalysisEngineEdgeCases:
         assert "émojis 🚀" in result[0].line_content
 
     def test_blame_with_unusual_line_numbers(self):
-        """Test blame parsing with unusual line number scenarios."""
-        # Very high line numbers
-        high_line_blame = "abc123 (Author 2023-01-01 12:00:00 +0000 99999) line content"
+        """Test blame parsing with unusual line number scenarios (porcelain format)."""
+        # Very high line numbers in porcelain format
+        high_line_blame = """abc123def456789012345678901234567890abcd 99999 99999 1
+author Author Name
+author-mail <author@example.com>
+author-time 1672574400
+author-tz +0000
+committer Author Name
+committer-mail <author@example.com>
+committer-time 1672574400
+committer-tz +0000
+summary Test commit with high line number
+filename test.py
+\tline content at very high line number"""
 
         self.mock_git_ops._run_git_command.return_value = (True, high_line_blame)
 
@@ -137,8 +157,8 @@ class TestBlameAnalysisEngineEdgeCases:
         assert result == []
 
     def test_context_blame_edge_cases(self):
-        """Test edge cases in context blame analysis."""
-        # Test hunk at beginning of file
+        """Test edge cases in context blame analysis (porcelain format)."""
+        # Test hunk at beginning of file with porcelain format
         hunk_at_start = DiffHunk(
             file_path="test.py",
             old_start=1,
@@ -150,15 +170,25 @@ class TestBlameAnalysisEngineEdgeCases:
             context_after=[],
         )
 
-        self.mock_git_ops._run_git_command.return_value = (
-            True,
-            "abc123 (Author 2023-01-01 12:00:00 +0000    1) existing line",
-        )
+        porcelain_blame = """abc123def456789012345678901234567890abcd 1 1 1
+author Author Name
+author-mail <author@example.com>
+author-time 1672574400
+author-tz +0000
+committer Author Name
+committer-mail <author@example.com>
+committer-time 1672574400
+committer-tz +0000
+summary Test commit at file start
+filename test.py
+\texisting line"""
+
+        self.mock_git_ops._run_git_command.return_value = (True, porcelain_blame)
 
         result = self.engine.get_blame_for_context(hunk_at_start)
         assert len(result) == 1
 
-        # Test very large line numbers for context
+        # Test very large line numbers for context with porcelain format
         hunk_large_lines = DiffHunk(
             file_path="test.py",
             old_start=1000000,
@@ -169,6 +199,21 @@ class TestBlameAnalysisEngineEdgeCases:
             context_before=[],
             context_after=[],
         )
+
+        large_line_blame = """abc123def456789012345678901234567890abcd 1000000 1000000 1
+author Author Name
+author-mail <author@example.com>
+author-time 1672574400
+author-tz +0000
+committer Author Name
+committer-mail <author@example.com>
+committer-time 1672574400
+committer-tz +0000
+summary Test commit with very large line number
+filename test.py
+\tline at 1000000"""
+
+        self.mock_git_ops._run_git_command.return_value = (True, large_line_blame)
 
         result = self.engine.get_blame_for_context(hunk_large_lines)
         # Should handle without exceptions
@@ -222,10 +267,19 @@ class TestFallbackTargetProviderEdgeCases:
     def setup_method(self):
         """Setup test fixtures."""
         from git_autosquash.batch_git_ops import BatchGitOperations
+        from git_autosquash.squash_context import SquashContext
 
         self.mock_git_ops = MagicMock(spec=GitOps)
         self.batch_ops = MagicMock(spec=BatchGitOperations)
-        self.provider = FallbackTargetProvider(self.batch_ops)
+        self.mock_context = SquashContext(
+            blame_ref="HEAD",
+            source_commit=None,
+            is_historical_commit=False,
+            working_tree_clean=True,
+        )
+        self.provider = FallbackTargetProvider(
+            self.batch_ops, context=self.mock_context
+        )
 
     def test_empty_branch_commits(self):
         """Test fallback provider with empty branch commits."""
@@ -273,9 +327,19 @@ class TestHunkTargetResolverIntegrationEdgeCases:
 
     def setup_method(self):
         """Setup test fixtures."""
+        from git_autosquash.squash_context import SquashContext
+
         self.mock_git_ops = MagicMock(spec=GitOps)
         self.merge_base = "main"
-        self.resolver = HunkTargetResolver(self.mock_git_ops, self.merge_base)
+        self.mock_context = SquashContext(
+            blame_ref="HEAD",
+            source_commit=None,
+            is_historical_commit=False,
+            working_tree_clean=True,
+        )
+        self.resolver = HunkTargetResolver(
+            self.mock_git_ops, self.merge_base, context=self.mock_context
+        )
 
     def test_resolve_empty_hunk_list(self):
         """Test resolving empty hunk list."""

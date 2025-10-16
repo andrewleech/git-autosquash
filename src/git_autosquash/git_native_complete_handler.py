@@ -171,7 +171,7 @@ class GitNativeCompleteHandler:
         """
         return {
             "preferred_strategy": self.preferred_strategy,
-            "strategies_available": ["index"],
+            "strategies_available": ["index", "legacy"],
             "execution_order": self._get_strategy_execution_order(),
             "environment_override": os.getenv("GIT_AUTOSQUASH_STRATEGY"),
             "capability_cache_size": len(self.capability_cache._cache),

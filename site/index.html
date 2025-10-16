@@ -238,28 +238,17 @@
 <li class="md-nav__item">
 <a class="md-nav__link" href="#key-features">
 <span class="md-ellipsis">
-      ✨ Key Features
+      Key Features
     </span>
 </a>
-<nav aria-label="✨ Key Features" class="md-nav">
-<ul class="md-nav__list">
-<li class="md-nav__item">
-<a class="md-nav__link" href="#feature-demonstrations">
-<span class="md-ellipsis">
-      Feature Demonstrations
-    </span>
-</a>
-</li>
-</ul>
-</nav>
 </li>
 <li class="md-nav__item">
 <a class="md-nav__link" href="#quick-start">
 <span class="md-ellipsis">
-      🚀 Quick Start
+      Quick Start
     </span>
 </a>
-<nav aria-label="🚀 Quick Start" class="md-nav">
+<nav aria-label="Quick Start" class="md-nav">
 <ul class="md-nav__list">
 <li class="md-nav__item">
 <a class="md-nav__link" href="#installation">
@@ -281,74 +270,35 @@
 <li class="md-nav__item">
 <a class="md-nav__link" href="#how-it-works">
 <span class="md-ellipsis">
-      🎬 How It Works
+      How It Works
     </span>
 </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#example-workflow">
-<span class="md-ellipsis">
-      📋 Example Workflow
-    </span>
-</a>
-<nav aria-label="📋 Example Workflow" class="md-nav">
-<ul class="md-nav__list">
-<li class="md-nav__item">
-<a class="md-nav__link" href="#before-messy-history">
-<span class="md-ellipsis">
-      Before: Messy History
-    </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#the-git-autosquash-process">
-<span class="md-ellipsis">
-      The git-autosquash Process
-    </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#after-clean-history">
-<span class="md-ellipsis">
-      After: Clean History
-    </span>
-</a>
-</li>
-</ul>
-</nav>
 </li>
 <li class="md-nav__item">
 <a class="md-nav__link" href="#use-cases">
 <span class="md-ellipsis">
-      🎯 Use Cases
+      Use Cases
     </span>
 </a>
 </li>
 <li class="md-nav__item">
 <a class="md-nav__link" href="#safety-features">
 <span class="md-ellipsis">
-      🛡️ Safety Features
+      Safety Features
     </span>
 </a>
 </li>
 <li class="md-nav__item">
 <a class="md-nav__link" href="#next-steps">
 <span class="md-ellipsis">
-      📚 Next Steps
+      Next Steps
     </span>
 </a>
 </li>
 <li class="md-nav__item">
 <a class="md-nav__link" href="#contributing">
 <span class="md-ellipsis">
-      🤝 Contributing
-    </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#license">
-<span class="md-ellipsis">
-      📄 License
+      Contributing
     </span>
 </a>
 </li>
@@ -417,39 +367,19 @@
 <a href="https://badge.fury.io/py/git-autosquash"><img alt="PyPI version" src="https://badge.fury.io/py/git-autosquash.svg"/></a>
 <a href="https://www.python.org/downloads/"><img alt="Python 3.12+" src="https://img.shields.io/badge/python-3.12+-blue.svg"/></a></p>
 <p><strong>Automatically squash changes back into historical commits where they belong.</strong></p>
-<p>git-autosquash is a powerful tool that analyzes your working directory changes and automatically distributes them back to the commits where those code sections were last modified. Instead of creating noisy "fix lint errors", "cleanup tests", or "address review feedback" commits, it uses git blame analysis to intelligently squash improvements back into their logical historical commits.</p>
+<p>git-autosquash eliminates "cleanup" commits by analyzing git blame to determine which historical commits should receive your current changes. Instead of accumulating "fix lint", "address PR feedback", or "update tests" commits, it distributes improvements back to their logical origin points.</p>
 <p><img alt="git-autosquash Interactive TUI" src="screenshots/readme/hero_screenshot.png"/></p>
-<p><strong>Common scenario</strong>: You've been working on a feature branch and now need to fix lint errors, test failures, or code review feedback. Rather than committing all fixes into a final "cleanup" commit, git-autosquash lets you push each fix back to the original commit that introduced the issue, maintaining clean and logical git history.</p>
-<div class="admonition info">
-<p class="admonition-title">Project Status</p>
-<p>git-autosquash is actively developed and functional. All core features are implemented: git analysis, blame-based targeting, interactive TUI, and rebase execution. The tool is ready for daily use with comprehensive testing and error handling.</p>
-</div>
-<h2 id="key-features">✨ Key Features<a class="headerlink" href="#key-features" title="Permanent link">¶</a></h2>
+<p>Common scenario: You're working on a feature branch and need to address code review feedback, fix lint errors, or update tests across multiple files. Instead of creating cleanup commits, git-autosquash pushes each fix back to the commit that originally introduced the code.</p>
+<h2 id="key-features">Key Features<a class="headerlink" href="#key-features" title="Permanent link">¶</a></h2>
 <ul>
-<li><strong>🎯 Smart Targeting</strong>: Uses git blame to find the exact commits where code was last modified</li>
-<li><strong>🖥️ Interactive TUI</strong>: Rich terminal interface with syntax-highlighted diff viewer  </li>
-<li><strong>🔒 Safety First</strong>: Default unapproved state with user confirmation for all changes</li>
-<li><strong>⚡ Conflict Resolution</strong>: Clear guidance when merge conflicts occur during rebase</li>
-<li><strong>📊 Progress Tracking</strong>: Real-time feedback with detailed commit summaries</li>
-<li><strong>🔄 Rollback Support</strong>: Automatic cleanup and restoration on errors or interruption</li>
+<li><strong>Smart Targeting</strong>: Uses git blame to find commits where code was last modified</li>
+<li><strong>Interactive TUI</strong>: Terminal interface with diff viewer and approval controls</li>
+<li><strong>Safety First</strong>: All changes require explicit user approval</li>
+<li><strong>Conflict Resolution</strong>: Clear guidance when merge conflicts occur during rebase</li>
+<li><strong>Progress Tracking</strong>: Real-time feedback with detailed commit summaries</li>
+<li><strong>Automatic Rollback</strong>: Repository restored to original state on errors</li>
 </ul>
-<h3 id="feature-demonstrations">Feature Demonstrations<a class="headerlink" href="#feature-demonstrations" title="Permanent link">¶</a></h3>
-<details class="example">
-<summary>🎯 Smart Targeting with Git Blame Analysis</summary>
-<p><img alt="Smart Targeting" src="screenshots/readme/feature_smart_targeting.png"/></p>
-<p>git-autosquash analyzes git blame to understand exactly which commits last modified each line of code, providing high-confidence targeting for your changes.</p>
-</details>
-<details class="example">
-<summary>🖥️ Interactive Terminal Interface</summary>
-<p><img alt="Interactive TUI" src="screenshots/readme/feature_interactive_tui.png"/></p>
-<p>Full keyboard navigation with syntax highlighting, real-time previews, and intuitive controls make reviewing changes efficient and clear.</p>
-</details>
-<details class="example">
-<summary>🔒 Safety-First Approach</summary>
-<p><img alt="Safety First" src="screenshots/readme/feature_safety_first.png"/></p>
-<p>All changes start unapproved by default. Full git reflog integration and backup creation ensure you can always recover if something goes wrong.</p>
-</details>
-<h2 id="quick-start">🚀 Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">¶</a></h2>
+<h2 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">¶</a></h2>
 <h3 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">¶</a></h3>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:3"><input checked="checked" id="installation-uv-recommended" name="__tabbed_1" type="radio"><input id="installation-pipx" name="__tabbed_1" type="radio"><input id="installation-pip" name="__tabbed_1" type="radio"><div class="tabbed-labels"><label for="installation-uv-recommended">uv (Recommended)</label><label for="installation-pipx">pipx</label><label for="installation-pip">pip</label></div>
 <div class="tabbed-content">
@@ -470,16 +400,14 @@
 <h3 id="basic-usage">Basic Usage<a class="headerlink" href="#basic-usage" title="Permanent link">¶</a></h3>
 <ol>
 <li>Make changes to your codebase</li>
-<li>Run git-autosquash to analyze and distribute changes:</li>
+<li>Run analysis:
+   <div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a href="#__codelineno-3-1" id="__codelineno-3-1" name="__codelineno-3-1"></a>git-autosquash
+</span></code></pre></div></li>
+<li>Review proposed hunk → commit mappings in TUI</li>
+<li>Approve changes to squash back into target commits</li>
+<li>git-autosquash performs the interactive rebase</li>
 </ol>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a href="#__codelineno-3-1" id="__codelineno-3-1" name="__codelineno-3-1"></a>git-autosquash
-</span></code></pre></div>
-<ol>
-<li>Review the proposed hunk → commit mappings in the interactive TUI</li>
-<li>Approve changes you want to squash back into their target commits</li>
-<li>Let git-autosquash perform the interactive rebase automatically</li>
-</ol>
-<h2 id="how-it-works">🎬 How It Works<a class="headerlink" href="#how-it-works" title="Permanent link">¶</a></h2>
+<h2 id="how-it-works">How It Works<a class="headerlink" href="#how-it-works" title="Permanent link">¶</a></h2>
 <pre class="mermaid"><code>graph TD
     A[Working Directory Changes] --&gt; B[Parse Git Diff into Hunks]
     B --&gt; C[Run Git Blame Analysis]
@@ -493,71 +421,37 @@
     G -.-&gt; J[Conflict Resolution]
     J -.-&gt; K[User Fixes Conflicts]
     K --&gt; G</code></pre>
-<h2 id="example-workflow">📋 Example Workflow<a class="headerlink" href="#example-workflow" title="Permanent link">¶</a></h2>
-<p>Here's what a typical git-autosquash session looks like:</p>
-<h3 id="before-messy-history">Before: Messy History<a class="headerlink" href="#before-messy-history" title="Permanent link">¶</a></h3>
-<p><img alt="Before Traditional Approach" src="screenshots/readme/comparison_before_traditional.png"/></p>
-<h3 id="the-git-autosquash-process">The git-autosquash Process<a class="headerlink" href="#the-git-autosquash-process" title="Permanent link">¶</a></h3>
-<p>The workflow transforms cluttered history into clean, logical commits through these steps:</p>
-<div class="admonition example">
-<p class="admonition-title">Step 1: Check Status</p>
-<p><img alt="Workflow Step 1" src="screenshots/readme/workflow_step_01.png"/></p>
-<p>See what changes need organizing</p>
-</div>
-<div class="admonition example">
-<p class="admonition-title">Step 2: Launch Analysis</p>
-<p><img alt="Workflow Step 2" src="screenshots/readme/workflow_step_02.png"/></p>
-<p>git-autosquash analyzes your changes</p>
-</div>
-<div class="admonition example">
-<p class="admonition-title">Step 3: Review Results</p>
-<p><img alt="Workflow Step 3" src="screenshots/readme/workflow_step_03.png"/></p>
-<p>See confidence levels and proposed targets</p>
-</div>
-<div class="admonition example">
-<p class="admonition-title">Step 4: Interactive Review</p>
-<p><img alt="Workflow Step 4" src="screenshots/readme/workflow_step_04.png"/></p>
-<p>Approve or modify the suggestions</p>
-</div>
-<h3 id="after-clean-history">After: Clean History<a class="headerlink" href="#after-clean-history" title="Permanent link">¶</a></h3>
-<p><img alt="After git-autosquash" src="screenshots/readme/comparison_after_autosquash.png"/></p>
-<p>The TUI shows you exactly which changes can go back to which commits, with confidence levels and clear diff visualization.</p>
-<h2 id="use-cases">🎯 Use Cases<a class="headerlink" href="#use-cases" title="Permanent link">¶</a></h2>
+<h2 id="use-cases">Use Cases<a class="headerlink" href="#use-cases" title="Permanent link">¶</a></h2>
 <ul>
-<li><strong>Bug fixes</strong>: Automatically squash fixes back to the commits that introduced bugs</li>
-<li><strong>Refactoring</strong>: Distribute code improvements back to their logical commits  </li>
-<li><strong>Code cleanup</strong>: Move formatting and style changes to appropriate historical points</li>
-<li><strong>Feature development</strong>: Separate bug fixes from new features during development</li>
-<li><strong>Commit message fixes</strong>: Clean up commit history by moving changes to better locations</li>
-<li><strong>Selective uncommit</strong>: Extract accidentally committed code back to working tree while preserving clean history</li>
+<li>Code review feedback distribution</li>
+<li>Lint and formatting fix integration</li>
+<li>Test update consolidation</li>
+<li>Documentation synchronization</li>
+<li>Security patch application</li>
+<li>Refactoring optimization placement</li>
 </ul>
-<h2 id="safety-features">🛡️ Safety Features<a class="headerlink" href="#safety-features" title="Permanent link">¶</a></h2>
-<p>git-autosquash is designed with safety as the top priority:</p>
+<h2 id="safety-features">Safety Features<a class="headerlink" href="#safety-features" title="Permanent link">¶</a></h2>
 <ul>
-<li><strong>Default rejection</strong>: All changes start as unapproved, requiring explicit user consent</li>
-<li><strong>Conflict detection</strong>: Clear guidance when rebase conflicts occur</li>
-<li><strong>Automatic rollback</strong>: Repository restored to original state on errors or interruption  </li>
-<li><strong>Branch validation</strong>: Only works on feature branches with clear merge-base</li>
-<li><strong>Stash management</strong>: Safely handles mixed staged/unstaged states</li>
-<li><strong>Comprehensive testing</strong>: 121+ tests covering all edge cases and failure modes</li>
+<li>Default rejection: All changes start unapproved, require explicit user consent</li>
+<li>Conflict detection: Clear guidance when rebase conflicts occur</li>
+<li>Automatic rollback: Repository restored to original state on errors or interruption</li>
+<li>Branch validation: Only works on feature branches with clear merge-base</li>
+<li>Stash management: Safely handles mixed staged/unstaged states</li>
 </ul>
-<h2 id="next-steps">📚 Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">¶</a></h2>
+<h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">¶</a></h2>
 <ul>
 <li><a href="installation/">Installation Guide</a> - Detailed setup instructions</li>
 <li><a href="user-guide/getting-started/">Getting Started</a> - Your first git-autosquash workflow</li>
 <li><a href="user-guide/basic-workflow/">Basic Workflow</a> - Common usage patterns</li>
-<li><a href="user-guide/advanced-usage/">Advanced Usage</a> - Power user features</li>
+<li><a href="reference/cli-options/">CLI Reference</a> - All command-line options</li>
 <li><a href="examples/basic-scenarios/">Examples</a> - Real-world scenarios and solutions</li>
 </ul>
-<h2 id="contributing">🤝 Contributing<a class="headerlink" href="#contributing" title="Permanent link">¶</a></h2>
-<p>git-autosquash is open source and welcomes contributions! Check out our:</p>
+<h2 id="contributing">Contributing<a class="headerlink" href="#contributing" title="Permanent link">¶</a></h2>
 <ul>
 <li><a href="technical/development/">Development Guide</a> - Set up development environment</li>
 <li><a href="technical/architecture/">Architecture Overview</a> - Understand the codebase</li>
 <li><a href="technical/testing/">Testing Guide</a> - Run and write tests</li>
 </ul>
-<h2 id="license">📄 License<a class="headerlink" href="#license" title="Permanent link">¶</a></h2>
-<p>MIT License - see <a href="https://github.com/andrewleech/git-autosquash/blob/main/LICENSE">LICENSE</a> for details.</p>
 </article>
 </div>
 <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
