@@ -400,7 +400,9 @@ def validate_git_environment(git_ops: GitOps) -> str:
     return current_branch
 
 
-def get_merge_base(git_ops: GitOps, current_branch: str, base_ref: Optional[str] = None) -> str:
+def get_merge_base(
+    git_ops: GitOps, current_branch: str, base_ref: Optional[str] = None
+) -> str:
     """Get merge base with main branch or specified base.
 
     Args:
@@ -422,7 +424,9 @@ def get_merge_base(git_ops: GitOps, current_branch: str, base_ref: Optional[str]
             result = git_ops.run_git_command(["branch", "-vv", current_branch])
             tracking_info = ""
             if result.returncode == 0 and result.stdout.strip():
-                tracking_info = "\n\nYour current branch tracking info:\n" + result.stdout.strip()
+                tracking_info = (
+                    "\n\nYour current branch tracking info:\n" + result.stdout.strip()
+                )
 
             error = RepositoryStateError(
                 f"Invalid base reference: {error_msg}",
@@ -432,6 +436,10 @@ def get_merge_base(git_ops: GitOps, current_branch: str, base_ref: Optional[str]
             ErrorReporter.report_error(error)
             sys.exit(1)
 
+        # Validation passed, resolved_hash is guaranteed to be a str
+        assert resolved_hash is not None, (
+            "validate_merge_base should return hash if valid"
+        )
         return resolved_hash
 
     # Try automatic detection with main/master
@@ -443,9 +451,12 @@ def get_merge_base(git_ops: GitOps, current_branch: str, base_ref: Optional[str]
         if result.returncode == 0 and result.stdout.strip():
             # Parse tracking branch from output like: * branch_name hash [remote/branch] message
             import re
-            match = re.search(r'\[([^\]]+)\]', result.stdout)
+
+            match = re.search(r"\[([^\]]+)\]", result.stdout)
             if match:
-                tracking_branch = match.group(1).split(':')[0].strip()  # Remove ahead/behind info
+                tracking_branch = (
+                    match.group(1).split(":")[0].strip()
+                )  # Remove ahead/behind info
                 tracking_info = f"\n\nYour branch appears to track '{tracking_branch}'.\nTry using: git autosquash --base {tracking_branch}"
 
         error = RepositoryStateError(

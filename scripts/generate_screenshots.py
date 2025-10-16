@@ -30,6 +30,7 @@ from git_autosquash.git_ops import GitOps
 from git_autosquash.hunk_parser import HunkParser
 from git_autosquash.hunk_target_resolver import HunkTargetResolver
 from git_autosquash.commit_history_analyzer import CommitHistoryAnalyzer
+from git_autosquash.squash_context import SquashContext
 from git_autosquash.tui.modern_app import ModernAutoSquashApp
 from scripts.screenshot_test_repo import (
     create_screenshot_repository,
@@ -113,7 +114,15 @@ class TextualScreenshotGenerator:
             hunk_parser = HunkParser(git_ops)
             hunks = hunk_parser.get_diff_hunks(line_by_line=False)
 
-            resolver = HunkTargetResolver(git_ops, merge_base)
+            # Create context for working tree changes
+            context = SquashContext(
+                blame_ref="HEAD",
+                source_commit=None,
+                is_historical_commit=False,
+                working_tree_clean=False,
+            )
+
+            resolver = HunkTargetResolver(git_ops, merge_base, context)
             mappings = resolver.resolve_targets(hunks)
 
             commit_analyzer = CommitHistoryAnalyzer(git_ops, merge_base)

@@ -201,15 +201,27 @@ class GitOps:
         # Check if it's actually a commit (not a tree or blob)
         success, obj_type = self._run_git_command("cat-file", "-t", resolved_hash)
         if not success or obj_type.strip() != "commit":
-            return False, f"'{base_ref}' is not a commit (type: {obj_type.strip()})", None
+            return (
+                False,
+                f"'{base_ref}' is not a commit (type: {obj_type.strip()})",
+                None,
+            )
 
         # Check if the base is an ancestor of HEAD
-        success, _ = self._run_git_command("merge-base", "--is-ancestor", resolved_hash, "HEAD")
+        success, _ = self._run_git_command(
+            "merge-base", "--is-ancestor", resolved_hash, "HEAD"
+        )
         if not success:
-            return False, f"'{base_ref}' is not an ancestor of HEAD (not in current branch history)", None
+            return (
+                False,
+                f"'{base_ref}' is not an ancestor of HEAD (not in current branch history)",
+                None,
+            )
 
         # Check if there are commits between base and HEAD
-        success, output = self._run_git_command("rev-list", "--count", f"{resolved_hash}..HEAD")
+        success, output = self._run_git_command(
+            "rev-list", "--count", f"{resolved_hash}..HEAD"
+        )
         if not success:
             return False, f"Failed to check commits since '{base_ref}'", None
 
