@@ -511,21 +511,7 @@ class HunkTargetResolver:
                 hunk, TargetingMethod.FALLBACK_NEW_FILE
             )
 
-        # Check for previous target from same file (consistency)
-        consistent_target = self.consistency_tracker.get_consistent_target(
-            hunk.file_path
-        )
-        if consistent_target:
-            return HunkTargetMapping(
-                hunk=hunk,
-                target_commit=consistent_target,
-                confidence="medium",
-                blame_info=[],
-                targeting_method=TargetingMethod.FALLBACK_CONSISTENCY,
-                needs_user_selection=False,
-            )
-
-        # Try blame-based analysis with contextual fallback
+        # Try blame-based analysis first (don't use consistency tracker here)
         if hunk.has_deletions:
             blame_info = self.blame_engine.get_blame_for_old_lines(hunk)
         else:
@@ -566,8 +552,8 @@ class HunkTargetResolver:
         # Determine best target from blame info
         target_commit, confidence = self._analyze_blame_consensus(relevant_blame)
 
-        # Store successful target for file consistency
-        self.consistency_tracker.set_target_for_file(hunk.file_path, target_commit)
+        # Don't use consistency tracker - each hunk should use its own blame results
+        # Different parts of a file can be modified by different commits
 
         # Determine targeting method based on whether contextual blame was used
         targeting_method = (
@@ -589,6 +575,9 @@ class HunkTargetResolver:
     def _analyze_blame_consensus(self, blame_info: List[BlameInfo]) -> tuple[str, str]:
         """Analyze blame info to find consensus target with confidence.
 
+        For fixup commits (formatting, style changes), we prioritize the most recent
+        commit that touched the lines, as that's typically where the fixup should go.
+
         Args:
             blame_info: List of BlameInfo objects
 
@@ -604,17 +593,18 @@ class HunkTargetResolver:
         commit_hashes = list(commit_counts.keys())
         commit_info_dict = self.batch_ops.batch_load_commit_info(commit_hashes)
 
-        # Find most frequent commit, break ties by recency
-        most_frequent_commit, max_count = max(
+        # Find most recent commit, use frequency as tie-breaker
+        # This ensures formatting/style fixes go to the newest commit that touched the code
+        most_recent_commit, count = max(
             commit_counts.items(),
             key=lambda x: (
-                x[1],
-                getattr(commit_info_dict.get(x[0]), "timestamp", 0),
+                getattr(commit_info_dict.get(x[0]), "timestamp", 0),  # PRIMARY: recency
+                x[1],  # TIE-BREAKER: frequency
             ),
         )
 
         total_lines = len(blame_info)
-        confidence_ratio = max_count / total_lines
+        confidence_ratio = count / total_lines
 
         if confidence_ratio >= 0.8:
             confidence = "high"
@@ -623,7 +613,7 @@ class HunkTargetResolver:
         else:
             confidence = "low"
 
-        return most_frequent_commit, confidence
+        return most_recent_commit, confidence
 
     def _is_new_file(self, file_path: str) -> bool:
         """Check if a file is new (didn't exist at merge-base).

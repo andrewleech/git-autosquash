@@ -250,28 +250,45 @@ class BatchGitOperations:
 
     @lru_cache(maxsize=1)
     def get_new_files(self) -> Set[str]:
-        """Get set of files that are new since merge-base.
+        """Get set of files that don't exist at blame_ref (new files with no history).
+
+        When --source is used to analyze a historical commit, this correctly identifies
+        files that didn't exist at the blame_ref (parent of the commit being analyzed).
 
         Returns:
-            Set of file paths that didn't exist at merge-base
+            Set of file paths that didn't exist at blame_ref
         """
         with self._new_files_lock:
             if self._new_files_populated:
                 # Return all files currently in the cache
-                # Note: This is a simplification - in practice we'd store the complete set
-                # For now, we'll use a traditional cache for this method
                 return getattr(self, "_complete_new_files_set", set())
 
+            # Get all files that exist at blame_ref
             success, output = self.git_ops._run_git_command(
-                "diff", "--name-only", "--diff-filter=A", f"{self.merge_base}..HEAD"
+                "ls-tree", "-r", "--name-only", self.blame_ref
             )
 
             if success:
-                new_files = set(
+                files_at_blame_ref = set(
                     line.strip() for line in output.split("\n") if line.strip()
                 )
             else:
-                new_files = set()
+                files_at_blame_ref = set()
+
+            # Get all files in the branch (merge_base..HEAD)
+            success, output = self.git_ops._run_git_command(
+                "diff", "--name-only", f"{self.merge_base}..HEAD"
+            )
+
+            if success:
+                all_changed_files = set(
+                    line.strip() for line in output.split("\n") if line.strip()
+                )
+            else:
+                all_changed_files = set()
+
+            # Files are "new" if they were changed in the branch but don't exist at blame_ref
+            new_files = all_changed_files - files_at_blame_ref
 
             # Store complete set and mark as populated
             self._complete_new_files_set = new_files

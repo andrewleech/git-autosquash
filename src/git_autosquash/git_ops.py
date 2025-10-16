@@ -180,6 +180,48 @@ class GitOps:
         except ValueError:
             return False
 
+    def validate_merge_base(self, base_ref: str) -> tuple[bool, str, Optional[str]]:
+        """Validate that a base reference is valid and usable as a merge-base.
+
+        Args:
+            base_ref: Git reference (branch name, commit hash, etc.)
+
+        Returns:
+            Tuple of (is_valid, error_message, resolved_commit_hash)
+            If is_valid is True, error_message will be empty and resolved_commit_hash will be set
+            If is_valid is False, error_message will contain the reason and resolved_commit_hash will be None
+        """
+        # First, check if the ref exists and resolve it to a commit hash
+        success, output = self._run_git_command("rev-parse", "--verify", base_ref)
+        if not success:
+            return False, f"Reference '{base_ref}' does not exist", None
+
+        resolved_hash = output.strip()
+
+        # Check if it's actually a commit (not a tree or blob)
+        success, obj_type = self._run_git_command("cat-file", "-t", resolved_hash)
+        if not success or obj_type.strip() != "commit":
+            return False, f"'{base_ref}' is not a commit (type: {obj_type.strip()})", None
+
+        # Check if the base is an ancestor of HEAD
+        success, _ = self._run_git_command("merge-base", "--is-ancestor", resolved_hash, "HEAD")
+        if not success:
+            return False, f"'{base_ref}' is not an ancestor of HEAD (not in current branch history)", None
+
+        # Check if there are commits between base and HEAD
+        success, output = self._run_git_command("rev-list", "--count", f"{resolved_hash}..HEAD")
+        if not success:
+            return False, f"Failed to check commits since '{base_ref}'", None
+
+        try:
+            count = int(output.strip())
+            if count == 0:
+                return False, f"No commits between '{base_ref}' and HEAD", None
+        except ValueError:
+            return False, f"Failed to parse commit count for '{base_ref}'", None
+
+        return True, "", resolved_hash
+
     def run_git_command(
         self, args: list[str], env: dict[str, str] | None = None
     ) -> subprocess.CompletedProcess[str]:

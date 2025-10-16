@@ -3,7 +3,7 @@
 import argparse
 import subprocess
 import sys
-from typing import List
+from typing import List, Optional
 
 from git_autosquash import __version__
 from git_autosquash.hunk_target_resolver import HunkTargetResolver, HunkTargetMapping
@@ -325,6 +325,14 @@ def setup_argument_parser() -> argparse.ArgumentParser:
         "Default: auto",
     )
     parser.add_argument(
+        "--base",
+        type=str,
+        default=None,
+        help="Specify the base commit/branch for the merge-base. "
+        "Use this when working on feature branches that are not based on main/master. "
+        "Example: --base andrewleech/usbd_net or --base origin/develop",
+    )
+    parser.add_argument(
         "--version",
         action="version",
         version=f"%(prog)s {__version__}",
@@ -392,24 +400,60 @@ def validate_git_environment(git_ops: GitOps) -> str:
     return current_branch
 
 
-def get_merge_base(git_ops: GitOps, current_branch: str) -> str:
-    """Get merge base with main branch.
+def get_merge_base(git_ops: GitOps, current_branch: str, base_ref: Optional[str] = None) -> str:
+    """Get merge base with main branch or specified base.
 
     Args:
         git_ops: GitOps instance
         current_branch: Current branch name
+        base_ref: Optional base reference (branch/commit) to use instead of main/master
 
     Returns:
         Merge base commit hash
 
     Raises:
-        SystemExit: If merge base not found
+        SystemExit: If merge base not found or invalid
     """
+    if base_ref:
+        # User specified a base, validate it
+        is_valid, error_msg, resolved_hash = git_ops.validate_merge_base(base_ref)
+        if not is_valid:
+            # Get tracking branch info for helpful error message
+            result = git_ops.run_git_command(["branch", "-vv", current_branch])
+            tracking_info = ""
+            if result.returncode == 0 and result.stdout.strip():
+                tracking_info = "\n\nYour current branch tracking info:\n" + result.stdout.strip()
+
+            error = RepositoryStateError(
+                f"Invalid base reference: {error_msg}",
+                recovery_suggestion=f"Please provide a valid base commit or branch.\n"
+                f"Find your tracking branch with: git branch -vv{tracking_info}",
+            )
+            ErrorReporter.report_error(error)
+            sys.exit(1)
+
+        return resolved_hash
+
+    # Try automatic detection with main/master
     merge_base = git_ops.get_merge_base_with_main(current_branch)
     if not merge_base:
+        # Get tracking branch info for helpful error message
+        result = git_ops.run_git_command(["branch", "-vv", current_branch])
+        tracking_info = ""
+        if result.returncode == 0 and result.stdout.strip():
+            # Parse tracking branch from output like: * branch_name hash [remote/branch] message
+            import re
+            match = re.search(r'\[([^\]]+)\]', result.stdout)
+            if match:
+                tracking_branch = match.group(1).split(':')[0].strip()  # Remove ahead/behind info
+                tracking_info = f"\n\nYour branch appears to track '{tracking_branch}'.\nTry using: git autosquash --base {tracking_branch}"
+
         error = RepositoryStateError(
             "Could not find merge base with main/master branch",
-            recovery_suggestion="Ensure you have a main or master branch, and your current branch shares history with it",
+            recovery_suggestion=f"Your branch '{current_branch}' does not appear to be based on 'main' or 'master'.\n"
+            f"Please specify the base branch explicitly using --base:\n\n"
+            f"  git autosquash --base <branch-name>\n\n"
+            f"Find your tracking branch with: git branch -vv{tracking_info}",
         )
         ErrorReporter.report_error(error)
         sys.exit(1)
@@ -702,7 +746,7 @@ def main() -> None:
         # Phase 2: Initialize git operations and validate environment
         git_ops = GitOps()
         current_branch = validate_git_environment(git_ops)
-        merge_base = get_merge_base(git_ops, current_branch)
+        merge_base = get_merge_base(git_ops, current_branch, args.base)
         check_repository_state(git_ops, merge_base, args.auto_accept)
 
         # Create SquashContext from --source argument
