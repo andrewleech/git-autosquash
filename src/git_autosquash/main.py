@@ -17,7 +17,9 @@ from git_autosquash.exceptions import (
 from git_autosquash.git_ops import GitOps
 from git_autosquash.hunk_parser import HunkParser
 from git_autosquash.rebase_manager import RebaseConflictError, RebaseManager
+from git_autosquash.source_normalizer import SourceNormalizer
 from git_autosquash.squash_context import SquashContext
+from git_autosquash.validation import ProcessingValidator
 
 
 def _simple_approval_fallback(mappings, resolver, commit_analyzer=None):
@@ -520,8 +522,8 @@ def process_hunks_and_mappings(
     source: str,
     blame_ref: str,
     context: SquashContext,
-) -> tuple[List[HunkTargetMapping], List[HunkTargetMapping]]:
-    """Process hunks and create target mappings.
+) -> tuple[List[HunkTargetMapping], List[HunkTargetMapping], str, bool]:
+    """Process hunks and create target mappings with validation.
 
     Args:
         git_ops: GitOps instance
@@ -532,20 +534,30 @@ def process_hunks_and_mappings(
         context: SquashContext for centralized blame/HEAD exclusion logic
 
     Returns:
-        Tuple of (automatic_mappings, fallback_mappings)
+        Tuple of (automatic_mappings, fallback_mappings, starting_commit, temp_commit_created)
 
     Raises:
         SystemExit: If no hunks found
     """
-    # Parse hunks from git diff
+    # Phase 1: Normalize source to commit
+    normalizer = SourceNormalizer(git_ops)
+    starting_commit = normalizer.normalize_to_commit(source)
+    print(f"Processing from commit: {starting_commit[:8]}")
+
+    # Phase 2: Parse hunks from normalized commit
     hunk_parser = HunkParser(git_ops)
-    hunks = hunk_parser.get_diff_hunks(line_by_line, source=source)
+    hunks = hunk_parser.get_diff_hunks(line_by_line, from_commit=starting_commit)
 
     if not hunks:
         print("No hunks found to process.")
+        normalizer.cleanup_temp_commit()
         sys.exit(0)
 
-    # Resolve target commits for hunks with SquashContext
+    # Phase 3: Pre-flight validation
+    validator = ProcessingValidator(git_ops)
+    validator.validate_hunk_count(starting_commit, hunks)
+
+    # Phase 4: Resolve target commits for hunks with SquashContext
     resolver = HunkTargetResolver(git_ops, merge_base, context, blame_ref=blame_ref)
     mappings = resolver.resolve_targets(hunks)
 
@@ -553,7 +565,12 @@ def process_hunks_and_mappings(
     automatic_mappings = [m for m in mappings if not m.needs_user_selection]
     fallback_mappings = [m for m in mappings if m.needs_user_selection]
 
-    return automatic_mappings, fallback_mappings
+    return (
+        automatic_mappings,
+        fallback_mappings,
+        starting_commit,
+        normalizer.temp_commit_created,
+    )
 
 
 def handle_automatic_mappings(
@@ -773,72 +790,95 @@ def main() -> None:
             sys.exit(1)
 
         # Phase 3: Process hunks and create mappings
-        automatic_mappings, fallback_mappings = process_hunks_and_mappings(
+        (
+            automatic_mappings,
+            fallback_mappings,
+            starting_commit,
+            temp_commit_created,
+        ) = process_hunks_and_mappings(
             git_ops, merge_base, args.line_by_line, args.source, blame_ref, context
         )
 
-        print(f"Found target commits for {len(automatic_mappings)} hunks")
-        if fallback_mappings:
-            print(
-                f"Found {len(fallback_mappings)} hunks requiring manual target selection"
-            )
+        # Store normalizer for cleanup
+        normalizer = SourceNormalizer(git_ops)
+        normalizer.starting_commit = starting_commit
+        normalizer.temp_commit_created = temp_commit_created
 
-        # Phase 4: Handle user interaction
-        success = False
-
-        if args.auto_accept:
-            if args.dry_run:
-                # Dry run mode: show what would be done without making changes
-                _show_dry_run_output(automatic_mappings, fallback_mappings, git_ops)
-                success = True
-            else:
-                # Auto-accept mode: process only automatic mappings
-                approved_mappings, ignored_mappings = handle_automatic_mappings(
-                    automatic_mappings, auto_accept=True, git_ops=git_ops
+        try:
+            print(f"Found target commits for {len(automatic_mappings)} hunks")
+            if fallback_mappings:
+                print(
+                    f"Found {len(fallback_mappings)} hunks requiring manual target selection"
                 )
 
-                # Add fallback mappings to ignored list (they can't be auto-accepted)
-                ignored_mappings.extend(fallback_mappings)
+            # Phase 4: Handle user interaction
+            success = False
 
-                if approved_mappings:
-                    success = _execute_rebase(
-                        approved_mappings,
+            if args.auto_accept:
+                if args.dry_run:
+                    # Dry run mode: show what would be done without making changes
+                    _show_dry_run_output(automatic_mappings, fallback_mappings, git_ops)
+                    success = True
+                else:
+                    # Auto-accept mode: process only automatic mappings
+                    approved_mappings, ignored_mappings = handle_automatic_mappings(
+                        automatic_mappings, auto_accept=True, git_ops=git_ops
+                    )
+
+                    # Add fallback mappings to ignored list (they can't be auto-accepted)
+                    ignored_mappings.extend(fallback_mappings)
+
+                    if approved_mappings:
+                        success = _execute_rebase(
+                            approved_mappings,
+                            git_ops,
+                            merge_base,
+                            HunkTargetResolver(
+                                git_ops, merge_base, context, blame_ref=blame_ref
+                            ),
+                            context,
+                            blame_ref=blame_ref,
+                        )
+                    else:
+                        success = True  # No rebase needed
+
+            else:
+                # Interactive mode: combine all mappings for user review
+                all_mappings = automatic_mappings + fallback_mappings
+
+                if all_mappings:
+                    success = run_interactive_ui(
+                        all_mappings,
                         git_ops,
                         merge_base,
-                        HunkTargetResolver(
-                            git_ops, merge_base, context, blame_ref=blame_ref
-                        ),
                         context,
                         blame_ref=blame_ref,
                     )
                 else:
-                    success = True  # No rebase needed
+                    print("No hunks found to process.")
+                    success = True
 
-        else:
-            # Interactive mode: combine all mappings for user review
-            all_mappings = automatic_mappings + fallback_mappings
-
-            if all_mappings:
-                success = run_interactive_ui(
-                    all_mappings,
-                    git_ops,
-                    merge_base,
-                    context,
-                    blame_ref=blame_ref,
+            # Phase 5: Post-flight validation
+            if success and not args.dry_run:
+                validator = ProcessingValidator(git_ops)
+                validator.validate_processing(
+                    starting_commit, description="squash operation"
                 )
-            else:
-                print("No hunks found to process.")
-                success = True
+                print("[+] Validation passed - no corruption detected")
 
-        # Phase 5: Report results
-        if success:
-            if args.dry_run:
-                print("\n✓ Dry run completed successfully!")
+            # Phase 6: Report results
+            if success:
+                if args.dry_run:
+                    print("\n✓ Dry run completed successfully!")
+                else:
+                    print("✓ Operation completed successfully!")
             else:
-                print("✓ Operation completed successfully!")
-        else:
-            print("✗ Operation failed or was cancelled.")
-            sys.exit(1)
+                print("✗ Operation failed or was cancelled.")
+                sys.exit(1)
+
+        finally:
+            # Always cleanup temp commit
+            normalizer.cleanup_temp_commit()
 
     except GitAutoSquashError as e:
         ErrorReporter.report_error(e)
@@ -854,6 +894,17 @@ def main() -> None:
         ErrorReporter.report_error(wrapped)
         sys.exit(1)
     except Exception as e:
+        # Check if it's a validation error
+        from git_autosquash.validation import ValidationError
+
+        if isinstance(e, ValidationError):
+            print(f"\n✗ VALIDATION FAILED: {e}", file=sys.stderr)
+            print(
+                "This indicates potential data corruption during processing.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
         wrapped = handle_unexpected_error(e, "git-autosquash execution")
         ErrorReporter.report_error(wrapped)
         sys.exit(1)
