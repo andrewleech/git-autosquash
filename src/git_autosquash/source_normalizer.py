@@ -36,6 +36,7 @@ class SourceNormalizer:
         self.logger = logging.getLogger(__name__)
         self.temp_commit_created = False
         self.starting_commit: Optional[str] = None
+        self.parent_commit: Optional[str] = None  # Store parent for safe cleanup
 
     def normalize_to_commit(self, source: str) -> str:
         """Convert any source to a commit hash.
@@ -75,7 +76,7 @@ class SourceNormalizer:
                 commit_hash = self._commit_index()
                 # temp_commit_created set by method
 
-            elif source_lower in ["head"]:
+            elif source_lower == "head":
                 commit_hash = self._get_head_hash()
                 self.temp_commit_created = False
 
@@ -122,10 +123,15 @@ class SourceNormalizer:
         # Check if there are actually changes to commit
         result = self.git_ops.run_git_command(["diff", "--cached", "--quiet"])
         if result.returncode == 0:
-            # No changes staged - use HEAD instead
-            self.logger.debug("No changes to commit, using HEAD")
+            # No changes staged - unstage and use HEAD instead
+            self.logger.debug("No changes to commit, restoring index and using HEAD")
+            # Reset index to HEAD to unstage the files
+            self.git_ops.run_git_command(["reset", "HEAD"])
             self.temp_commit_created = False
             return self._get_head_hash()
+
+        # Store parent commit before creating temp commit
+        self.parent_commit = self._get_head_hash()
 
         # Create temporary commit (skip hooks with --no-verify)
         result = self.git_ops.run_git_command(
@@ -138,6 +144,8 @@ class SourceNormalizer:
         )
 
         if result.returncode != 0:
+            # Reset index on failure
+            self.git_ops.run_git_command(["reset", "HEAD"])
             raise SourceNormalizationError(
                 f"Failed to create temp commit: {result.stderr}"
             )
@@ -166,6 +174,9 @@ class SourceNormalizer:
             self.logger.debug("No staged changes, using HEAD")
             self.temp_commit_created = False
             return self._get_head_hash()
+
+        # Store parent commit before creating temp commit
+        self.parent_commit = self._get_head_hash()
 
         # Create temporary commit (skip hooks with --no-verify)
         result = self.git_ops.run_git_command(
@@ -256,7 +267,7 @@ class SourceNormalizer:
         result = self.git_ops.run_git_command(["rev-parse", "HEAD"])
 
         if result.returncode != 0:
-            raise SourceNormalizationError("Failed to get HEAD hash (detached HEAD?)")
+            raise SourceNormalizationError(f"Failed to get HEAD hash: {result.stderr}")
 
         return result.stdout.strip()
 
@@ -266,18 +277,28 @@ class SourceNormalizer:
         Uses soft reset to remove the commit while preserving changes
         in the index/working tree.
         """
-        if not self.temp_commit_created or not self.starting_commit:
+        if not self.temp_commit_created:
             return
 
-        self.logger.info("Cleaning up temporary commit")
+        # Use stored parent commit if available, otherwise fall back to ~1
+        if self.parent_commit:
+            target_commit = self.parent_commit
+            self.logger.info(f"Cleaning up temporary commit to {target_commit[:8]}")
+        elif self.starting_commit:
+            target_commit = f"{self.starting_commit}~1"
+            self.logger.warning(
+                "No parent commit stored, using ~1 notation (less safe)"
+            )
+        else:
+            self.logger.warning("No commit information available for cleanup")
+            return
 
         # Soft reset to parent (preserves changes)
-        result = self.git_ops.run_git_command(
-            ["reset", "--soft", f"{self.starting_commit}~1"]
-        )
+        result = self.git_ops.run_git_command(["reset", "--soft", target_commit])
 
         if result.returncode == 0:
             self.logger.debug("✓ Temporary commit removed")
             self.temp_commit_created = False
+            self.parent_commit = None
         else:
             self.logger.warning(f"Failed to cleanup temp commit: {result.stderr}")

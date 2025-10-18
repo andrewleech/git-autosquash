@@ -28,9 +28,11 @@ class TestSourceNormalizer:
             MagicMock(returncode=0, stdout="", stderr=""),
             # git diff --cached --quiet (returns 1 = has changes)
             MagicMock(returncode=1, stdout="", stderr=""),
+            # git rev-parse HEAD (get parent before commit)
+            MagicMock(returncode=0, stdout="parent123\n", stderr=""),
             # git commit --no-verify
             MagicMock(returncode=0, stdout="", stderr=""),
-            # git rev-parse HEAD
+            # git rev-parse HEAD (get new commit hash)
             MagicMock(returncode=0, stdout="abc123def456\n", stderr=""),
         ]
 
@@ -39,9 +41,10 @@ class TestSourceNormalizer:
         assert commit_hash == "abc123def456"
         assert normalizer.temp_commit_created is True
         assert normalizer.starting_commit == "abc123def456"
+        assert normalizer.parent_commit == "parent123"
 
         # Verify git commands were called correctly
-        assert mock_git_ops.run_git_command.call_count == 4
+        assert mock_git_ops.run_git_command.call_count == 5
         mock_git_ops.run_git_command.assert_any_call(["add", "-A"])
         mock_git_ops.run_git_command.assert_any_call(["diff", "--cached", "--quiet"])
         mock_git_ops.run_git_command.assert_any_call(
@@ -61,6 +64,8 @@ class TestSourceNormalizer:
             MagicMock(returncode=0, stdout="", stderr=""),
             # git diff --cached --quiet (returns 0 = no changes)
             MagicMock(returncode=0, stdout="", stderr=""),
+            # git reset HEAD (unstage files)
+            MagicMock(returncode=0, stdout="", stderr=""),
             # git rev-parse HEAD
             MagicMock(returncode=0, stdout="abc123def456\n", stderr=""),
         ]
@@ -77,9 +82,11 @@ class TestSourceNormalizer:
         mock_git_ops.run_git_command.side_effect = [
             # git diff --cached --quiet (returns 1 = has staged changes)
             MagicMock(returncode=1, stdout="", stderr=""),
+            # git rev-parse HEAD (get parent before commit)
+            MagicMock(returncode=0, stdout="parent456\n", stderr=""),
             # git commit --no-verify
             MagicMock(returncode=0, stdout="", stderr=""),
-            # git rev-parse HEAD
+            # git rev-parse HEAD (get new commit hash)
             MagicMock(returncode=0, stdout="def456abc123\n", stderr=""),
         ]
 
@@ -88,6 +95,7 @@ class TestSourceNormalizer:
         assert commit_hash == "def456abc123"
         assert normalizer.temp_commit_created is True
         assert normalizer.starting_commit == "def456abc123"
+        assert normalizer.parent_commit == "parent456"
 
         # Verify git commands
         mock_git_ops.run_git_command.assert_any_call(["diff", "--cached", "--quiet"])
@@ -199,9 +207,11 @@ class TestSourceNormalizer:
         mock_git_ops.run_git_command.side_effect = [
             # git diff --cached --quiet (has staged)
             MagicMock(returncode=1, stdout="", stderr=""),
+            # git rev-parse HEAD (get parent)
+            MagicMock(returncode=0, stdout="parent_staged\n", stderr=""),
             # git commit --no-verify
             MagicMock(returncode=0, stdout="", stderr=""),
-            # git rev-parse HEAD
+            # git rev-parse HEAD (get new commit)
             MagicMock(returncode=0, stdout="staged123456\n", stderr=""),
         ]
 
@@ -223,9 +233,11 @@ class TestSourceNormalizer:
             MagicMock(returncode=0, stdout="", stderr=""),
             # git diff --cached --quiet (has changes after add)
             MagicMock(returncode=1, stdout="", stderr=""),
+            # git rev-parse HEAD (get parent)
+            MagicMock(returncode=0, stdout="parent_unstaged\n", stderr=""),
             # git commit --no-verify
             MagicMock(returncode=0, stdout="", stderr=""),
-            # git rev-parse HEAD
+            # git rev-parse HEAD (get new commit)
             MagicMock(returncode=0, stdout="unstaged123456\n", stderr=""),
         ]
 
@@ -245,9 +257,11 @@ class TestSourceNormalizer:
         mock_git_ops.run_git_command.side_effect = [
             # git diff --cached --quiet (has staged)
             MagicMock(returncode=1, stdout="", stderr=""),
+            # git rev-parse HEAD (get parent)
+            MagicMock(returncode=0, stdout="parent_both\n", stderr=""),
             # git commit --no-verify
             MagicMock(returncode=0, stdout="", stderr=""),
-            # git rev-parse HEAD
+            # git rev-parse HEAD (get new commit)
             MagicMock(returncode=0, stdout="both123456\n", stderr=""),
         ]
 
@@ -335,8 +349,12 @@ class TestSourceNormalizer:
             MagicMock(returncode=0, stdout="", stderr=""),
             # git diff --cached --quiet (has changes)
             MagicMock(returncode=1, stdout="", stderr=""),
+            # git rev-parse HEAD (get parent)
+            MagicMock(returncode=0, stdout="parent_fail\n", stderr=""),
             # git commit --no-verify fails
             MagicMock(returncode=1, stdout="", stderr="commit failed"),
+            # git reset HEAD (cleanup on failure)
+            MagicMock(returncode=0, stdout="", stderr=""),
         ]
 
         with pytest.raises(SourceNormalizationError) as exc_info:
@@ -392,8 +410,13 @@ class TestSourceNormalizer:
         mock_git_ops.run_git_command.side_effect = [
             MagicMock(returncode=0, stdout="", stderr=""),  # add
             MagicMock(returncode=1, stdout="", stderr=""),  # diff (has changes)
+            MagicMock(
+                returncode=0, stdout="parent_temp\n", stderr=""
+            ),  # rev-parse (parent)
             MagicMock(returncode=0, stdout="", stderr=""),  # commit
-            MagicMock(returncode=0, stdout="temp123\n", stderr=""),  # rev-parse
+            MagicMock(
+                returncode=0, stdout="temp123\n", stderr=""
+            ),  # rev-parse (new commit)
         ]
 
         normalizer.normalize_to_commit("working-tree")
