@@ -421,3 +421,167 @@ class TestSourceNormalizer:
 
         normalizer.normalize_to_commit("working-tree")
         assert normalizer.temp_commit_created is True
+
+    def test_cleanup_idempotency(self, normalizer, mock_git_ops):
+        """Test that calling cleanup multiple times is safe."""
+        # Setup: simulate temp commit was created
+        normalizer.temp_commit_created = True
+        normalizer.starting_commit = "temp123456"
+        normalizer.parent_commit = "parent123"
+
+        mock_git_ops.run_git_command.return_value = MagicMock(
+            returncode=0, stdout="", stderr=""
+        )
+
+        # First cleanup should work
+        normalizer.cleanup_temp_commit()
+        assert normalizer.temp_commit_created is False
+        assert normalizer.parent_commit is None
+        assert mock_git_ops.run_git_command.call_count == 1
+
+        # Second cleanup should do nothing (no error)
+        normalizer.cleanup_temp_commit()
+        # Should not call git again
+        assert mock_git_ops.run_git_command.call_count == 1
+
+    def test_cleanup_with_stored_parent(self, normalizer, mock_git_ops):
+        """Test cleanup uses stored parent SHA instead of ~1 notation."""
+        normalizer.temp_commit_created = True
+        normalizer.starting_commit = "temp123456"
+        normalizer.parent_commit = "parent_sha_789"
+
+        mock_git_ops.run_git_command.return_value = MagicMock(
+            returncode=0, stdout="", stderr=""
+        )
+
+        normalizer.cleanup_temp_commit()
+
+        # Should use stored parent, not ~1 notation
+        mock_git_ops.run_git_command.assert_called_once_with(
+            ["reset", "--soft", "parent_sha_789"]
+        )
+
+    def test_cleanup_fallback_to_tilde_notation(self, normalizer, mock_git_ops):
+        """Test cleanup falls back to ~1 when parent not stored."""
+        normalizer.temp_commit_created = True
+        normalizer.starting_commit = "temp123456"
+        normalizer.parent_commit = None  # No parent stored
+
+        mock_git_ops.run_git_command.return_value = MagicMock(
+            returncode=0, stdout="", stderr=""
+        )
+
+        normalizer.cleanup_temp_commit()
+
+        # Should fall back to ~1 notation with warning
+        mock_git_ops.run_git_command.assert_called_once_with(
+            ["reset", "--soft", "temp123456~1"]
+        )
+
+    def test_cleanup_with_no_commit_info(self, normalizer, mock_git_ops):
+        """Test cleanup handles missing commit information gracefully."""
+        normalizer.temp_commit_created = True
+        normalizer.starting_commit = None  # No starting commit
+        normalizer.parent_commit = None  # No parent
+
+        normalizer.cleanup_temp_commit()
+
+        # Should not call git at all
+        mock_git_ops.run_git_command.assert_not_called()
+        # Flag should remain true (couldn't cleanup)
+        assert normalizer.temp_commit_created is True
+
+    def test_working_tree_commit_index_reset_on_failure(self, normalizer, mock_git_ops):
+        """Test that index is reset when working tree commit fails."""
+        mock_git_ops.run_git_command.side_effect = [
+            MagicMock(returncode=0, stdout="", stderr=""),  # add -A succeeds
+            MagicMock(returncode=1, stdout="", stderr=""),  # diff (has changes)
+            MagicMock(
+                returncode=0, stdout="parent123\n", stderr=""
+            ),  # rev-parse parent
+            MagicMock(returncode=1, stdout="", stderr="commit blocked"),  # commit fails
+            MagicMock(returncode=0, stdout="", stderr=""),  # reset HEAD (cleanup)
+        ]
+
+        with pytest.raises(SourceNormalizationError) as exc_info:
+            normalizer.normalize_to_commit("working-tree")
+
+        assert "Failed to create temp commit" in str(exc_info.value)
+        assert "commit blocked" in str(exc_info.value)
+
+        # Verify reset was called to cleanup
+        assert mock_git_ops.run_git_command.call_count == 5
+        last_call = mock_git_ops.run_git_command.call_args_list[-1]
+        assert last_call[0][0] == ["reset", "HEAD"]
+
+    def test_concurrent_modification_detection(self, normalizer, mock_git_ops):
+        """Test behavior when files modified during normalization."""
+        # Simulate scenario where HEAD changes between parent read and commit
+        mock_git_ops.run_git_command.side_effect = [
+            MagicMock(returncode=0, stdout="", stderr=""),  # add -A
+            MagicMock(returncode=1, stdout="", stderr=""),  # diff (has changes)
+            MagicMock(
+                returncode=0, stdout="parent_old\n", stderr=""
+            ),  # rev-parse parent
+            MagicMock(returncode=0, stdout="", stderr=""),  # commit succeeds
+            MagicMock(
+                returncode=0, stdout="new_commit_123\n", stderr=""
+            ),  # rev-parse new
+        ]
+
+        commit_hash = normalizer.normalize_to_commit("working-tree")
+
+        # Should succeed with new commit
+        assert commit_hash == "new_commit_123"
+        assert normalizer.parent_commit == "parent_old"
+        # Parent stored before concurrent modification
+        assert normalizer.temp_commit_created is True
+
+    def test_index_commit_index_preserved_on_failure(self, normalizer, mock_git_ops):
+        """Test that index is preserved when index commit fails."""
+        mock_git_ops.run_git_command.side_effect = [
+            MagicMock(returncode=1, stdout="", stderr=""),  # diff (has staged)
+            MagicMock(
+                returncode=0, stdout="parent123\n", stderr=""
+            ),  # rev-parse parent
+            MagicMock(returncode=1, stdout="", stderr="hook rejected"),  # commit fails
+        ]
+
+        with pytest.raises(SourceNormalizationError) as exc_info:
+            normalizer.normalize_to_commit("index")
+
+        assert "Failed to create temp commit" in str(exc_info.value)
+        assert "hook rejected" in str(exc_info.value)
+
+        # Note: index mode doesn't reset on failure because staged changes
+        # should remain staged for user to fix
+        assert normalizer.temp_commit_created is False
+
+    def test_error_messages_preserve_stderr(self, normalizer, mock_git_ops):
+        """Test that all error messages preserve git stderr output."""
+        test_cases = [
+            (
+                "HEAD",
+                MagicMock(returncode=1, stdout="", stderr="detached HEAD error"),
+                "Failed to get HEAD hash",
+                "detached HEAD error",
+            ),
+            (
+                "invalid_ref",
+                MagicMock(returncode=1, stdout="", stderr="not a valid object"),
+                "Invalid commit reference",
+                None,
+            ),  # Caught in wrapper
+        ]
+
+        for source, mock_return, expected_msg, expected_stderr in test_cases:
+            normalizer = SourceNormalizer(mock_git_ops)
+            mock_git_ops.run_git_command.return_value = mock_return
+
+            with pytest.raises(SourceNormalizationError) as exc_info:
+                normalizer.normalize_to_commit(source)
+
+            error_msg = str(exc_info.value)
+            assert expected_msg in error_msg
+            if expected_stderr:
+                assert expected_stderr in error_msg
