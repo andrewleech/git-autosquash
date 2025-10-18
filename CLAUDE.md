@@ -17,6 +17,9 @@ The architecture has been simplified from the previous three-strategy approach. 
 ```
 main.py (entry point)
   ├── GitOps (git command wrapper)
+  ├── Validation Framework (Phase 2 - NEW)
+  │   ├── SourceNormalizer (normalize inputs to commits)
+  │   └── ProcessingValidator (end-to-end validation)
   ├── HunkParser (diff parsing)
   ├── HunkTargetResolver (blame + fallback analysis)
   │   ├── BlameAnalysisEngine
@@ -31,6 +34,32 @@ main.py (entry point)
       ├── GitNativeCompleteHandler (orchestrator)
       └── GitNativeIgnoreHandler (index strategy)
 ```
+
+### Validation Framework (Phase 2 Complete)
+
+The validation framework provides strong safety guarantees against data corruption:
+
+**SourceNormalizer** (src/git_autosquash/source_normalizer.py)
+- Normalizes all input sources (working-tree, index, HEAD, commit refs) to a single commit
+- Creates temporary commits with `--no-verify` for working-tree/index sources
+- Stores parent SHA explicitly for safe cleanup
+- Handles edge cases: empty diffs, detached HEAD, concurrent modifications
+- 30 comprehensive tests covering all edge cases
+
+**ProcessingValidator** (src/git_autosquash/validation.py)
+- Pre-flight validation: `validate_hunk_count()` checks hunk counts match
+- Post-flight validation: `validate_processing()` uses `git diff <start> <end>` to guarantee no corruption
+- Provides detailed error messages with recovery instructions
+- Works correctly in detached HEAD state
+- 22 comprehensive tests covering all validation scenarios
+
+**Integration Status:** Phase 2 complete, Phase 3 integration pending. See `docs/validation-framework-integration-analysis.md` for integration plan.
+
+**Key Benefits:**
+- **Single code path**: All inputs normalized before processing
+- **Corruption detection**: Automatic detection via git diff
+- **Better debugging**: Always have starting commit for comparison
+- **Safer operations**: Validation catches data loss before completion
 
 ### Performance & Security Infrastructure
 
