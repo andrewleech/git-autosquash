@@ -1,10 +1,13 @@
 """Diff parsing and hunk splitting module."""
 
+import logging
 import re
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional
 
 from git_autosquash.git_ops import GitOps
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -52,17 +55,65 @@ class HunkParser:
         self.git_ops = git_ops
 
     def get_diff_hunks(
-        self, line_by_line: bool = False, source: str = "auto"
+        self,
+        line_by_line: bool = False,
+        from_commit: Optional[str] = None,
+        source: str = "auto",
     ) -> List[DiffHunk]:
-        """Extract hunks from current working tree or staged changes.
+        """Extract hunks from a commit or working tree.
+
+        Recommended usage: Use from_commit with SourceNormalizer for consistent
+        parsing from normalized commits. The source parameter is maintained for
+        backward compatibility.
 
         Args:
             line_by_line: If True, split hunks line-by-line for finer granularity
-            source: What to process - 'auto' (detect based on tree status),
-                   'working-tree', 'index', 'head', or a commit SHA
+            from_commit: Commit hash to parse (recommended path, use with SourceNormalizer)
+            source: DEPRECATED - What to process. Use from_commit instead.
+                   Values: 'auto' (detect based on tree status), 'working-tree',
+                   'index', 'head', or a commit SHA
 
         Returns:
             List of DiffHunk objects representing changes
+        """
+        if from_commit:
+            # New path: parse from normalized commit
+            if source != "auto":
+                logger.debug(
+                    f"Ignoring 'source={source}' parameter because from_commit is provided"
+                )
+
+            success, diff_output = self.git_ops._run_git_command(
+                "show", "--format=", from_commit
+            )
+            if not success:
+                logger.warning(
+                    f"Failed to get diff from commit {from_commit}: git command failed"
+                )
+                return []
+            hunks = self._parse_diff_output(diff_output)
+        else:
+            # Legacy path: maintain backward compatibility
+            # Note: Always emit warning since source parameter is deprecated
+            logger.debug(
+                "Using deprecated source-based parsing. "
+                "Consider using SourceNormalizer with from_commit parameter."
+            )
+            hunks = self._get_hunks_from_source(source)
+
+        if line_by_line:
+            hunks = self._split_hunks_line_by_line(hunks)
+
+        return hunks
+
+    def _get_hunks_from_source(self, source: str) -> List[DiffHunk]:
+        """Get hunks from legacy source specification (backward compatibility).
+
+        Args:
+            source: Source specification ('auto', 'working-tree', 'index', 'head', or commit SHA)
+
+        Returns:
+            List of DiffHunk objects
         """
         if source == "auto":
             # Auto-detect based on working tree status
@@ -103,12 +154,7 @@ class HunkParser:
         if not success:
             return []
 
-        hunks = self._parse_diff_output(diff_output)
-
-        if line_by_line:
-            hunks = self._split_hunks_line_by_line(hunks)
-
-        return hunks
+        return self._parse_diff_output(diff_output)
 
     def _parse_diff_output(self, diff_output: str) -> List[DiffHunk]:
         """Parse git diff output into DiffHunk objects.
