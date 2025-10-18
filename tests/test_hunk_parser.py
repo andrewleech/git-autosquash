@@ -420,3 +420,70 @@ index 7890abc..defghij 100644
         # Test end after end of file
         result = parser.get_file_content_at_lines("test.py", 2, 10)
         assert result == ["line 2", "line 3"]
+
+    @patch.object(HunkParser, "_parse_diff_output")
+    def test_get_diff_hunks_from_commit_success(self, mock_parse: Mock) -> None:
+        """Test get_diff_hunks with from_commit parameter."""
+        git_ops = Mock(spec=GitOps)
+        git_ops._run_git_command.return_value = (True, "diff output from commit")
+        mock_parse.return_value = []
+
+        parser = HunkParser(git_ops)
+        result = parser.get_diff_hunks(from_commit="abc123")
+
+        git_ops._run_git_command.assert_called_once_with("show", "--format=", "abc123")
+        mock_parse.assert_called_once_with("diff output from commit")
+        assert result == []
+
+    @patch.object(HunkParser, "_parse_diff_output")
+    def test_get_diff_hunks_from_commit_failure(self, mock_parse: Mock) -> None:
+        """Test get_diff_hunks handles git command failure with from_commit."""
+        git_ops = Mock(spec=GitOps)
+        git_ops._run_git_command.return_value = (False, "fatal: bad commit")
+
+        parser = HunkParser(git_ops)
+        result = parser.get_diff_hunks(from_commit="badcommit")
+
+        git_ops._run_git_command.assert_called_once_with(
+            "show", "--format=", "badcommit"
+        )
+        mock_parse.assert_not_called()
+        assert result == []
+
+    @patch.object(HunkParser, "_parse_diff_output")
+    @patch.object(HunkParser, "_split_hunks_line_by_line")
+    def test_get_diff_hunks_from_commit_line_by_line(
+        self, mock_split: Mock, mock_parse: Mock
+    ) -> None:
+        """Test get_diff_hunks with from_commit and line_by_line=True."""
+        git_ops = Mock(spec=GitOps)
+        git_ops._run_git_command.return_value = (True, "diff output")
+
+        original_hunks = [Mock(spec=DiffHunk)]
+        split_hunks = [Mock(spec=DiffHunk), Mock(spec=DiffHunk)]
+
+        mock_parse.return_value = original_hunks
+        mock_split.return_value = split_hunks
+
+        parser = HunkParser(git_ops)
+        result = parser.get_diff_hunks(from_commit="abc123", line_by_line=True)
+
+        git_ops._run_git_command.assert_called_once_with("show", "--format=", "abc123")
+        mock_parse.assert_called_once_with("diff output")
+        mock_split.assert_called_once_with(original_hunks)
+        assert result == split_hunks
+
+    @patch.object(HunkParser, "_get_hunks_from_source")
+    def test_get_diff_hunks_from_commit_ignores_source(
+        self, mock_get_source: Mock
+    ) -> None:
+        """Test that from_commit parameter takes precedence over source."""
+        git_ops = Mock(spec=GitOps)
+        git_ops._run_git_command.return_value = (True, "")
+
+        parser = HunkParser(git_ops)
+        parser.get_diff_hunks(from_commit="abc123", source="working-tree")
+
+        # from_commit should be used, source should be ignored
+        git_ops._run_git_command.assert_called_once_with("show", "--format=", "abc123")
+        mock_get_source.assert_not_called()
