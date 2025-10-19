@@ -18,6 +18,7 @@ strategy_app = typer.Typer(
     name="strategy",
     help="Strategy management commands (advanced/debugging)",
     hidden=True,
+    context_settings={"help_option_names": ["-h", "--help"]},
 )
 
 

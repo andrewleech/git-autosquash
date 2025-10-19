@@ -300,6 +300,7 @@ app = typer.Typer(
     name="git-autosquash",
     help="Automatically squash changes back into historical commits",
     add_completion=True,
+    context_settings={"help_option_names": ["-h", "--help"]},
 )
 
 # Add strategy subcommands
