@@ -1,8 +1,11 @@
 """CLI commands for git-native strategy management and configuration."""
 
-import argparse
 import os
 import sys
+from typing import Optional
+
+import typer
+from typing_extensions import Annotated
 
 from git_autosquash.git_ops import GitOps
 from git_autosquash.git_native_complete_handler import (
@@ -10,88 +13,83 @@ from git_autosquash.git_native_complete_handler import (
     create_git_native_handler,
 )
 
+# Create strategy subcommand app (hidden from main help)
+strategy_app = typer.Typer(
+    name="strategy",
+    help="Strategy management commands (advanced/debugging)",
+    hidden=True,
+)
 
-def cmd_strategy_info(args: argparse.Namespace) -> int:
-    """Display information about available git-native strategies.
 
-    Args:
-        args: Command line arguments
-
-    Returns:
-        Exit code (0 for success)
-    """
+@strategy_app.command("info")
+def cmd_strategy_info() -> None:
+    """Display information about available git-native strategies."""
     try:
         git_ops = GitOps()
 
         if not git_ops.is_git_repo():
-            print("Error: Not in a git repository", file=sys.stderr)
-            return 1
+            typer.echo("Error: Not in a git repository", err=True)
+            raise typer.Exit(code=1)
 
         handler = create_git_native_handler(git_ops)
         info = handler.get_strategy_info()
 
-        print("Git-Autosquash Strategy Information")
-        print("=" * 40)
-        print(f"Current Strategy: {info['preferred_strategy']}")
-        print(f"Strategies Available: {', '.join(info['strategies_available'])}")
-        print(f"Execution Order: {' → '.join(info['execution_order'])}")
+        typer.echo("Git-Autosquash Strategy Information")
+        typer.echo("=" * 40)
+        typer.echo(f"Current Strategy: {info['preferred_strategy']}")
+        typer.echo(f"Strategies Available: {', '.join(info['strategies_available'])}")
+        typer.echo(f"Execution Order: {' → '.join(info['execution_order'])}")
 
         env_override = info.get("environment_override")
         if env_override:
-            print(f"Environment Override: {env_override}")
+            typer.echo(f"Environment Override: {env_override}")
         else:
-            print("Environment Override: None")
+            typer.echo("Environment Override: None")
 
-        print("\nStrategy Descriptions:")
-        print("  index    - Index manipulation with stash backup (reliable)")
-        print("  legacy   - Manual patch application (fallback)")
+        typer.echo("\nStrategy Descriptions:")
+        typer.echo("  index    - Index manipulation with stash backup (reliable)")
+        typer.echo("  legacy   - Manual patch application (fallback)")
 
-        print("\nConfiguration:")
-        print("  Set GIT_AUTOSQUASH_STRATEGY=index|legacy to override")
-        print("  Default: Uses index strategy for optimal performance")
-
-        return 0
+        typer.echo("\nConfiguration:")
+        typer.echo("  Set GIT_AUTOSQUASH_STRATEGY=index|legacy to override")
+        typer.echo("  Default: Uses index strategy for optimal performance")
 
     except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        return 1
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(code=1)
 
 
-def cmd_strategy_test(args: argparse.Namespace) -> int:
-    """Test strategy compatibility and performance.
-
-    Args:
-        args: Command line arguments
-
-    Returns:
-        Exit code (0 for success)
-    """
+@strategy_app.command("test")
+def cmd_strategy_test(
+    strategy: Annotated[
+        Optional[str],
+        typer.Option(
+            help="Test specific strategy (default: test all, worktree deprecated)"
+        ),
+    ] = None,
+) -> None:
+    """Test strategy compatibility and performance."""
     try:
         git_ops = GitOps()
 
         if not git_ops.is_git_repo():
-            print("Error: Not in a git repository", file=sys.stderr)
-            return 1
+            typer.echo("Error: Not in a git repository", err=True)
+            raise typer.Exit(code=1)
 
-        strategy = args.strategy if hasattr(args, "strategy") else None
-
-        print("Testing Git-Native Strategy Compatibility")
-        print("=" * 45)
+        typer.echo("Testing Git-Native Strategy Compatibility")
+        typer.echo("=" * 45)
 
         # Test all strategies or specific one
         strategies_to_test = [strategy] if strategy else ["index", "legacy"]
 
-        # Handle worktree strategy requests
-        # No special handling needed for unsupported strategies - they'll be filtered out
-
         for strat in strategies_to_test:
-            print(f"\nTesting {strat} strategy:")
+            typer.echo(f"\nTesting {strat} strategy:")
 
             # Test compatibility
             compatible = GitNativeStrategyManager.validate_strategy_compatibility(
                 git_ops, strat
             )
-            print(f"  Compatibility: {'✓' if compatible else '✗'}")
+            typer.echo(f"  Compatibility: {'✓' if compatible else '✗'}")
 
             if compatible:
                 # Test basic functionality
@@ -101,55 +99,48 @@ def cmd_strategy_test(args: argparse.Namespace) -> int:
                     )
                     # Test with empty mappings (safe test)
                     result = handler.apply_ignored_hunks([])
-                    print(f"  Basic Function: {'✓' if result else '✗'}")
+                    typer.echo(f"  Basic Function: {'✓' if result else '✗'}")
                 except Exception as e:
-                    print(f"  Basic Function: ✗ ({e})")
+                    typer.echo(f"  Basic Function: ✗ ({e})")
             else:
-                print("  Reason: Strategy not supported on this system")
+                typer.echo("  Reason: Strategy not supported on this system")
 
         # Show recommendation
         recommended = GitNativeStrategyManager.get_recommended_strategy(git_ops)
-        print(f"\nRecommended Strategy: {recommended}")
-
-        return 0
+        typer.echo(f"\nRecommended Strategy: {recommended}")
 
     except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        return 1
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(code=1)
 
 
-def cmd_strategy_set(args: argparse.Namespace) -> int:
-    """Set the preferred git-native strategy via environment.
-
-    Args:
-        args: Command line arguments
-
-    Returns:
-        Exit code (0 for success)
-    """
+@strategy_app.command("set")
+def cmd_strategy_set(
+    strategy: Annotated[
+        str,
+        typer.Argument(help="Strategy to use (auto = default to index, worktree deprecated)"),
+    ],
+) -> None:
+    """Set the preferred git-native strategy via environment."""
     try:
-        strategy = args.strategy
-
         if strategy not in ["index", "legacy", "auto", "worktree"]:
-            print(f"Error: Invalid strategy '{strategy}'", file=sys.stderr)
-            print("Valid strategies: index, legacy, auto", file=sys.stderr)
-            return 1
-
-        # Remove worktree from valid strategies entirely
+            typer.echo(f"Error: Invalid strategy '{strategy}'", err=True)
+            typer.echo("Valid strategies: index, legacy, auto", err=True)
+            raise typer.Exit(code=1)
 
         if strategy == "auto":
             # Remove environment override to use auto-detection
             if "GIT_AUTOSQUASH_STRATEGY" in os.environ:
-                print("Removing GIT_AUTOSQUASH_STRATEGY environment variable")
-                print("Strategy will default to index for optimal performance")
+                typer.echo("Removing GIT_AUTOSQUASH_STRATEGY environment variable")
+                typer.echo("Strategy will default to index for optimal performance")
                 # Note: We can't actually remove it from the current process
-                print("Unset GIT_AUTOSQUASH_STRATEGY in your shell to apply")
+                typer.echo("Unset GIT_AUTOSQUASH_STRATEGY in your shell to apply")
             else:
-                print("No environment override set - using default index strategy")
+                typer.echo("No environment override set - using default index strategy")
         else:
-            print(f"To use {strategy} strategy, set environment variable:")
-            print(f"  export GIT_AUTOSQUASH_STRATEGY={strategy}")
-            print(
+            typer.echo(f"To use {strategy} strategy, set environment variable:")
+            typer.echo(f"  export GIT_AUTOSQUASH_STRATEGY={strategy}")
+            typer.echo(
                 "Add this to your shell profile (~/.bashrc, ~/.zshrc, etc.) to persist"
             )
 
@@ -160,60 +151,13 @@ def cmd_strategy_set(args: argparse.Namespace) -> int:
                 git_ops, strategy
             )
             if not compatible:
-                print(
+                typer.echo(
                     f"\nWarning: {strategy} strategy may not be compatible with your git version"
                 )
 
-        return 0
-
     except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        return 1
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(code=1)
 
 
-def add_strategy_subcommands(subparsers):
-    """Add strategy management subcommands to argument parser.
-
-    Args:
-        subparsers: Subparser object from main argument parser
-    """
-    # Strategy info command - hidden from main help
-    info_parser = subparsers.add_parser("strategy-info", help=argparse.SUPPRESS)
-    info_parser.set_defaults(func=cmd_strategy_info)
-
-    # Strategy test command - hidden from main help
-    test_parser = subparsers.add_parser("strategy-test", help=argparse.SUPPRESS)
-    test_parser.add_argument(
-        "--strategy",
-        choices=["index", "legacy", "worktree"],
-        help="Test specific strategy (default: test all, worktree deprecated)",
-    )
-    test_parser.set_defaults(func=cmd_strategy_test)
-
-    # Strategy set command - hidden from main help
-    set_parser = subparsers.add_parser("strategy-set", help=argparse.SUPPRESS)
-    set_parser.add_argument(
-        "strategy",
-        choices=["index", "legacy", "auto", "worktree"],
-        help="Strategy to use (auto = default to index, worktree deprecated)",
-    )
-    set_parser.set_defaults(func=cmd_strategy_set)
-
-
-def main_strategy_cli() -> None:
-    """Main entry point for strategy CLI when called directly."""
-    parser = argparse.ArgumentParser(
-        prog="git-autosquash-strategy",
-        description="Manage git-autosquash native strategies",
-    )
-
-    subparsers = parser.add_subparsers(dest="command", help="Available commands")
-    add_strategy_subcommands(subparsers)
-
-    args = parser.parse_args()
-
-    if not hasattr(args, "func"):
-        parser.print_help()
-        sys.exit(1)
-
-    sys.exit(args.func(args))
+# Old argparse functions removed - now using Typer

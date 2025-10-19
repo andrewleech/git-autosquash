@@ -1,9 +1,11 @@
 """CLI entry point for git-autosquash."""
 
-import argparse
 import subprocess
 import sys
 from typing import List, Optional
+
+import typer
+from typing_extensions import Annotated
 
 from git_autosquash import __version__
 from git_autosquash.hunk_target_resolver import HunkTargetResolver, HunkTargetMapping
@@ -293,68 +295,56 @@ def _display_automatic_mappings(mappings: List[HunkTargetMapping]) -> None:
     print()
 
 
-def setup_argument_parser() -> argparse.ArgumentParser:
-    """Set up and return the command line argument parser."""
+# Create Typer app
+app = typer.Typer(
+    name="git-autosquash",
+    help="Automatically squash changes back into historical commits",
+    add_completion=True,
+)
 
-    parser = argparse.ArgumentParser(
-        prog="git-autosquash",
-        description="Automatically squash changes back into historical commits",
-    )
-    parser.add_argument(
-        "--line-by-line",
-        action="store_true",
-        help="Use line-by-line hunk splitting instead of default git hunks",
-    )
-    parser.add_argument(
-        "--auto-accept",
-        action="store_true",
-        help="Automatically accept all hunks with blame-identified targets, bypass TUI",
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Show what would be done without making changes (requires --auto-accept)",
-    )
-    parser.add_argument(
-        "--source",
-        type=str,
-        default="auto",
-        help="Specify what to process: 'auto' (detect based on tree status), "
-        "'working-tree', 'index', 'head', or a commit SHA. "
-        "When 'head' or a commit SHA, git blame starts on <commit>~1. "
-        "Default: auto",
-    )
-    parser.add_argument(
-        "--base",
-        type=str,
-        default=None,
-        help="Specify the base commit/branch for the merge-base. "
-        "Use this when working on feature branches that are not based on main/master. "
-        "Example: --base andrewleech/usbd_net or --base origin/develop",
-    )
-    parser.add_argument(
-        "--version",
-        action="version",
-        version=f"%(prog)s {__version__}",
-    )
-
-    return parser
+# Add strategy subcommands
+from git_autosquash.cli_strategy import strategy_app
+app.add_typer(strategy_app)
 
 
-def setup_strategy_argument_parser() -> argparse.ArgumentParser:
-    """Set up argument parser with strategy commands included."""
+def complete_git_branches(incomplete: str) -> List[str]:
+    """Auto-complete git branch names for --base option.
 
-    parser = setup_argument_parser()
+    Args:
+        incomplete: Partial branch name typed by user
 
-    # Add hidden strategy management subcommands
-    subparsers = parser.add_subparsers(dest="command")
+    Returns:
+        List of matching branch names
+    """
+    try:
+        result = subprocess.run(
+            ["git", "branch", "-a", "--format=%(refname:short)"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0:
+            branches = [b.strip() for b in result.stdout.strip().split('\n') if b.strip()]
+            return [b for b in branches if b.startswith(incomplete)]
+    except Exception:
+        pass
+    return []
 
-    # Import here to avoid circular imports
-    from git_autosquash.cli_strategy import add_strategy_subcommands
 
-    add_strategy_subcommands(subparsers)
+def complete_source_option(incomplete: str) -> List[str]:
+    """Auto-complete source options.
 
-    return parser
+    Args:
+        incomplete: Partial source value typed by user
+
+    Returns:
+        List of matching source options
+    """
+    options = ["auto", "working-tree", "index", "head"]
+    return [o for o in options if o.startswith(incomplete)]
+
+
+# Old argparse setup functions removed - now using Typer (see app definition above)
 
 
 def validate_git_environment(git_ops: GitOps) -> str:
@@ -730,51 +720,81 @@ def _show_dry_run_output(
         print("git autosquash --auto-accept")
 
 
-def main() -> None:
-    """Main entry point for git-autosquash command."""
+@app.callback(invoke_without_command=True)
+def run(
+    ctx: typer.Context,
+    line_by_line: Annotated[
+        bool,
+        typer.Option(
+            "--line-by-line",
+            help="Use line-by-line hunk splitting instead of default git hunks",
+        ),
+    ] = False,
+    auto_accept: Annotated[
+        bool,
+        typer.Option(
+            "--auto-accept",
+            help="Automatically accept all hunks with blame-identified targets, bypass TUI",
+        ),
+    ] = False,
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run",
+            help="Show what would be done without making changes (requires --auto-accept)",
+        ),
+    ] = False,
+    source: Annotated[
+        str,
+        typer.Option(
+            help="Specify what to process: 'auto' (detect based on tree status), "
+            "'working-tree', 'index', 'head', or a commit SHA. "
+            "When 'head' or a commit SHA, git blame starts on <commit>~1",
+            autocompletion=complete_source_option,
+        ),
+    ] = "auto",
+    base: Annotated[
+        Optional[str],
+        typer.Option(
+            help="Specify the base commit/branch for the merge-base. "
+            "Use this when working on feature branches that are not based on main/master. "
+            "Example: --base andrewleech/usbd_net or --base origin/develop",
+            autocompletion=complete_git_branches,
+        ),
+    ] = None,
+) -> None:
+    """Automatically squash changes back into historical commits."""
+    # If a subcommand is being invoked, skip the main logic
+    if ctx.invoked_subcommand is not None:
+        return
+
     try:
-        # Phase 1: Parse command line arguments
-        # Check if strategy commands are being used
-        strategy_commands = ["strategy-info", "strategy-test", "strategy-set"]
-        if len(sys.argv) > 1 and sys.argv[1] in strategy_commands:
-            # Use strategy parser for strategy commands
-            parser = setup_strategy_argument_parser()
-        else:
-            # Use normal parser for regular usage
-            parser = setup_argument_parser()
-
-        args = parser.parse_args()
-
         # Validate argument combinations
-        if args.dry_run and not args.auto_accept:
-            print("Error: --dry-run requires --auto-accept", file=sys.stderr)
-            sys.exit(1)
-
-        # Handle strategy subcommands
-        if hasattr(args, "func"):
-            sys.exit(args.func(args))
+        if dry_run and not auto_accept:
+            typer.echo("Error: --dry-run requires --auto-accept", err=True)
+            raise typer.Exit(code=1)
 
         # Phase 2: Initialize git operations and validate environment
         git_ops = GitOps()
         current_branch = validate_git_environment(git_ops)
-        merge_base = get_merge_base(git_ops, current_branch, args.base)
-        check_repository_state(git_ops, merge_base, args.auto_accept)
+        merge_base = get_merge_base(git_ops, current_branch, base)
+        check_repository_state(git_ops, merge_base, auto_accept)
 
         # Create SquashContext from --source argument
-        context = SquashContext.from_source(args.source, git_ops)
+        context = SquashContext.from_source(source, git_ops)
         blame_ref = context.blame_ref
 
         # Validate context
         validation_errors = context.validate(git_ops)
         if validation_errors:
-            print("Error: Invalid context configuration:", file=sys.stderr)
+            typer.echo("Error: Invalid context configuration:", err=True)
             for error in validation_errors:
-                print(f"  • {error}", file=sys.stderr)
-            sys.exit(1)
+                typer.echo(f"  • {error}", err=True)
+            raise typer.Exit(code=1)
 
         # Phase 3: Process hunks and create mappings
         automatic_mappings, fallback_mappings = process_hunks_and_mappings(
-            git_ops, merge_base, args.line_by_line, args.source, blame_ref, context
+            git_ops, merge_base, line_by_line, source, blame_ref, context
         )
 
         print(f"Found target commits for {len(automatic_mappings)} hunks")
@@ -786,8 +806,8 @@ def main() -> None:
         # Phase 4: Handle user interaction
         success = False
 
-        if args.auto_accept:
-            if args.dry_run:
+        if auto_accept:
+            if dry_run:
                 # Dry run mode: show what would be done without making changes
                 _show_dry_run_output(automatic_mappings, fallback_mappings, git_ops)
                 success = True
@@ -832,31 +852,36 @@ def main() -> None:
 
         # Phase 5: Report results
         if success:
-            if args.dry_run:
+            if dry_run:
                 print("\n✓ Dry run completed successfully!")
             else:
                 print("✓ Operation completed successfully!")
         else:
             print("✗ Operation failed or was cancelled.")
-            sys.exit(1)
+            raise typer.Exit(code=1)
 
     except GitAutoSquashError as e:
         ErrorReporter.report_error(e)
-        sys.exit(1)
+        raise typer.Exit(code=1)
     except KeyboardInterrupt:
         cancel_error = UserCancelledError("git-autosquash operation")
         ErrorReporter.report_error(cancel_error)
-        sys.exit(130)
+        raise typer.Exit(code=130)
     except (subprocess.SubprocessError, FileNotFoundError) as e:
         wrapped = handle_unexpected_error(
             e, "git operation", "Check git installation and repository state"
         )
         ErrorReporter.report_error(wrapped)
-        sys.exit(1)
+        raise typer.Exit(code=1)
     except Exception as e:
         wrapped = handle_unexpected_error(e, "git-autosquash execution")
         ErrorReporter.report_error(wrapped)
-        sys.exit(1)
+        raise typer.Exit(code=1)
+
+
+def main() -> None:
+    """Entry point wrapper for console_scripts."""
+    app()
 
 
 if __name__ == "__main__":
