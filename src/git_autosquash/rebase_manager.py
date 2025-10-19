@@ -644,16 +644,16 @@ class RebaseManager:
             print(f"DEBUG: Failed to read file content: {e}")
 
         try:
-            # Create patch with corrected line numbers for target commit
-            print("DEBUG: Applying patch with corrected line numbers")
-            patch_content = self._create_corrected_patch_for_hunks(hunks, target_commit)
+            # Create patch from ORIGINAL hunk text (not reconstructed)
+            print("DEBUG: Creating patch from original hunk text")
+            patch_content = self._create_patch_from_original_hunks(hunks)
             print(
-                f"DEBUG: Created corrected patch content ({len(patch_content)} chars):"
+                f"DEBUG: Created patch content ({len(patch_content)} chars):"
             )
             print("=" * 50)
             print(patch_content)
             print("=" * 50)
-            self._apply_patch(patch_content)
+            self._apply_patch_with_3way(patch_content)
             print("DEBUG: Patch applied successfully")
 
             # Amend the commit
@@ -1489,8 +1489,97 @@ class RebaseManager:
             self.git_ops.run_git_command(["rebase", "--abort"])
             print("DEBUG: Cleaned up existing rebase state")
 
+    def _create_patch_from_original_hunks(self, hunks: List[DiffHunk]) -> str:
+        """Create a patch using the ORIGINAL hunk text from git (not reconstructed).
+
+        This preserves the exact hunk text extracted by HunkParser from 'git show',
+        avoiding manual reconstruction bugs. Git will handle any line number
+        differences with --3way and --recount.
+
+        Args:
+            hunks: List of hunks with original text from git
+
+        Returns:
+            Patch content string
+        """
+        patch_lines = []
+        current_file = None
+
+        for hunk in hunks:
+            # Add file header if this is a new file
+            if hunk.file_path != current_file:
+                current_file = hunk.file_path
+                patch_lines.extend(
+                    [f"--- a/{hunk.file_path}", f"+++ b/{hunk.file_path}"]
+                )
+
+            # Add ORIGINAL hunk lines from git (not reconstructed)
+            patch_lines.extend(hunk.lines)
+
+        return "\n".join(patch_lines) + "\n"
+
+    def _apply_patch_with_3way(self, patch_content: str) -> None:
+        """Apply patch using git's 3-way merge and fuzzy matching.
+
+        Uses git apply --3way --recount to let git handle:
+        - Line number differences (--recount)
+        - Context mismatches (--3way merge)
+        - Explicit conflict reporting (not silent corruption)
+
+        Args:
+            patch_content: Patch content to apply
+
+        Raises:
+            RebaseConflictError: If patch application fails with conflicts
+            subprocess.SubprocessError: If patch application fails
+        """
+        # Write patch to temporary file
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".patch", delete=False) as f:
+            f.write(patch_content)
+            patch_file = f.name
+            print(f"DEBUG: Wrote patch to temporary file: {patch_file}")
+
+        try:
+            # Apply patch with 3-way merge and automatic line number recalculation
+            print(
+                f"DEBUG: Running git apply --3way --recount {patch_file}"
+            )
+            result = self.git_ops.run_git_command(
+                [
+                    "apply",
+                    "--3way",
+                    "--recount",
+                    patch_file,
+                ]
+            )
+            print(f"DEBUG: git apply returned code: {result.returncode}")
+            print(f"DEBUG: git apply stdout: {result.stdout}")
+            print(f"DEBUG: git apply stderr: {result.stderr}")
+
+            if result.returncode != 0:
+                # Check if there are conflicts
+                print("DEBUG: Patch application failed, checking for conflicts")
+                conflicted_files = self._get_conflicted_files()
+                print(f"DEBUG: Conflicted files: {conflicted_files}")
+                if conflicted_files:
+                    raise RebaseConflictError(
+                        f"Patch application failed with conflicts: {result.stderr}",
+                        conflicted_files,
+                    )
+                else:
+                    raise subprocess.SubprocessError(
+                        f"Patch application failed: {result.stderr}"
+                    )
+
+        finally:
+            # Clean up temp file
+            try:
+                os.unlink(patch_file)
+            except OSError:
+                pass
+
     def _apply_patch(self, patch_content: str) -> None:
-        """Apply patch content to working directory.
+        """Apply patch content to working directory (LEGACY - use _apply_patch_with_3way).
 
         Args:
             patch_content: Patch content to apply
