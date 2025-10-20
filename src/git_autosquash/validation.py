@@ -164,9 +164,10 @@ class ProcessingValidator:
                 f"Failed to get diff from {starting_commit}: {result.stderr}"
             )
 
-        # Count hunks in original commit by counting @@ markers
+        # Count hunks in original commit by counting hunk header lines
+        # Hunk headers start with @@ (not just contain @@ )
         # This avoids coupling to HunkParser's internal implementation
-        original_count = result.stdout.count("@@ ")
+        original_count = sum(1 for line in result.stdout.split('\n') if line.startswith('@@'))
 
         # Get count of hunks to be processed
         processed_count = len(processed_hunks)
