@@ -1973,52 +1973,56 @@ class RebaseManager:
         """
         print(f"DEBUG: Processing source commit {source_commit[:8]} with ignored hunks")
 
-        # Start rebase to edit source commit (should already be in todo as 'edit')
-        # The rebase will stop at the source commit for us to edit it
-        # This happens because we marked it as 'edit' in _generate_rebase_todo
+        # Get split commit SHAs for ignored hunks from the ignored mappings
+        ignored_split_commits = []
+        if hasattr(self, "_ignored_mappings"):
+            for mapping in self._ignored_mappings:
+                if mapping.source_commit_sha:
+                    ignored_split_commits.append(mapping.source_commit_sha)
+                    print(f"DEBUG: Found ignored split commit: {mapping.source_commit_sha[:8]}")
 
-        # Get all hunks from source commit
-        all_hunks = self._get_hunks_from_commit(source_commit)
-        print(f"DEBUG: Source commit has {len(all_hunks)} total hunks")
+        if not ignored_split_commits:
+            print("DEBUG: No ignored split commits found, source commit will be removed")
+            # Remove the source commit entirely (all hunks were squashed)
+            result = self.git_ops.run_git_command(["rebase", "--skip"])
+            if result.returncode != 0:
+                print(f"DEBUG: Failed to skip source commit: {result.stderr}")
+                return False
+            return True
 
-        # Create set of approved hunk IDs
-        approved_hunk_ids = set()
-        for target_hunks in approved_hunks_by_target.values():
-            for hunk in target_hunks:
-                approved_hunk_ids.add(self._hunk_id(hunk))
+        print(f"DEBUG: Keeping {len(ignored_split_commits)} ignored hunks in source commit")
 
-        print(f"DEBUG: {len(approved_hunk_ids)} hunks were approved/squashed")
-
-        # Filter to keep only ignored hunks
-        ignored_hunks = [
-            h for h in all_hunks if self._hunk_id(h) not in approved_hunk_ids
-        ]
-
-        print(f"DEBUG: Keeping {len(ignored_hunks)} ignored hunks in source commit")
-
-        # Reset commit to empty state (soft reset to keep files staged)
+        # Reset commit to empty state
         result = self.git_ops.run_git_command(["reset", "HEAD~1"])
         if result.returncode != 0:
             print(f"DEBUG: Failed to reset source commit: {result.stderr}")
             return False
 
-        # Apply only ignored hunks
-        if ignored_hunks:
-            patch_content = self._create_patch_from_original_hunks(ignored_hunks)
-            try:
-                self._apply_patch_with_3way(patch_content)
-            except Exception as e:
-                print(f"DEBUG: Failed to apply ignored hunks patch: {e}")
-                return False
-        else:
-            # No ignored hunks - this shouldn't happen but handle gracefully
-            print("DEBUG: Warning - no ignored hunks found but source needs edit")
+        # Cherry-pick the ignored split commits
+        for i, commit_sha in enumerate(ignored_split_commits, 1):
+            print(f"DEBUG: Cherry-picking ignored hunk {i}/{len(ignored_split_commits)}: {commit_sha[:8]}")
+            result = self.git_ops.run_git_command(["cherry-pick", "--no-commit", commit_sha])
+            if result.returncode != 0:
+                print(f"DEBUG: Cherry-pick failed: {result.stderr}")
+                # Check for conflicts
+                conflicted_files = self._get_conflicted_files()
+                if conflicted_files:
+                    raise RebaseConflictError(
+                        f"Cherry-pick failed with conflicts: {result.stderr}",
+                        conflicted_files,
+                    )
+                else:
+                    raise subprocess.SubprocessError(
+                        f"Cherry-pick failed: {result.stderr}"
+                    )
+            print(f"DEBUG: Cherry-pick {i} successful")
 
         # Update commit message
         original_msg = self._get_commit_message(source_commit)
-        total_hunks = len(all_hunks)
-        ignored_count = len(ignored_hunks)
-        new_msg = f"{original_msg}\n[git-autosquash: {ignored_count}/{total_hunks} hunks ignored]"
+        ignored_count = len(ignored_split_commits)
+        # Count total hunks from both approved and ignored mappings
+        total_hunks = sum(len(hunks) for hunks in approved_hunks_by_target.values()) + ignored_count
+        new_msg = f"{original_msg}\n\n[git-autosquash: {ignored_count}/{total_hunks} hunks preserved, rest squashed to earlier commits]"
 
         # Amend with new message
         try:
