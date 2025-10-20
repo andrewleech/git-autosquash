@@ -72,6 +72,10 @@ class HunkCommitSplitter:
 
         # Create temporary branch at source~1 (parent of source commit)
         self.temp_branch = f"git-autosquash-split-{source_commit[:8]}"
+
+        # Clean up stale branch if it exists
+        self.git_ops.run_git_command(["branch", "-D", self.temp_branch])
+
         parent_result = self.git_ops.run_git_command(
             ["rev-parse", f"{source_commit}~1"]
         )
