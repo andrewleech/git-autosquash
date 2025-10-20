@@ -81,6 +81,13 @@ class RebaseManager:
             # Group hunks by target commit
             commit_hunks = self._group_hunks_by_commit(mappings)
 
+            # Build mapping from hunk to source_commit_sha for cherry-pick
+            hunk_to_source_commit = {}
+            for mapping in mappings:
+                if mapping.source_commit_sha:
+                    # Use hunk as key (need to find it in commit_hunks)
+                    hunk_to_source_commit[id(mapping.hunk)] = mapping.source_commit_sha
+
             # Check working tree state and handle stashing if needed
             self._handle_working_tree_state()
 
@@ -92,10 +99,14 @@ class RebaseManager:
 
             for target_commit in target_commits:
                 hunks = commit_hunks[target_commit]
+                # Get source commit SHAs for these hunks
+                source_commits = [
+                    hunk_to_source_commit.get(id(hunk)) for hunk in hunks
+                ]
                 print(
                     f"DEBUG: Processing target commit {target_commit[:8]} with {len(hunks)} hunks"
                 )
-                success = self._apply_hunks_to_commit(target_commit, hunks)
+                success = self._apply_hunks_to_commit(target_commit, hunks, source_commits)
                 if not success:
                     print(f"DEBUG: Failed to apply hunks to commit {target_commit[:8]}")
                     return False
@@ -618,7 +629,9 @@ class RebaseManager:
 
         return True
 
-    def _apply_hunks_to_commit(self, target_commit: str, hunks: List[DiffHunk]) -> bool:
+    def _apply_hunks_to_commit(
+        self, target_commit: str, hunks: List[DiffHunk], source_commits: Optional[List[Optional[str]]] = None
+    ) -> bool:
         """Apply hunks to a specific commit via interactive rebase.
 
         Args:
@@ -665,17 +678,44 @@ class RebaseManager:
             print(f"DEBUG: Failed to read file content: {e}")
 
         try:
-            # Create patch from ORIGINAL hunk text (not reconstructed)
-            print("DEBUG: Creating patch from original hunk text")
-            patch_content = self._create_patch_from_original_hunks(hunks)
-            print(
-                f"DEBUG: Created patch content ({len(patch_content)} chars):"
-            )
-            print("=" * 50)
-            print(patch_content)
-            print("=" * 50)
-            self._apply_patch_with_3way(patch_content)
-            print("DEBUG: Patch applied successfully")
+            # Check if we have split commit SHAs (for cherry-pick)
+            split_commits = [sc for sc in (source_commits or []) if sc is not None]
+
+            if split_commits:
+                # Use cherry-pick with 3-way merge (reliable)
+                print(f"DEBUG: Cherry-picking {len(split_commits)} split commits")
+                for i, commit_sha in enumerate(split_commits, 1):
+                    print(f"DEBUG: Cherry-picking {i}/{len(split_commits)}: {commit_sha[:8]}")
+                    result = self.git_ops.run_git_command(
+                        ["cherry-pick", "--no-commit", commit_sha]
+                    )
+                    if result.returncode != 0:
+                        print(f"DEBUG: Cherry-pick failed: {result.stderr}")
+                        # Check for conflicts
+                        conflicted_files = self._get_conflicted_files()
+                        if conflicted_files:
+                            raise RebaseConflictError(
+                                f"Cherry-pick failed with conflicts: {result.stderr}",
+                                conflicted_files,
+                            )
+                        else:
+                            raise subprocess.SubprocessError(
+                                f"Cherry-pick failed: {result.stderr}"
+                            )
+                    print(f"DEBUG: Cherry-pick {i} successful")
+                print("DEBUG: All cherry-picks successful")
+            else:
+                # Fall back to patch-based approach
+                print("DEBUG: Creating patch from original hunk text")
+                patch_content = self._create_patch_from_original_hunks(hunks)
+                print(
+                    f"DEBUG: Created patch content ({len(patch_content)} chars):"
+                )
+                print("=" * 50)
+                print(patch_content)
+                print("=" * 50)
+                self._apply_patch_with_3way(patch_content)
+                print("DEBUG: Patch applied successfully")
 
             # Amend the commit
             print("DEBUG: Amending commit with changes")

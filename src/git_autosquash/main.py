@@ -517,7 +517,7 @@ def process_hunks_and_mappings(
     source: str,
     blame_ref: str,
     context: SquashContext,
-) -> tuple[List[HunkTargetMapping], List[HunkTargetMapping], str, bool]:
+) -> tuple[List[HunkTargetMapping], List[HunkTargetMapping], str, bool, Optional["HunkCommitSplitter"]]:
     """Process hunks and create target mappings with validation.
 
     Args:
@@ -529,32 +529,60 @@ def process_hunks_and_mappings(
         context: SquashContext for centralized blame/HEAD exclusion logic
 
     Returns:
-        Tuple of (automatic_mappings, fallback_mappings, starting_commit, temp_commit_created)
+        Tuple of (automatic_mappings, fallback_mappings, starting_commit, temp_commit_created, splitter)
 
     Raises:
         SystemExit: If no hunks found
     """
+    from git_autosquash.hunk_commit_splitter import HunkCommitSplitter
+
     # Phase 1: Normalize source to commit
     normalizer = SourceNormalizer(git_ops)
     starting_commit = normalizer.normalize_to_commit(source)
     print(f"Processing from commit: {starting_commit[:8]}")
 
-    # Phase 2: Parse hunks from normalized commit
-    hunk_parser = HunkParser(git_ops)
-    hunks = hunk_parser.get_diff_hunks(line_by_line, from_commit=starting_commit)
+    # Phase 2: Split source commit into per-hunk commits (if using --source)
+    # This enables reliable 3-way merge during cherry-pick
+    splitter = None
+    split_commits = []
+    if context.source_commit:
+        print("DEBUG: Splitting source commit into per-hunk commits for reliable 3-way merge")
+        splitter = HunkCommitSplitter(git_ops)
+        try:
+            split_commits, hunks = splitter.split_commit_into_hunks(starting_commit)
+            print(f"DEBUG: Created {len(split_commits)} split commits")
+        except Exception as e:
+            print(f"DEBUG: Failed to split commit: {e}")
+            # Fall back to normal patch-based approach
+            splitter = None
+            split_commits = []
+
+    # Phase 3: Parse hunks (use hunks from splitter if available)
+    if not split_commits:
+        hunk_parser = HunkParser(git_ops)
+        hunks = hunk_parser.get_diff_hunks(line_by_line, from_commit=starting_commit)
 
     if not hunks:
         print("No hunks found to process.")
         normalizer.cleanup_temp_commit()
+        if splitter:
+            splitter.cleanup()
         sys.exit(0)
 
-    # Phase 3: Pre-flight validation
+    # Phase 4: Pre-flight validation
     validator = ProcessingValidator(git_ops)
     validator.validate_hunk_count(starting_commit, hunks)
 
-    # Phase 4: Resolve target commits for hunks with SquashContext
+    # Phase 5: Resolve target commits for hunks with SquashContext
     resolver = HunkTargetResolver(git_ops, merge_base, context, blame_ref=blame_ref)
     mappings = resolver.resolve_targets(hunks)
+
+    # Attach split commit SHAs to mappings (for cherry-pick)
+    if split_commits:
+        for i, mapping in enumerate(mappings):
+            if i < len(split_commits):
+                mapping.source_commit_sha = split_commits[i]
+                print(f"DEBUG: Mapped hunk {i+1} to split commit {split_commits[i][:8]}")
 
     # Separate automatic mappings from those requiring user input
     automatic_mappings = [m for m in mappings if not m.needs_user_selection]
@@ -565,6 +593,7 @@ def process_hunks_and_mappings(
         fallback_mappings,
         starting_commit,
         normalizer.temp_commit_created,
+        splitter,
     )
 
 
@@ -825,6 +854,7 @@ def run(
             fallback_mappings,
             starting_commit,
             temp_commit_created,
+            splitter,
         ) = process_hunks_and_mappings(
             git_ops, merge_base, line_by_line, source, blame_ref, context
         )
@@ -912,8 +942,10 @@ def run(
                 raise typer.Exit(code=1)
 
         finally:
-            # Always cleanup temp commit
+            # Always cleanup temp commit and split commits
             normalizer.cleanup_temp_commit()
+            if splitter:
+                splitter.cleanup()
 
     except GitAutoSquashError as e:
         ErrorReporter.report_error(e)
