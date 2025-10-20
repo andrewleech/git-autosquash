@@ -798,6 +798,10 @@ def run(
         merge_base = get_merge_base(git_ops, current_branch, base)
         check_repository_state(git_ops, merge_base, auto_accept)
 
+        # Save original HEAD for validation (before any processing)
+        original_head_result = git_ops.run_git_command(["rev-parse", "HEAD"])
+        original_head = original_head_result.stdout.strip() if original_head_result.returncode == 0 else None
+
         # Create SquashContext from --source argument
         context = SquashContext.from_source(source, git_ops)
         blame_ref = context.blame_ref
@@ -882,8 +886,11 @@ def run(
             # Phase 5: Post-flight validation
             if success and not dry_run:
                 validator = ProcessingValidator(git_ops)
+                # Use original HEAD for validation if available, otherwise use starting_commit
+                # This handles cases where --source points to a historical commit (not HEAD)
+                validation_base = original_head if original_head else starting_commit
                 validator.validate_processing(
-                    starting_commit, description="squash operation"
+                    validation_base, description="squash operation"
                 )
                 print("[+] Validation passed - no corruption detected")
 
