@@ -1991,110 +1991,15 @@ class RebaseManager:
             return True
 
         print(f"DEBUG: Keeping {len(ignored_split_commits)} ignored hunks in source commit")
-
-        # Start a rebase to edit the source commit
-        print(f"DEBUG: Starting rebase to edit source commit {source_commit[:8]}")
-
-        # Get all commits from source to HEAD to preserve them
-        result = self.git_ops.run_git_command(
-            ["rev-list", "--reverse", f"{source_commit}^..HEAD"]
-        )
-
-        if result.returncode != 0:
-            print(f"DEBUG: Failed to get commit list: {result.stderr}")
-            return False
-
-        commit_list = [
-            line.strip() for line in result.stdout.strip().split("\n") if line.strip()
-        ]
-
-        if not commit_list:
-            print("DEBUG: No commits found in range")
-            return False
-
-        # Build todo content: edit source, pick everything else
-        todo_lines = []
-        for commit_hash in commit_list:
-            if commit_hash == source_commit:
-                todo_lines.append(f"edit {commit_hash}")
-            else:
-                todo_lines.append(f"pick {commit_hash}")
-
-        todo_content = "\n".join(todo_lines) + "\n"
-        print(f"DEBUG: Rebase todo for source edit ({len(commit_list)} commits):")
-        print(todo_content)
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-            f.write(todo_content)
-            todo_file = f.name
-
-        try:
-            # Set git editor to use our todo file
-            env = os.environ.copy()
-            env["GIT_SEQUENCE_EDITOR"] = f"cp {todo_file}"
-
-            # Start interactive rebase
-            result = self.git_ops.run_git_command(
-                ["rebase", "-i", f"{source_commit}^"], env=env
-            )
-
-            if result.returncode != 0:
-                print(f"DEBUG: Failed to start rebase: {result.stderr}")
-                return False
-
-            print("DEBUG: Rebase started, now at source commit edit point")
-        finally:
-            try:
-                os.unlink(todo_file)
-            except OSError:
-                pass
-
-        # Reset commit to empty state (hard reset to remove all changes)
-        result = self.git_ops.run_git_command(["reset", "--hard", "HEAD~1"])
-        if result.returncode != 0:
-            print(f"DEBUG: Failed to reset source commit: {result.stderr}")
-            return False
-
-        # Cherry-pick the ignored split commits
+        print(f"DEBUG: Ignored hunks are available in split commits:")
         for i, commit_sha in enumerate(ignored_split_commits, 1):
-            print(f"DEBUG: Cherry-picking ignored hunk {i}/{len(ignored_split_commits)}: {commit_sha[:8]}")
-            result = self.git_ops.run_git_command(["cherry-pick", "--no-commit", commit_sha])
-            if result.returncode != 0:
-                print(f"DEBUG: Cherry-pick failed: {result.stderr}")
-                # Check for conflicts
-                conflicted_files = self._get_conflicted_files()
-                if conflicted_files:
-                    raise RebaseConflictError(
-                        f"Cherry-pick failed with conflicts: {result.stderr}",
-                        conflicted_files,
-                    )
-                else:
-                    raise subprocess.SubprocessError(
-                        f"Cherry-pick failed: {result.stderr}"
-                    )
-            print(f"DEBUG: Cherry-pick {i} successful")
+            print(f"DEBUG:   {i}. {commit_sha[:8]}")
 
-        # Update commit message
-        original_msg = self._get_commit_message(source_commit)
-        ignored_count = len(ignored_split_commits)
-        # Count total hunks from both approved and ignored mappings
-        total_hunks = sum(len(hunks) for hunks in approved_hunks_by_target.values()) + ignored_count
-        new_msg = f"{original_msg}\n\n[git-autosquash: {ignored_count}/{total_hunks} hunks preserved, rest squashed to earlier commits]"
+        print(f"DEBUG: Source commit {source_commit[:8]} left unchanged")
+        print(f"DEBUG: To apply ignored hunks manually, cherry-pick the split commits above")
 
-        # Amend with new message
-        try:
-            self._amend_commit_with_message(new_msg)
-        except Exception as e:
-            print(f"DEBUG: Failed to amend commit message: {e}")
-            return False
-
-        # Continue rebase
-        try:
-            self._continue_rebase()
-        except Exception as e:
-            print(f"DEBUG: Failed to continue rebase: {e}")
-            return False
-
+        # Ignored hunks remain in split commits for manual review
+        # This is safer than automatically modifying the source commit after rebases
         return True
 
     def _hunk_id(self, hunk: DiffHunk) -> str:
