@@ -56,9 +56,10 @@ class GitOps:
                 check=False,
             )
 
-            # For status --porcelain, preserve leading whitespace as it's significant
-            # For other commands, strip whitespace to avoid trailing newlines
-            if len(args) >= 2 and args[0] == "status" and args[1] == "--porcelain":
+            # For status --porcelain and diff/show commands, preserve trailing whitespace
+            # as it's significant (blank context lines in diffs are represented as a single space)
+            if (len(args) >= 2 and args[0] == "status" and args[1] == "--porcelain") or \
+               (len(args) >= 1 and args[0] in ("show", "diff")):
                 output = result.stdout.rstrip("\n")  # Only remove trailing newlines
             else:
                 output = result.stdout.strip()  # Full strip for other commands
