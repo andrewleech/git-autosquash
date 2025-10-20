@@ -1992,6 +1992,35 @@ class RebaseManager:
 
         print(f"DEBUG: Keeping {len(ignored_split_commits)} ignored hunks in source commit")
 
+        # Start a rebase to edit the source commit
+        print(f"DEBUG: Starting rebase to edit source commit {source_commit[:8]}")
+        todo_content = f"edit {source_commit}\n"
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+            f.write(todo_content)
+            todo_file = f.name
+
+        try:
+            # Set git editor to use our todo file
+            env = os.environ.copy()
+            env["GIT_SEQUENCE_EDITOR"] = f"cp {todo_file}"
+
+            # Start interactive rebase
+            result = self.git_ops.run_git_command(
+                ["rebase", "-i", f"{source_commit}^"], env=env
+            )
+
+            if result.returncode != 0:
+                print(f"DEBUG: Failed to start rebase: {result.stderr}")
+                return False
+
+            print("DEBUG: Rebase started, now at source commit edit point")
+        finally:
+            try:
+                os.unlink(todo_file)
+            except OSError:
+                pass
+
         # Reset commit to empty state
         result = self.git_ops.run_git_command(["reset", "HEAD~1"])
         if result.returncode != 0:
