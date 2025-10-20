@@ -49,12 +49,14 @@ class RebaseManager:
     def execute_squash(
         self,
         mappings: List[HunkTargetMapping],
+        ignored_mappings: List[HunkTargetMapping],
         context: SquashContext,
     ) -> bool:
         """Execute the squash operation for approved mappings.
 
         Args:
             mappings: List of approved hunk to commit mappings
+            ignored_mappings: List of ignored hunk to commit mappings
             context: SquashContext for --source commits and blame configuration
 
         Returns:
@@ -64,10 +66,11 @@ class RebaseManager:
             RebaseConflictError: If conflicts occur during rebase
             subprocess.SubprocessError: If git operations fail
         """
-        if not mappings:
+        if not mappings and not ignored_mappings:
             return True
 
         self._context = context
+        self._ignored_mappings = ignored_mappings
 
         # Store original branch for cleanup
         self._original_branch = self.git_ops.get_current_branch()
@@ -98,6 +101,24 @@ class RebaseManager:
                     return False
                 print(
                     f"DEBUG: Successfully applied hunks to commit {target_commit[:8]}"
+                )
+                print("=" * 80)
+
+            # Handle source commit if it has ignored hunks
+            if hasattr(self, "_source_needs_edit") and self._ignored_mappings:
+                print(
+                    f"DEBUG: Processing source commit with {len(self._ignored_mappings)} ignored hunks"
+                )
+                success = self._process_source_with_ignored_hunks(
+                    self._source_needs_edit, commit_hunks
+                )
+                if not success:
+                    print(
+                        f"DEBUG: Failed to process source commit {self._source_needs_edit[:8]}"
+                    )
+                    return False
+                print(
+                    f"DEBUG: Successfully processed source commit {self._source_needs_edit[:8]}"
                 )
                 print("=" * 80)
 
@@ -1166,7 +1187,7 @@ class RebaseManager:
             return f"edit {target_commit}\n"
 
         # Check if source commit is in the commit list
-        # When using --source <commit>, exclude that commit from rebase since its changes are being squashed
+        # When using --source <commit>, check if there are ignored hunks
         if self._context and self._context.source_commit:
             # Get full SHA of source commit for comparison
             source_result = self.git_ops.run_git_command(
@@ -1175,18 +1196,33 @@ class RebaseManager:
             if source_result.returncode == 0:
                 source_sha = source_result.stdout.strip()
                 if source_sha in commit_list:
-                    print(
-                        f"DEBUG: Detected --source commit {source_sha[:8]} in rebase sequence"
+                    # Check if there are ignored hunks from source
+                    has_ignored_hunks = bool(
+                        hasattr(self, "_ignored_mappings") and self._ignored_mappings
                     )
-                    print(
-                        "DEBUG: Excluding source commit from rebase to avoid conflicts"
-                    )
-                    # Remove source commit from the list
-                    commit_list = [c for c in commit_list if c != source_sha]
 
-                    if not commit_list:
-                        # Only source commit was in the list, use simple edit
-                        return f"edit {target_commit}\n"
+                    if has_ignored_hunks:
+                        print(
+                            f"DEBUG: Source commit {source_sha[:8]} has {len(self._ignored_mappings)} ignored hunks"
+                        )
+                        print(
+                            "DEBUG: Preserving source commit to keep ignored changes"
+                        )
+                        # Mark source for special edit handling
+                        self._source_needs_edit = source_sha
+                    else:
+                        print(
+                            f"DEBUG: Detected --source commit {source_sha[:8]} in rebase sequence"
+                        )
+                        print(
+                            "DEBUG: Excluding source commit from rebase (all hunks processed)"
+                        )
+                        # Remove source commit from the list - all its changes were squashed elsewhere
+                        commit_list = [c for c in commit_list if c != source_sha]
+
+                        if not commit_list:
+                            # Only source commit was in the list, use simple edit
+                            return f"edit {target_commit}\n"
 
         # Use comprehensive rebase approach
         print(
@@ -1196,6 +1232,11 @@ class RebaseManager:
         for commit_hash in commit_list:
             if commit_hash == target_commit:
                 todo_lines.append(f"edit {commit_hash}")
+            elif (
+                hasattr(self, "_source_needs_edit")
+                and commit_hash == self._source_needs_edit
+            ):
+                todo_lines.append(f"edit {commit_hash}")  # Source needs editing
             else:
                 todo_lines.append(f"pick {commit_hash}")
 
@@ -1822,3 +1863,168 @@ class RebaseManager:
             pass
 
         return status
+
+    def _process_source_with_ignored_hunks(
+        self, source_commit: str, approved_hunks_by_target: Dict[str, List[DiffHunk]]
+    ) -> bool:
+        """Process source commit by removing approved hunks, keeping only ignored hunks.
+
+        This is called when using --source with hunks that require manual selection.
+        Instead of losing those hunks, we preserve them in the source commit at its
+        original position.
+
+        Args:
+            source_commit: The source commit SHA to process
+            approved_hunks_by_target: Dict mapping target commits to their approved hunks
+
+        Returns:
+            True if successful, False otherwise
+        """
+        print(f"DEBUG: Processing source commit {source_commit[:8]} with ignored hunks")
+
+        # Start rebase to edit source commit (should already be in todo as 'edit')
+        # The rebase will stop at the source commit for us to edit it
+        # This happens because we marked it as 'edit' in _generate_rebase_todo
+
+        # Get all hunks from source commit
+        all_hunks = self._get_hunks_from_commit(source_commit)
+        print(f"DEBUG: Source commit has {len(all_hunks)} total hunks")
+
+        # Create set of approved hunk IDs
+        approved_hunk_ids = set()
+        for target_hunks in approved_hunks_by_target.values():
+            for hunk in target_hunks:
+                approved_hunk_ids.add(self._hunk_id(hunk))
+
+        print(f"DEBUG: {len(approved_hunk_ids)} hunks were approved/squashed")
+
+        # Filter to keep only ignored hunks
+        ignored_hunks = [
+            h for h in all_hunks if self._hunk_id(h) not in approved_hunk_ids
+        ]
+
+        print(f"DEBUG: Keeping {len(ignored_hunks)} ignored hunks in source commit")
+
+        # Reset commit to empty state (soft reset to keep files staged)
+        result = self.git_ops.run_git_command(["reset", "HEAD~1"])
+        if result.returncode != 0:
+            print(f"DEBUG: Failed to reset source commit: {result.stderr}")
+            return False
+
+        # Apply only ignored hunks
+        if ignored_hunks:
+            patch_content = self._create_patch_from_original_hunks(ignored_hunks)
+            try:
+                self._apply_patch_with_3way(patch_content)
+            except Exception as e:
+                print(f"DEBUG: Failed to apply ignored hunks patch: {e}")
+                return False
+        else:
+            # No ignored hunks - this shouldn't happen but handle gracefully
+            print("DEBUG: Warning - no ignored hunks found but source needs edit")
+
+        # Update commit message
+        original_msg = self._get_commit_message(source_commit)
+        total_hunks = len(all_hunks)
+        ignored_count = len(ignored_hunks)
+        new_msg = f"{original_msg}\n[git-autosquash: {ignored_count}/{total_hunks} hunks ignored]"
+
+        # Amend with new message
+        try:
+            self._amend_commit_with_message(new_msg)
+        except Exception as e:
+            print(f"DEBUG: Failed to amend commit message: {e}")
+            return False
+
+        # Continue rebase
+        result = self._continue_rebase()
+        if result.returncode != 0:
+            print(f"DEBUG: Failed to continue rebase: {result.stderr}")
+            return False
+
+        return True
+
+    def _hunk_id(self, hunk: DiffHunk) -> str:
+        """Create unique ID for hunk based on file, line range, and first line of content.
+
+        Args:
+            hunk: The hunk to create ID for
+
+        Returns:
+            Unique string identifier for the hunk
+        """
+        # Use file path, line numbers, and first line of actual changes
+        first_change = next(
+            (
+                line
+                for line in hunk.lines
+                if line.startswith(("+", "-")) and not line.startswith(("+++", "---"))
+            ),
+            "",
+        )
+        return f"{hunk.file_path}:{hunk.header}:{first_change[:50]}"
+
+    def _get_hunks_from_commit(self, commit: str) -> List[DiffHunk]:
+        """Get all hunks from a commit.
+
+        Args:
+            commit: Commit SHA to get hunks from
+
+        Returns:
+            List of DiffHunk objects
+        """
+        from git_autosquash.hunk_parser import HunkParser
+
+        parser = HunkParser(self.git_ops)
+        return parser.get_diff_hunks(line_by_line=False, from_commit=commit)
+
+    def _get_commit_message(self, commit: str) -> str:
+        """Get commit message (excluding headers like commit SHA, author, etc).
+
+        Args:
+            commit: Commit SHA
+
+        Returns:
+            Commit message body
+        """
+        result = self.git_ops.run_git_command(["log", "-1", "--format=%B", commit])
+        if result.returncode != 0:
+            return "Unknown commit message"
+        return result.stdout.strip()
+
+    def _amend_commit_with_message(self, message: str) -> None:
+        """Amend current commit with new message.
+
+        Args:
+            message: New commit message
+
+        Raises:
+            subprocess.SubprocessError: If amend fails
+        """
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", delete=False, suffix=".txt"
+        ) as f:
+            f.write(message)
+            msg_file = f.name
+
+        try:
+            # Stage all changes
+            result = self.git_ops.run_git_command(["add", "-A"])
+            if result.returncode != 0:
+                raise subprocess.SubprocessError(f"Failed to stage: {result.stderr}")
+
+            # Amend with message file
+            result = self.git_ops.run_git_command(
+                ["commit", "--amend", "-F", msg_file]
+            )
+            if result.returncode != 0:
+                raise subprocess.SubprocessError(
+                    f"Failed to amend commit: {result.stderr}"
+                )
+        finally:
+            try:
+                os.unlink(msg_file)
+            except OSError:
+                pass

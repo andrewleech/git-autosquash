@@ -158,6 +158,7 @@ def _create_patch_for_hunk(hunk) -> str:
 
 def _execute_rebase(
     approved_mappings,
+    ignored_mappings,
     git_ops,
     merge_base,
     resolver,
@@ -168,6 +169,7 @@ def _execute_rebase(
 
     Args:
         approved_mappings: List of approved hunk to commit mappings
+        ignored_mappings: List of ignored hunk to commit mappings
         git_ops: GitOps instance
         merge_base: Merge base commit hash
         resolver: HunkTargetResolver for getting commit summaries
@@ -200,7 +202,9 @@ def _execute_rebase(
         print("\nStarting rebase operation...")
 
         # Execute the squash operation
-        success = rebase_manager.execute_squash(approved_mappings, context=context)
+        success = rebase_manager.execute_squash(
+            approved_mappings, ignored_mappings, context=context
+        )
 
         if success:
             return True
@@ -631,6 +635,7 @@ def run_interactive_ui(
             # Use the same rebase execution path as auto-accept mode for consistency
             result = _execute_rebase(
                 app.approved_mappings,
+                app.ignored_mappings,
                 git_ops,
                 merge_base,
                 HunkTargetResolver(git_ops, merge_base, context, blame_ref=blame_ref),
@@ -850,29 +855,14 @@ def run(
                         automatic_mappings, auto_accept=True, git_ops=git_ops
                     )
 
-                    # Check for fallback mappings when using --source with --auto-accept
-                    # Ignoring these would cause data loss from the source commit
-                    if fallback_mappings and context.source_commit:
-                        print(
-                            f"\n✗ Error: {len(fallback_mappings)} hunks require manual target selection"
-                        )
-                        print(
-                            "When using --source with --auto-accept, all hunks must have automatic targets."
-                        )
-                        print(
-                            "Ignoring these hunks would cause data loss from the source commit."
-                        )
-                        print("\nOptions:")
-                        print("  1. Run without --auto-accept to manually select targets")
-                        print("  2. Use --dry-run to see which hunks need manual selection")
-                        raise typer.Exit(code=1)
-
                     # Add fallback mappings to ignored list (they can't be auto-accepted)
+                    # These will be preserved in the source commit if using --source
                     ignored_mappings.extend(fallback_mappings)
 
-                    if approved_mappings:
+                    if approved_mappings or ignored_mappings:
                         success = _execute_rebase(
                             approved_mappings,
+                            ignored_mappings,
                             git_ops,
                             merge_base,
                             HunkTargetResolver(
