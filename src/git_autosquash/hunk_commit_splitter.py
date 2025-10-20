@@ -236,6 +236,20 @@ class HunkCommitSplitter:
 
         logger.info(f"Cleaning up split commits on {self.temp_branch}")
 
+        # First, ensure we're not on the temp branch (can't delete current branch)
+        if self.original_branch:
+            current_branch = self.git_ops.get_current_branch()
+            if current_branch == self.temp_branch:
+                logger.debug(f"Switching from temp branch to {self.original_branch}")
+                result = self.git_ops.run_git_command(
+                    ["checkout", self.original_branch]
+                )
+                if result.returncode != 0:
+                    logger.warning(
+                        f"Failed to switch back to {self.original_branch}: {result.stderr}"
+                    )
+                    # Continue anyway, might still be able to delete
+
         # Delete the temporary branch
         result = self.git_ops.run_git_command(
             ["branch", "-D", self.temp_branch]
@@ -243,6 +257,9 @@ class HunkCommitSplitter:
         if result.returncode != 0:
             logger.warning(
                 f"Failed to delete temp branch {self.temp_branch}: {result.stderr}"
+            )
+            logger.info(
+                f"You can manually delete it with: git branch -D {self.temp_branch}"
             )
         else:
             logger.info(f"Deleted temporary branch {self.temp_branch}")
