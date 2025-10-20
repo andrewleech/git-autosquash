@@ -1165,20 +1165,6 @@ class RebaseManager:
         if not commit_list:
             return f"edit {target_commit}\n"
 
-        # Check if HEAD is in the commit list (retroactive squash scenario)
-        # If we're squashing changes FROM HEAD to an ancestor, exclude HEAD from rebase
-        if current_head in commit_list:
-            print(
-                f"DEBUG: Detected retroactive squash from HEAD {current_head[:8]} to ancestor {target_commit[:8]}"
-            )
-            print("DEBUG: Excluding HEAD from rebase to avoid conflicts")
-            # Remove HEAD from the list
-            commit_list = [c for c in commit_list if c != current_head]
-
-            if not commit_list:
-                # Only HEAD was in the list, use simple edit
-                return f"edit {target_commit}\n"
-
         # Check if source commit is in the commit list
         # When using --source <commit>, exclude that commit from rebase since its changes are being squashed
         if self._context and self._context.source_commit:
