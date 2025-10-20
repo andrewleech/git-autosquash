@@ -1501,8 +1501,16 @@ class RebaseManager:
         Returns:
             True if rebase started successfully
         """
-        # Clean up any existing rebase state first
-        self._cleanup_rebase_state()
+        # Check if rebase is already in progress
+        if self.is_rebase_in_progress():
+            print("DEBUG: Rebase already in progress - completing it before starting new one")
+            # Complete the existing rebase by continuing through all edit points
+            try:
+                self._complete_remaining_rebase()
+            except Exception as e:
+                print(f"DEBUG: Failed to complete existing rebase: {e}")
+                # Clean up the failed rebase state
+                self._cleanup_rebase_state()
 
         # Create rebase todo that marks target commit for editing and picks all others
         todo_content = self._generate_rebase_todo(target_commit)
@@ -1543,6 +1551,40 @@ class RebaseManager:
                 os.unlink(todo_file)
             except OSError:
                 pass
+
+    def _complete_remaining_rebase(self) -> None:
+        """Complete remaining edit points in an active rebase without making changes.
+
+        This is used when we need to finish a rebase that has edit points we don't
+        need to handle (e.g., source commit edit points that will be handled later).
+        """
+        max_iterations = 20  # Prevent infinite loops
+        iteration = 0
+
+        while self.is_rebase_in_progress() and iteration < max_iterations:
+            iteration += 1
+            print(f"DEBUG: Completing rebase iteration {iteration}")
+
+            # Just continue without making any changes
+            result = self.git_ops.run_git_command(["rebase", "--continue"])
+
+            if result.returncode != 0:
+                # Check if it's an empty commit
+                if "nothing to commit" in result.stderr:
+                    print("DEBUG: Skipping empty commit")
+                    self.git_ops.run_git_command(["rebase", "--skip"])
+                else:
+                    # Some other error - re-raise
+                    raise subprocess.SubprocessError(
+                        f"Failed to complete rebase: {result.stderr}"
+                    )
+
+        if iteration >= max_iterations:
+            raise subprocess.SubprocessError(
+                "Failed to complete rebase after maximum iterations"
+            )
+
+        print("DEBUG: Completed remaining rebase successfully")
 
     def _cleanup_rebase_state(self) -> None:
         """Clean up any existing rebase state that might interfere."""
@@ -1751,8 +1793,17 @@ class RebaseManager:
             print(f"DEBUG: git rebase --continue stderr: {result.stderr}")
 
             if result.returncode == 0:
-                # Rebase completed successfully
-                return
+                # Check if rebase is actually complete or just stopped at next edit point
+                if not self.is_rebase_in_progress():
+                    # Rebase completed successfully
+                    print("DEBUG: Rebase completed successfully")
+                    return
+                else:
+                    # Rebase stopped at next edit point - need to continue through remaining edits
+                    print("DEBUG: Rebase stopped at next edit point, continuing through remaining edits")
+                    # Continue through any remaining edit points automatically
+                    retry_count += 1
+                    continue
 
             # Check if this is an empty commit that should be skipped
             if (
@@ -1977,9 +2028,10 @@ class RebaseManager:
             return False
 
         # Continue rebase
-        result = self._continue_rebase()
-        if result.returncode != 0:
-            print(f"DEBUG: Failed to continue rebase: {result.stderr}")
+        try:
+            self._continue_rebase()
+        except Exception as e:
+            print(f"DEBUG: Failed to continue rebase: {e}")
             return False
 
         return True
