@@ -1743,7 +1743,7 @@ class RebaseManager:
                 pass
 
     def _amend_commit(self) -> None:
-        """Amend the current commit with changes, handling pre-commit hook modifications."""
+        """Amend the current commit with changes, handling pre-commit hook modifications and empty commits."""
         # Stage all changes
         result = self.git_ops.run_git_command(["add", "."])
         if result.returncode != 0:
@@ -1754,8 +1754,20 @@ class RebaseManager:
         # Attempt to amend commit (keep original message)
         result = self.git_ops.run_git_command(["commit", "--amend", "--no-edit"])
         if result.returncode != 0:
+            # Check if the failure was due to empty commit
+            if "would make it empty" in result.stderr:
+                print("DEBUG: Amend would create empty commit, using --allow-empty")
+                # Allow empty commit - this happens when changes cancel out the original
+                retry_result = self.git_ops.run_git_command(
+                    ["commit", "--amend", "--no-edit", "--allow-empty"]
+                )
+                if retry_result.returncode != 0:
+                    raise subprocess.SubprocessError(
+                        f"Failed to amend empty commit: {retry_result.stderr}"
+                    )
+                print("DEBUG: Successfully amended with --allow-empty")
             # Check if the failure was due to pre-commit hook modifications
-            if "files were modified by this hook" in result.stderr:
+            elif "files were modified by this hook" in result.stderr:
                 print(
                     "DEBUG: Pre-commit hook modified files, re-staging and retrying commit"
                 )
