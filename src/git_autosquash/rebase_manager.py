@@ -1755,7 +1755,7 @@ class RebaseManager:
         result = self.git_ops.run_git_command(["commit", "--amend", "--no-edit"])
         if result.returncode != 0:
             # Check if the failure was due to empty commit
-            if "would make it empty" in result.stderr:
+            if "would make" in result.stderr and "empty" in result.stderr:
                 print("DEBUG: Amend would create empty commit, using --allow-empty")
                 # Allow empty commit - this happens when changes cancel out the original
                 retry_result = self.git_ops.run_git_command(
