@@ -850,6 +850,23 @@ def run(
                         automatic_mappings, auto_accept=True, git_ops=git_ops
                     )
 
+                    # Check for fallback mappings when using --source with --auto-accept
+                    # Ignoring these would cause data loss from the source commit
+                    if fallback_mappings and context.source_commit:
+                        print(
+                            f"\n✗ Error: {len(fallback_mappings)} hunks require manual target selection"
+                        )
+                        print(
+                            "When using --source with --auto-accept, all hunks must have automatic targets."
+                        )
+                        print(
+                            "Ignoring these hunks would cause data loss from the source commit."
+                        )
+                        print("\nOptions:")
+                        print("  1. Run without --auto-accept to manually select targets")
+                        print("  2. Use --dry-run to see which hunks need manual selection")
+                        raise typer.Exit(code=1)
+
                     # Add fallback mappings to ignored list (they can't be auto-accepted)
                     ignored_mappings.extend(fallback_mappings)
 
