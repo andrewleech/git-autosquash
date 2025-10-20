@@ -134,9 +134,10 @@ class HunkCommitSplitter:
             hunk: The hunk to create a patch for
 
         Returns:
-            Patch content string
+            Patch content string in proper git diff format
         """
         lines = [
+            f"diff --git a/{hunk.file_path} b/{hunk.file_path}",
             f"--- a/{hunk.file_path}",
             f"+++ b/{hunk.file_path}",
         ]
