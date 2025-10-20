@@ -12,9 +12,8 @@ import logging
 import subprocess
 from typing import List, Optional
 
-from git_autosquash.diff_hunk import DiffHunk
 from git_autosquash.git_ops import GitOps
-from git_autosquash.hunk_parser import HunkParser
+from git_autosquash.hunk_parser import HunkParser, DiffHunk
 
 
 logger = logging.getLogger(__name__)
