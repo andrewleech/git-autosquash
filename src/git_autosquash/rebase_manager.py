@@ -2021,8 +2021,8 @@ class RebaseManager:
             except OSError:
                 pass
 
-        # Reset commit to empty state
-        result = self.git_ops.run_git_command(["reset", "HEAD~1"])
+        # Reset commit to empty state (hard reset to remove all changes)
+        result = self.git_ops.run_git_command(["reset", "--hard", "HEAD~1"])
         if result.returncode != 0:
             print(f"DEBUG: Failed to reset source commit: {result.stderr}")
             return False
