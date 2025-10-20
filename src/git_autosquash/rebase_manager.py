@@ -1539,8 +1539,12 @@ class RebaseManager:
                 ]
             )
             print(f"DEBUG: git apply returned code: {result.returncode}")
-            print(f"DEBUG: git apply stdout: {result.stdout}")
-            print(f"DEBUG: git apply stderr: {result.stderr}")
+            if result.stdout:
+                print(f"DEBUG: git apply stdout: {result.stdout}")
+            # Only show stderr if there was an error (returncode != 0)
+            # Success can still have warnings about 3-way fallback which are noise
+            if result.returncode != 0 and result.stderr:
+                print(f"DEBUG: git apply stderr: {result.stderr}")
 
             if result.returncode != 0:
                 # Check if there are conflicts
