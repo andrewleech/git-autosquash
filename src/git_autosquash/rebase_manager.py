@@ -1994,7 +1994,35 @@ class RebaseManager:
 
         # Start a rebase to edit the source commit
         print(f"DEBUG: Starting rebase to edit source commit {source_commit[:8]}")
-        todo_content = f"edit {source_commit}\n"
+
+        # Get all commits from source to HEAD to preserve them
+        result = self.git_ops.run_git_command(
+            ["rev-list", "--reverse", f"{source_commit}^..HEAD"]
+        )
+
+        if result.returncode != 0:
+            print(f"DEBUG: Failed to get commit list: {result.stderr}")
+            return False
+
+        commit_list = [
+            line.strip() for line in result.stdout.strip().split("\n") if line.strip()
+        ]
+
+        if not commit_list:
+            print("DEBUG: No commits found in range")
+            return False
+
+        # Build todo content: edit source, pick everything else
+        todo_lines = []
+        for commit_hash in commit_list:
+            if commit_hash == source_commit:
+                todo_lines.append(f"edit {commit_hash}")
+            else:
+                todo_lines.append(f"pick {commit_hash}")
+
+        todo_content = "\n".join(todo_lines) + "\n"
+        print(f"DEBUG: Rebase todo for source edit ({len(commit_list)} commits):")
+        print(todo_content)
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write(todo_content)
