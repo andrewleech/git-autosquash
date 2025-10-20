@@ -2045,6 +2045,9 @@ class RebaseManager:
         Returns:
             Unique string identifier for the hunk
         """
+        # Construct header from line numbers
+        header = f"@@ -{hunk.old_start},{hunk.old_count} +{hunk.new_start},{hunk.new_count} @@"
+
         # Use file path, line numbers, and first line of actual changes
         first_change = next(
             (
@@ -2054,7 +2057,7 @@ class RebaseManager:
             ),
             "",
         )
-        return f"{hunk.file_path}:{hunk.header}:{first_change[:50]}"
+        return f"{hunk.file_path}:{header}:{first_change[:50]}"
 
     def _get_hunks_from_commit(self, commit: str) -> List[DiffHunk]:
         """Get all hunks from a commit.
