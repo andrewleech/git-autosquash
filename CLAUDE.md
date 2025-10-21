@@ -17,7 +17,7 @@ The architecture has been simplified from the previous three-strategy approach. 
 ```
 main.py (entry point)
   ├── GitOps (git command wrapper)
-  ├── Validation Framework (Phase 2 - NEW)
+  ├── Validation Framework (Integrated - Phase 3 Complete)
   │   ├── SourceNormalizer (normalize inputs to commits)
   │   └── ProcessingValidator (end-to-end validation)
   ├── HunkParser (diff parsing)

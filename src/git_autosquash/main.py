@@ -1,12 +1,13 @@
 """CLI entry point for git-autosquash."""
 
-import argparse
 import subprocess
 import sys
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
-from git_autosquash import __version__
-from git_autosquash.hunk_target_resolver import HunkTargetResolver, HunkTargetMapping
+import typer
+from typing_extensions import Annotated
+
+from git_autosquash.cli_strategy import strategy_app
 from git_autosquash.exceptions import (
     ErrorReporter,
     GitAutoSquashError,
@@ -16,10 +17,14 @@ from git_autosquash.exceptions import (
 )
 from git_autosquash.git_ops import GitOps
 from git_autosquash.hunk_parser import HunkParser
+from git_autosquash.hunk_target_resolver import HunkTargetMapping, HunkTargetResolver
 from git_autosquash.rebase_manager import RebaseConflictError, RebaseManager
 from git_autosquash.source_normalizer import SourceNormalizer
 from git_autosquash.squash_context import SquashContext
 from git_autosquash.validation import ProcessingValidator
+
+if TYPE_CHECKING:
+    from git_autosquash.hunk_commit_splitter import HunkCommitSplitter
 
 
 def _simple_approval_fallback(mappings, resolver, commit_analyzer=None):
@@ -156,6 +161,7 @@ def _create_patch_for_hunk(hunk) -> str:
 
 def _execute_rebase(
     approved_mappings,
+    ignored_mappings,
     git_ops,
     merge_base,
     resolver,
@@ -166,6 +172,7 @@ def _execute_rebase(
 
     Args:
         approved_mappings: List of approved hunk to commit mappings
+        ignored_mappings: List of ignored hunk to commit mappings
         git_ops: GitOps instance
         merge_base: Merge base commit hash
         resolver: HunkTargetResolver for getting commit summaries
@@ -198,7 +205,9 @@ def _execute_rebase(
         print("\nStarting rebase operation...")
 
         # Execute the squash operation
-        success = rebase_manager.execute_squash(approved_mappings, context=context)
+        success = rebase_manager.execute_squash(
+            approved_mappings, ignored_mappings, context=context
+        )
 
         if success:
             return True
@@ -295,68 +304,58 @@ def _display_automatic_mappings(mappings: List[HunkTargetMapping]) -> None:
     print()
 
 
-def setup_argument_parser() -> argparse.ArgumentParser:
-    """Set up and return the command line argument parser."""
+# Create Typer app
+app = typer.Typer(
+    name="git-autosquash",
+    help="Automatically squash changes back into historical commits",
+    add_completion=True,
+    context_settings={"help_option_names": ["-h", "--help"]},
+)
 
-    parser = argparse.ArgumentParser(
-        prog="git-autosquash",
-        description="Automatically squash changes back into historical commits",
-    )
-    parser.add_argument(
-        "--line-by-line",
-        action="store_true",
-        help="Use line-by-line hunk splitting instead of default git hunks",
-    )
-    parser.add_argument(
-        "--auto-accept",
-        action="store_true",
-        help="Automatically accept all hunks with blame-identified targets, bypass TUI",
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Show what would be done without making changes (requires --auto-accept)",
-    )
-    parser.add_argument(
-        "--source",
-        type=str,
-        default="auto",
-        help="Specify what to process: 'auto' (detect based on tree status), "
-        "'working-tree', 'index', 'head', or a commit SHA. "
-        "When 'head' or a commit SHA, git blame starts on <commit>~1. "
-        "Default: auto",
-    )
-    parser.add_argument(
-        "--base",
-        type=str,
-        default=None,
-        help="Specify the base commit/branch for the merge-base. "
-        "Use this when working on feature branches that are not based on main/master. "
-        "Example: --base andrewleech/usbd_net or --base origin/develop",
-    )
-    parser.add_argument(
-        "--version",
-        action="version",
-        version=f"%(prog)s {__version__}",
-    )
-
-    return parser
+# Add strategy subcommands
+app.add_typer(strategy_app)
 
 
-def setup_strategy_argument_parser() -> argparse.ArgumentParser:
-    """Set up argument parser with strategy commands included."""
+def complete_git_branches(incomplete: str) -> List[str]:
+    """Auto-complete git branch names for --base option.
 
-    parser = setup_argument_parser()
+    Args:
+        incomplete: Partial branch name typed by user
 
-    # Add hidden strategy management subcommands
-    subparsers = parser.add_subparsers(dest="command")
+    Returns:
+        List of matching branch names
+    """
+    try:
+        result = subprocess.run(
+            ["git", "branch", "-a", "--format=%(refname:short)"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0:
+            branches = [
+                b.strip() for b in result.stdout.strip().split("\n") if b.strip()
+            ]
+            return [b for b in branches if b.startswith(incomplete)]
+    except Exception:
+        pass
+    return []
 
-    # Import here to avoid circular imports
-    from git_autosquash.cli_strategy import add_strategy_subcommands
 
-    add_strategy_subcommands(subparsers)
+def complete_source_option(incomplete: str) -> List[str]:
+    """Auto-complete source options.
 
-    return parser
+    Args:
+        incomplete: Partial source value typed by user
+
+    Returns:
+        List of matching source options
+    """
+    options = ["auto", "working-tree", "index", "head"]
+    return [o for o in options if o.startswith(incomplete)]
+
+
+# Old argparse setup functions removed - now using Typer (see app definition above)
 
 
 def validate_git_environment(git_ops: GitOps) -> str:
@@ -522,7 +521,13 @@ def process_hunks_and_mappings(
     source: str,
     blame_ref: str,
     context: SquashContext,
-) -> tuple[List[HunkTargetMapping], List[HunkTargetMapping], str, bool]:
+) -> tuple[
+    List[HunkTargetMapping],
+    List[HunkTargetMapping],
+    str,
+    bool,
+    Optional["HunkCommitSplitter"],
+]:
     """Process hunks and create target mappings with validation.
 
     Args:
@@ -534,32 +539,64 @@ def process_hunks_and_mappings(
         context: SquashContext for centralized blame/HEAD exclusion logic
 
     Returns:
-        Tuple of (automatic_mappings, fallback_mappings, starting_commit, temp_commit_created)
+        Tuple of (automatic_mappings, fallback_mappings, starting_commit, temp_commit_created, splitter)
 
     Raises:
         SystemExit: If no hunks found
     """
+    from git_autosquash.hunk_commit_splitter import HunkCommitSplitter
+
     # Phase 1: Normalize source to commit
     normalizer = SourceNormalizer(git_ops)
     starting_commit = normalizer.normalize_to_commit(source)
     print(f"Processing from commit: {starting_commit[:8]}")
 
-    # Phase 2: Parse hunks from normalized commit
-    hunk_parser = HunkParser(git_ops)
-    hunks = hunk_parser.get_diff_hunks(line_by_line, from_commit=starting_commit)
+    # Phase 2: Split source commit into per-hunk commits (if using --source)
+    # This enables reliable 3-way merge during cherry-pick
+    splitter: Optional[HunkCommitSplitter] = None
+    split_commits: List[str] = []
+    if context.source_commit:
+        print(
+            "DEBUG: Splitting source commit into per-hunk commits for reliable 3-way merge"
+        )
+        splitter = HunkCommitSplitter(git_ops)
+        try:
+            split_commits, hunks = splitter.split_commit_into_hunks(starting_commit)
+            print(f"DEBUG: Created {len(split_commits)} split commits")
+        except Exception as e:
+            print(f"DEBUG: Failed to split commit: {e}")
+            # Fall back to normal patch-based approach
+            splitter = None
+            split_commits = []
+
+    # Phase 3: Parse hunks (use hunks from splitter if available)
+    if not split_commits:
+        hunk_parser = HunkParser(git_ops)
+        hunks = hunk_parser.get_diff_hunks(line_by_line, from_commit=starting_commit)
 
     if not hunks:
         print("No hunks found to process.")
         normalizer.cleanup_temp_commit()
+        if splitter:
+            splitter.cleanup()
         sys.exit(0)
 
-    # Phase 3: Pre-flight validation
+    # Phase 4: Pre-flight validation
     validator = ProcessingValidator(git_ops)
     validator.validate_hunk_count(starting_commit, hunks)
 
-    # Phase 4: Resolve target commits for hunks with SquashContext
+    # Phase 5: Resolve target commits for hunks with SquashContext
     resolver = HunkTargetResolver(git_ops, merge_base, context, blame_ref=blame_ref)
     mappings = resolver.resolve_targets(hunks)
+
+    # Attach split commit SHAs to mappings (for cherry-pick)
+    if split_commits:
+        for i, mapping in enumerate(mappings):
+            if i < len(split_commits):
+                mapping.source_commit_sha = split_commits[i]
+                print(
+                    f"DEBUG: Mapped hunk {i + 1} to split commit {split_commits[i][:8]}"
+                )
 
     # Separate automatic mappings from those requiring user input
     automatic_mappings = [m for m in mappings if not m.needs_user_selection]
@@ -570,6 +607,7 @@ def process_hunks_and_mappings(
         fallback_mappings,
         starting_commit,
         normalizer.temp_commit_created,
+        splitter,
     )
 
 
@@ -640,6 +678,7 @@ def run_interactive_ui(
             # Use the same rebase execution path as auto-accept mode for consistency
             result = _execute_rebase(
                 app.approved_mappings,
+                app.ignored_mappings,
                 git_ops,
                 merge_base,
                 HunkTargetResolver(git_ops, merge_base, context, blame_ref=blame_ref),
@@ -747,47 +786,85 @@ def _show_dry_run_output(
         print("git autosquash --auto-accept")
 
 
-def main() -> None:
-    """Main entry point for git-autosquash command."""
+@app.callback(invoke_without_command=True)
+def run(
+    ctx: typer.Context,
+    line_by_line: Annotated[
+        bool,
+        typer.Option(
+            "--line-by-line",
+            help="Use line-by-line hunk splitting instead of default git hunks",
+        ),
+    ] = False,
+    auto_accept: Annotated[
+        bool,
+        typer.Option(
+            "--auto-accept",
+            help="Automatically accept all hunks with blame-identified targets, bypass TUI",
+        ),
+    ] = False,
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run",
+            help="Show what would be done without making changes (requires --auto-accept)",
+        ),
+    ] = False,
+    source: Annotated[
+        str,
+        typer.Option(
+            help="Specify what to process: 'auto' (detect based on tree status), "
+            "'working-tree', 'index', 'head', or a commit SHA. "
+            "When 'head' or a commit SHA, git blame starts on <commit>~1",
+            autocompletion=complete_source_option,
+        ),
+    ] = "auto",
+    base: Annotated[
+        Optional[str],
+        typer.Option(
+            help="Specify the base commit/branch for the merge-base. "
+            "Use this when working on feature branches that are not based on main/master. "
+            "Example: --base andrewleech/usbd_net or --base origin/develop",
+            autocompletion=complete_git_branches,
+        ),
+    ] = None,
+) -> None:
+    """Automatically squash changes back into historical commits."""
+    # If a subcommand is being invoked, skip the main logic
+    if ctx.invoked_subcommand is not None:
+        return
+
     try:
-        # Phase 1: Parse command line arguments
-        # Check if strategy commands are being used
-        strategy_commands = ["strategy-info", "strategy-test", "strategy-set"]
-        if len(sys.argv) > 1 and sys.argv[1] in strategy_commands:
-            # Use strategy parser for strategy commands
-            parser = setup_strategy_argument_parser()
-        else:
-            # Use normal parser for regular usage
-            parser = setup_argument_parser()
-
-        args = parser.parse_args()
-
         # Validate argument combinations
-        if args.dry_run and not args.auto_accept:
-            print("Error: --dry-run requires --auto-accept", file=sys.stderr)
-            sys.exit(1)
-
-        # Handle strategy subcommands
-        if hasattr(args, "func"):
-            sys.exit(args.func(args))
+        if dry_run and not auto_accept:
+            typer.echo("Error: --dry-run requires --auto-accept", err=True)
+            raise typer.Exit(code=1)
 
         # Phase 2: Initialize git operations and validate environment
         git_ops = GitOps()
         current_branch = validate_git_environment(git_ops)
-        merge_base = get_merge_base(git_ops, current_branch, args.base)
-        check_repository_state(git_ops, merge_base, args.auto_accept)
+        merge_base = get_merge_base(git_ops, current_branch, base)
+        check_repository_state(git_ops, merge_base, auto_accept)
+
+        # Save original HEAD for validation (before any processing)
+        original_head_result = git_ops.run_git_command(["rev-parse", "HEAD"])
+        original_head = (
+            original_head_result.stdout.strip()
+            if original_head_result.returncode == 0
+            else None
+        )
 
         # Create SquashContext from --source argument
-        context = SquashContext.from_source(args.source, git_ops)
+        context = SquashContext.from_source(source, git_ops)
         blame_ref = context.blame_ref
 
         # Validate context
         validation_errors = context.validate(git_ops)
         if validation_errors:
-            print("Error: Invalid context configuration:", file=sys.stderr)
+            typer.echo("Error: Invalid context configuration:", err=True)
             for error in validation_errors:
-                print(f"  • {error}", file=sys.stderr)
-            sys.exit(1)
+                typer.echo(f"  • {error}", err=True)
+            raise typer.Exit(code=1)
 
         # Phase 3: Process hunks and create mappings
         (
@@ -795,8 +872,9 @@ def main() -> None:
             fallback_mappings,
             starting_commit,
             temp_commit_created,
+            splitter,
         ) = process_hunks_and_mappings(
-            git_ops, merge_base, args.line_by_line, args.source, blame_ref, context
+            git_ops, merge_base, line_by_line, source, blame_ref, context
         )
 
         # Store normalizer for cleanup
@@ -814,8 +892,8 @@ def main() -> None:
             # Phase 4: Handle user interaction
             success = False
 
-            if args.auto_accept:
-                if args.dry_run:
+            if auto_accept:
+                if dry_run:
                     # Dry run mode: show what would be done without making changes
                     _show_dry_run_output(automatic_mappings, fallback_mappings, git_ops)
                     success = True
@@ -826,11 +904,13 @@ def main() -> None:
                     )
 
                     # Add fallback mappings to ignored list (they can't be auto-accepted)
+                    # These will be preserved in the source commit if using --source
                     ignored_mappings.extend(fallback_mappings)
 
-                    if approved_mappings:
+                    if approved_mappings or ignored_mappings:
                         success = _execute_rebase(
                             approved_mappings,
+                            ignored_mappings,
                             git_ops,
                             merge_base,
                             HunkTargetResolver(
@@ -859,55 +939,65 @@ def main() -> None:
                     success = True
 
             # Phase 5: Post-flight validation
-            if success and not args.dry_run:
+            if success and not dry_run:
                 validator = ProcessingValidator(git_ops)
+                # Use original HEAD for validation if available, otherwise use starting_commit
+                # This handles cases where --source points to a historical commit (not HEAD)
+                validation_base = original_head if original_head else starting_commit
                 validator.validate_processing(
-                    starting_commit, description="squash operation"
+                    validation_base, description="squash operation"
                 )
                 print("[+] Validation passed - no corruption detected")
 
             # Phase 6: Report results
             if success:
-                if args.dry_run:
+                if dry_run:
                     print("\n✓ Dry run completed successfully!")
                 else:
                     print("✓ Operation completed successfully!")
             else:
                 print("✗ Operation failed or was cancelled.")
-                sys.exit(1)
+                raise typer.Exit(code=1)
 
         finally:
-            # Always cleanup temp commit
+            # Always cleanup temp commit and split commits
             normalizer.cleanup_temp_commit()
+            if splitter:
+                splitter.cleanup()
 
     except GitAutoSquashError as e:
         ErrorReporter.report_error(e)
-        sys.exit(1)
+        raise typer.Exit(code=1)
     except KeyboardInterrupt:
         cancel_error = UserCancelledError("git-autosquash operation")
         ErrorReporter.report_error(cancel_error)
-        sys.exit(130)
+        raise typer.Exit(code=130)
     except (subprocess.SubprocessError, FileNotFoundError) as e:
         wrapped = handle_unexpected_error(
             e, "git operation", "Check git installation and repository state"
         )
         ErrorReporter.report_error(wrapped)
-        sys.exit(1)
+        raise typer.Exit(code=1)
     except Exception as e:
         # Check if it's a validation error
         from git_autosquash.validation import ValidationError
 
         if isinstance(e, ValidationError):
-            print(f"\n✗ VALIDATION FAILED: {e}", file=sys.stderr)
-            print(
+            typer.echo(f"\n✗ VALIDATION FAILED: {e}", err=True)
+            typer.echo(
                 "This indicates potential data corruption during processing.",
-                file=sys.stderr,
+                err=True,
             )
-            sys.exit(1)
+            raise typer.Exit(code=1)
 
         wrapped = handle_unexpected_error(e, "git-autosquash execution")
         ErrorReporter.report_error(wrapped)
-        sys.exit(1)
+        raise typer.Exit(code=1)
+
+
+def main() -> None:
+    """Entry point wrapper for console_scripts."""
+    app()
 
 
 if __name__ == "__main__":

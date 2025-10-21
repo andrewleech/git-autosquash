@@ -53,6 +53,10 @@ class SquashContext:
         # Normalize source to lowercase for comparison
         source_lower = source.lower()
 
+        # Get working tree status first - needed to determine what we're processing
+        status = git_ops.get_working_tree_status()
+        working_tree_clean = status["is_clean"]
+
         # Determine blame_ref and source_commit based on source
         if source_lower in ["head"]:
             # Processing HEAD commit, not a specific commit SHA
@@ -60,8 +64,14 @@ class SquashContext:
             source_commit_value = None
             is_historical = False
         elif source_lower in ["auto", "working-tree", "index"]:
-            # Processing working tree or index changes
-            blame_ref = "HEAD"
+            # For "auto": if working tree is clean, process HEAD commit (use HEAD~1)
+            # Otherwise process working tree changes (use HEAD)
+            if source_lower == "auto" and working_tree_clean:
+                # Working tree clean - process HEAD commit
+                blame_ref = "HEAD~1"
+            else:
+                # Process working tree or index changes
+                blame_ref = "HEAD"
             source_commit_value = None
             is_historical = False
         else:
@@ -69,10 +79,6 @@ class SquashContext:
             blame_ref = f"{source}~1"
             source_commit_value = source
             is_historical = True
-
-        # Get working tree status
-        status = git_ops.get_working_tree_status()
-        working_tree_clean = status["is_clean"]
 
         return cls(
             blame_ref=blame_ref,

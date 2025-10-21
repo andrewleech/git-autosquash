@@ -42,6 +42,7 @@ class HunkTargetMapping:
     targeting_method: TargetingMethod = TargetingMethod.BLAME_MATCH
     fallback_candidates: Optional[List[str]] = None
     needs_user_selection: bool = False
+    source_commit_sha: Optional[str] = None  # Split commit SHA for cherry-pick (if using split commits)
 
     def __hash__(self) -> int:
         """Make HunkTargetMapping hashable for use as dictionary keys."""
