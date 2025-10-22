@@ -651,7 +651,7 @@ class TestRebaseManager:
             working_tree_clean=True,
         )
 
-        result = self.rebase_manager.execute_squash([], context=mock_context)
+        result = self.rebase_manager.execute_squash([], [], context=mock_context)
         assert result is True
         self.mock_git_ops.get_current_branch.assert_not_called()
 
@@ -683,7 +683,7 @@ class TestRebaseManager:
         self.mock_git_ops.get_current_branch.return_value = None
 
         with pytest.raises(ValueError, match="Cannot determine current branch"):
-            self.rebase_manager.execute_squash([mapping], context=mock_context)
+            self.rebase_manager.execute_squash([mapping], [], context=mock_context)
 
 
 class TestRebaseConflictError:
