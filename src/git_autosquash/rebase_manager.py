@@ -100,13 +100,13 @@ class RebaseManager:
             for target_commit in target_commits:
                 hunks = commit_hunks[target_commit]
                 # Get source commit SHAs for these hunks
-                source_commits = [
-                    hunk_to_source_commit.get(id(hunk)) for hunk in hunks
-                ]
+                source_commits = [hunk_to_source_commit.get(id(hunk)) for hunk in hunks]
                 print(
                     f"DEBUG: Processing target commit {target_commit[:8]} with {len(hunks)} hunks"
                 )
-                success = self._apply_hunks_to_commit(target_commit, hunks, source_commits)
+                success = self._apply_hunks_to_commit(
+                    target_commit, hunks, source_commits
+                )
                 if not success:
                     print(f"DEBUG: Failed to apply hunks to commit {target_commit[:8]}")
                     return False
@@ -630,7 +630,10 @@ class RebaseManager:
         return True
 
     def _apply_hunks_to_commit(
-        self, target_commit: str, hunks: List[DiffHunk], source_commits: Optional[List[Optional[str]]] = None
+        self,
+        target_commit: str,
+        hunks: List[DiffHunk],
+        source_commits: Optional[List[Optional[str]]] = None,
     ) -> bool:
         """Apply hunks to a specific commit via interactive rebase.
 
@@ -685,7 +688,9 @@ class RebaseManager:
                 # Use cherry-pick with 3-way merge (reliable)
                 print(f"DEBUG: Cherry-picking {len(split_commits)} split commits")
                 for i, commit_sha in enumerate(split_commits, 1):
-                    print(f"DEBUG: Cherry-picking {i}/{len(split_commits)}: {commit_sha[:8]}")
+                    print(
+                        f"DEBUG: Cherry-picking {i}/{len(split_commits)}: {commit_sha[:8]}"
+                    )
                     result = self.git_ops.run_git_command(
                         ["cherry-pick", "--no-commit", commit_sha]
                     )
@@ -708,9 +713,7 @@ class RebaseManager:
                 # Fall back to patch-based approach
                 print("DEBUG: Creating patch from original hunk text")
                 patch_content = self._create_patch_from_original_hunks(hunks)
-                print(
-                    f"DEBUG: Created patch content ({len(patch_content)} chars):"
-                )
+                print(f"DEBUG: Created patch content ({len(patch_content)} chars):")
                 print("=" * 50)
                 print(patch_content)
                 print("=" * 50)
@@ -1185,7 +1188,6 @@ class RebaseManager:
         head_result = self.git_ops.run_git_command(["rev-parse", "HEAD"])
         if head_result.returncode != 0:
             return f"edit {target_commit}\n"
-        current_head = head_result.stdout.strip()
 
         # Check if target commit is reachable from HEAD
         reachable_result = self.git_ops.run_git_command(
@@ -1245,9 +1247,7 @@ class RebaseManager:
                         print(
                             f"DEBUG: Source commit {source_sha[:8]} has {len(self._ignored_mappings)} ignored hunks"
                         )
-                        print(
-                            "DEBUG: Preserving source commit to keep ignored changes"
-                        )
+                        print("DEBUG: Preserving source commit to keep ignored changes")
                         # Mark source for special edit handling
                         self._source_needs_edit = source_sha
                     else:
@@ -1503,7 +1503,9 @@ class RebaseManager:
         """
         # Check if rebase is already in progress
         if self.is_rebase_in_progress():
-            print("DEBUG: Rebase already in progress - completing it before starting new one")
+            print(
+                "DEBUG: Rebase already in progress - completing it before starting new one"
+            )
             # Complete the existing rebase by continuing through all edit points
             try:
                 self._complete_remaining_rebase()
@@ -1650,9 +1652,7 @@ class RebaseManager:
 
         try:
             # Apply patch with 3-way merge and automatic line number recalculation
-            print(
-                f"DEBUG: Running git apply --3way --recount {patch_file}"
-            )
+            print(f"DEBUG: Running git apply --3way --recount {patch_file}")
             result = self.git_ops.run_git_command(
                 [
                     "apply",
@@ -1812,7 +1812,9 @@ class RebaseManager:
                     return
                 else:
                     # Rebase stopped at next edit point - need to continue through remaining edits
-                    print("DEBUG: Rebase stopped at next edit point, continuing through remaining edits")
+                    print(
+                        "DEBUG: Rebase stopped at next edit point, continuing through remaining edits"
+                    )
                     # Continue through any remaining edit points automatically
                     retry_count += 1
                     continue
@@ -1991,10 +1993,14 @@ class RebaseManager:
             for mapping in self._ignored_mappings:
                 if mapping.source_commit_sha:
                     ignored_split_commits.append(mapping.source_commit_sha)
-                    print(f"DEBUG: Found ignored split commit: {mapping.source_commit_sha[:8]}")
+                    print(
+                        f"DEBUG: Found ignored split commit: {mapping.source_commit_sha[:8]}"
+                    )
 
         if not ignored_split_commits:
-            print("DEBUG: No ignored split commits found, source commit will be removed")
+            print(
+                "DEBUG: No ignored split commits found, source commit will be removed"
+            )
             # Remove the source commit entirely (all hunks were squashed)
             result = self.git_ops.run_git_command(["rebase", "--skip"])
             if result.returncode != 0:
@@ -2002,13 +2008,17 @@ class RebaseManager:
                 return False
             return True
 
-        print(f"DEBUG: Keeping {len(ignored_split_commits)} ignored hunks in source commit")
-        print(f"DEBUG: Ignored hunks are available in split commits:")
+        print(
+            f"DEBUG: Keeping {len(ignored_split_commits)} ignored hunks in source commit"
+        )
+        print("DEBUG: Ignored hunks are available in split commits:")
         for i, commit_sha in enumerate(ignored_split_commits, 1):
             print(f"DEBUG:   {i}. {commit_sha[:8]}")
 
         print(f"DEBUG: Source commit {source_commit[:8]} left unchanged")
-        print(f"DEBUG: To apply ignored hunks manually, cherry-pick the split commits above")
+        print(
+            "DEBUG: To apply ignored hunks manually, cherry-pick the split commits above"
+        )
 
         # Ignored hunks remain in split commits for manual review
         # This is safer than automatically modifying the source commit after rebases
@@ -2076,9 +2086,7 @@ class RebaseManager:
         """
         import tempfile
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", delete=False, suffix=".txt"
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
             f.write(message)
             msg_file = f.name
 
@@ -2089,9 +2097,7 @@ class RebaseManager:
                 raise subprocess.SubprocessError(f"Failed to stage: {result.stderr}")
 
             # Amend with message file
-            result = self.git_ops.run_git_command(
-                ["commit", "--amend", "-F", msg_file]
-            )
+            result = self.git_ops.run_git_command(["commit", "--amend", "-F", msg_file])
             if result.returncode != 0:
                 raise subprocess.SubprocessError(
                     f"Failed to amend commit: {result.stderr}"

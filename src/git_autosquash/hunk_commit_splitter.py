@@ -99,7 +99,11 @@ class HunkCommitSplitter:
             msg_result = self.git_ops.run_git_command(
                 ["log", "-1", "--format=%B", source_commit]
             )
-            original_message = msg_result.stdout.strip() if msg_result.returncode == 0 else "Split commit"
+            original_message = (
+                msg_result.stdout.strip()
+                if msg_result.returncode == 0
+                else "Split commit"
+            )
 
             # Create one commit per hunk
             split_commits = []
@@ -114,7 +118,9 @@ class HunkCommitSplitter:
                 split_commits.append(commit_sha)
 
             self.split_commits = split_commits
-            logger.info(f"Created {len(split_commits)} split commits on {self.temp_branch}")
+            logger.info(
+                f"Created {len(split_commits)} split commits on {self.temp_branch}"
+            )
 
             return split_commits, hunks
 
@@ -125,7 +131,9 @@ class HunkCommitSplitter:
                     ["checkout", self.original_branch]
                 )
                 if result.returncode != 0:
-                    logger.error(f"Failed to return to original branch: {result.stderr}")
+                    logger.error(
+                        f"Failed to return to original branch: {result.stderr}"
+                    )
 
     def _create_patch_for_hunk(self, hunk: DiffHunk) -> str:
         """Create a patch file content for a single hunk.
@@ -165,17 +173,13 @@ class HunkCommitSplitter:
         import os
 
         # Write patch to temp file
-        with tempfile.NamedTemporaryFile(
-            mode='w', delete=False, suffix='.patch'
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".patch") as f:
             f.write(patch_content)
             patch_file = f.name
 
         try:
             # Apply patch
-            result = self.git_ops.run_git_command(
-                ["apply", "--index", patch_file]
-            )
+            result = self.git_ops.run_git_command(["apply", "--index", patch_file])
             if result.returncode != 0:
                 raise subprocess.SubprocessError(
                     f"Failed to apply hunk {hunk_num}: {result.stderr}"
@@ -189,16 +193,14 @@ class HunkCommitSplitter:
 
             # Write message to temp file
             with tempfile.NamedTemporaryFile(
-                mode='w', delete=False, suffix='.txt'
+                mode="w", delete=False, suffix=".txt"
             ) as f:
                 f.write(commit_message)
                 msg_file = f.name
 
             try:
                 # Commit
-                result = self.git_ops.run_git_command(
-                    ["commit", "-F", msg_file]
-                )
+                result = self.git_ops.run_git_command(["commit", "-F", msg_file])
                 if result.returncode != 0:
                     raise subprocess.SubprocessError(
                         f"Failed to commit hunk {hunk_num}: {result.stderr}"
@@ -251,9 +253,7 @@ class HunkCommitSplitter:
                     # Continue anyway, might still be able to delete
 
         # Delete the temporary branch
-        result = self.git_ops.run_git_command(
-            ["branch", "-D", self.temp_branch]
-        )
+        result = self.git_ops.run_git_command(["branch", "-D", self.temp_branch])
         if result.returncode != 0:
             logger.warning(
                 f"Failed to delete temp branch {self.temp_branch}: {result.stderr}"
