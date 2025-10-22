@@ -752,7 +752,13 @@ class TestFallbackEdgeCases:
         analyzer = BlameAnalyzer(self.git_ops, "merge_base")
 
         # First call should populate cache
-        self.git_ops._run_git_command.return_value = (True, "new_file.py")
+        # get_new_files() makes two calls:
+        # 1. ls-tree to get files at blame_ref (return empty - file doesn't exist there)
+        # 2. diff to get files in branch (return new_file.py - file was added)
+        self.git_ops._run_git_command.side_effect = [
+            (True, ""),  # ls-tree: no files at blame_ref
+            (True, "new_file.py"),  # diff: new_file.py in branch
+        ]
         result1 = analyzer._is_new_file("new_file.py")
 
         # Second call should use cache (no additional git command)
@@ -760,5 +766,5 @@ class TestFallbackEdgeCases:
 
         assert result1 is True
         assert result2 is True
-        # Git command should only be called once due to caching
-        assert self.git_ops._run_git_command.call_count == 1
+        # Git commands should only be called twice (once for initial population)
+        assert self.git_ops._run_git_command.call_count == 2

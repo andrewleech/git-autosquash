@@ -297,26 +297,32 @@ class TestRebaseManager:
         # Mock no existing rebase state
         mock_exists.return_value = False
 
-        # Mock successful rebase start - need four calls: rev-parse, merge-base, rev-list, then rebase
-        # First call: rev-parse HEAD (from _generate_rebase_todo)
+        # Mock successful rebase start - need five calls: status, rev-parse, merge-base, rev-list, then rebase
+        # First call: git status (is_rebase_in_progress check)
+        status_result = Mock()
+        status_result.returncode = 0
+        status_result.stdout = ""
+
+        # Second call: rev-parse HEAD (from _generate_rebase_todo)
         head_result = Mock()
         head_result.returncode = 0
         head_result.stdout = "currenthead123456789012345678901234567"
 
-        # Second call: merge-base --is-ancestor (check if target is ancestor)
+        # Third call: merge-base --is-ancestor (check if target is ancestor)
         merge_base_result = Mock()
         merge_base_result.returncode = 0  # is-ancestor succeeds
 
-        # Third call: rev-list --reverse (get commit list)
+        # Fourth call: rev-list --reverse (get commit list)
         rev_list_result = Mock()
         rev_list_result.returncode = 0
         rev_list_result.stdout = "commit123\ncommit456\n"  # Mock commit list output
 
-        # Fourth call: rebase -i
+        # Fifth call: rebase -i
         rebase_result = Mock()
         rebase_result.returncode = 0
 
         self.mock_git_ops.run_git_command.side_effect = [
+            status_result,
             head_result,
             merge_base_result,
             rev_list_result,
@@ -327,7 +333,7 @@ class TestRebaseManager:
 
         assert result is True
         mock_file.write.assert_called_once_with("edit commit123\npick commit456\n")
-        assert self.mock_git_ops.run_git_command.call_count == 4
+        assert self.mock_git_ops.run_git_command.call_count == 5
         mock_unlink.assert_called_once_with("/tmp/test_todo")
 
     @patch("tempfile.NamedTemporaryFile")
@@ -428,15 +434,26 @@ class TestRebaseManager:
 
     def test_continue_rebase_success(self) -> None:
         """Test successful rebase continuation."""
+        # Mock git rebase --continue result
         continue_result = Mock()
         continue_result.returncode = 0
-        self.mock_git_ops.run_git_command.return_value = continue_result
+        continue_result.stdout = ""
+        continue_result.stderr = ""
+
+        # Mock git status result (is_rebase_in_progress check)
+        status_result = Mock()
+        status_result.returncode = 0
+        status_result.stdout = ""  # No "rebase in progress" means rebase is complete
+
+        self.mock_git_ops.run_git_command.side_effect = [
+            continue_result,
+            status_result,
+        ]
 
         self.rebase_manager._continue_rebase()
 
-        self.mock_git_ops.run_git_command.assert_called_once_with(
-            ["rebase", "--continue"]
-        )
+        assert self.mock_git_ops.run_git_command.call_count == 2
+        self.mock_git_ops.run_git_command.assert_any_call(["rebase", "--continue"])
 
     def test_continue_rebase_with_conflicts(self) -> None:
         """Test rebase continuation with conflicts."""

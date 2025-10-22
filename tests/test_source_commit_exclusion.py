@@ -171,6 +171,11 @@ class TestSourceCommitExclusionFromRebase:
         rebase_manager._context = context
 
         # Mock git operations
+        # git status (called by is_rebase_in_progress)
+        status_result = Mock()
+        status_result.returncode = 0
+        status_result.stdout = ""
+
         # rev-parse HEAD (called first in _generate_rebase_todo)
         head_result = Mock()
         head_result.returncode = 0
@@ -198,6 +203,7 @@ class TestSourceCommitExclusionFromRebase:
         rebase_result.stderr = ""
 
         mock_git_ops.run_git_command.side_effect = [
+            status_result,  # git status (is_rebase_in_progress check)
             head_result,  # rev-parse HEAD
             ancestor_result,  # is-ancestor check
             rev_list_result,  # rev-list for commit list
@@ -234,6 +240,11 @@ class TestSourceCommitExclusionFromRebase:
         rebase_manager._context = context
 
         # Mock git operations
+        # git status (called by is_rebase_in_progress)
+        status_result = Mock()
+        status_result.returncode = 0
+        status_result.stdout = ""
+
         # rev-parse HEAD
         head_result = Mock()
         head_result.returncode = 0
@@ -260,6 +271,7 @@ class TestSourceCommitExclusionFromRebase:
         rebase_result.stderr = ""
 
         mock_git_ops.run_git_command.side_effect = [
+            status_result,  # git status (is_rebase_in_progress check)
             head_result,
             ancestor_result,
             rev_list_result,
@@ -296,6 +308,11 @@ class TestSourceCommitExclusionFromRebase:
         rebase_manager._context = context
 
         # Mock git operations
+        # git status (called by is_rebase_in_progress)
+        status_result = Mock()
+        status_result.returncode = 0
+        status_result.stdout = ""
+
         # rev-parse HEAD
         head_result = Mock()
         head_result.returncode = 0
@@ -322,6 +339,7 @@ class TestSourceCommitExclusionFromRebase:
         rebase_result.stderr = ""
 
         mock_git_ops.run_git_command.side_effect = [
+            status_result,  # git status (is_rebase_in_progress check)
             head_result,
             ancestor_result,
             rev_list_result,
@@ -372,6 +390,11 @@ class TestSourceCommitEdgeCases:
         rebase_manager._context = context
 
         # Mock git operations
+        # git status (called by is_rebase_in_progress)
+        status_result = Mock()
+        status_result.returncode = 0
+        status_result.stdout = ""
+
         # rev-parse HEAD
         head_result = Mock()
         head_result.returncode = 0
@@ -398,6 +421,7 @@ class TestSourceCommitEdgeCases:
         rebase_result.stderr = ""
 
         mock_git_ops.run_git_command.side_effect = [
+            status_result,  # git status (is_rebase_in_progress check)
             head_result,
             ancestor_result,
             rev_list_result,

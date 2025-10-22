@@ -306,7 +306,11 @@ class TestBatchGitOperationsEdgeCases:
             (True, "commit1|c1|Subject|Author|1234567890"),  # basic info
             (True, "commit1 parent1"),  # parent info
             (True, "commit1\ncommit2"),  # file commits
-            (True, "file1.py\nfile2.py"),  # new files
+            (True, "file1.py\nfile2.py"),  # ls-tree for new files (files at blame_ref)
+            (
+                True,
+                "file1.py\nfile2.py\nfile3.py",
+            ),  # diff for new files (all files in branch)
         ]
 
         # Load data into caches
