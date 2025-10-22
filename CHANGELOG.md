@@ -43,9 +43,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Technical Details
 
-- **Test Coverage**: 540/550 tests passing (98.2%)
+- **Test Coverage**: 550/550 tests passing (100%)
   - All 77 validation framework tests pass
-  - 10 tests with mock configuration issues from HunkCommitSplitter (non-blocking)
+  - All 73 HunkCommitSplitter tests pass
 - **Static Analysis**: All checks passing
   - ruff: ✅ No linting errors
   - ruff format: ✅ All files formatted
@@ -57,15 +57,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `docs/validation-framework-integration-analysis.md` (486 lines)
 - Added `docs/implementation-plans/validation-framework.md`
 - Updated `CLAUDE.md` with validation framework architecture
-
-### Known Issues
-
-- 10 test failures in HunkCommitSplitter tests due to mock configuration (test infrastructure, not functional bugs)
-  - `test_source_commit_exclusion.py`: 6 failures
-  - `test_rebase_manager.py`: 2 failures
-  - `test_fallback_logic.py`: 1 failure
-  - `test_batch_git_ops_edge_cases.py`: 1 failure
-
-These will be addressed in a future release.
 
 [0.1.0]: https://github.com/andrewleech/git-autosquash/releases/tag/v0.1.0
