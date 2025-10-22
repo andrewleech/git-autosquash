@@ -78,7 +78,9 @@ class TestSourceCommitParameterStorage:
                 with patch.object(rebase_manager, "_apply_patch"):
                     with patch.object(rebase_manager, "_amend_commit"):
                         with patch.object(rebase_manager, "_continue_rebase"):
-                            rebase_manager.execute_squash([mapping], context=context)
+                            rebase_manager.execute_squash(
+                                [mapping], [], context=context
+                            )
 
         # The context should be stored
         assert hasattr(rebase_manager, "_context")
@@ -129,7 +131,9 @@ class TestSourceCommitParameterStorage:
                 with patch.object(rebase_manager, "_apply_patch"):
                     with patch.object(rebase_manager, "_amend_commit"):
                         with patch.object(rebase_manager, "_continue_rebase"):
-                            rebase_manager.execute_squash([mapping], context=context)
+                            rebase_manager.execute_squash(
+                                [mapping], [], context=context
+                            )
 
         # source_commit should be None
         assert rebase_manager._context.source_commit is None
