@@ -470,7 +470,7 @@ def register_test_cleanup(cleanup_func: Callable) -> None:
 
 
 @contextmanager
-def test_error_recovery(
+def error_recovery_context(
     operation_name: str,
     recovery_strategies: Optional[Dict[TestErrorCategory, Callable]] = None,
 ):

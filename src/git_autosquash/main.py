@@ -649,7 +649,7 @@ def run_interactive_ui(
     fallback_mappings: List[HunkTargetMapping],
     git_ops: GitOps,
     merge_base: str,
-    context,
+    context: SquashContext,
     blame_ref: str = "HEAD",
 ) -> bool:
     """Run the interactive TUI for user selections.

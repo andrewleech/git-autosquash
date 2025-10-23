@@ -541,7 +541,7 @@ python3 capture_readme_screenshots.py
 
 **Official Method**: Use Textual's native screenshot capabilities via `scripts/generate_screenshots.py`.
 
-This is the recommended approach, replacing legacy pexpect/pyte methods. See [CLAUDE.md](../../CLAUDE.md#screenshot-generation) for complete documentation.
+This is the recommended approach, replacing legacy pexpect/pyte methods. See `CLAUDE.md` (in repository root) for complete documentation.
 
 ```bash
 # Generate all screenshots

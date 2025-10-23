@@ -49,7 +49,7 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
     │  +    new line                                              │
     │                                                             │
     ├─────────────────────────────────────────────────────────────┤
-    │                    [Continue] [Cancel]                     │
+    │                    Continue / Escape to Cancel              │
     └─────────────────────────────────────────────────────────────┘
 
     Workflow:

@@ -20,7 +20,7 @@ from tests.base_test_repository import (
 )
 from tests.error_handling_framework import (
     error_boundary,
-    test_error_recovery,
+    error_recovery_context,
     get_global_resource_manager,
 )
 
@@ -52,7 +52,7 @@ class MicroPythonTestScenario:
         Returns:
             Dictionary mapping commit names to hashes
         """
-        with test_error_recovery("micropython_scenario_creation"):
+        with error_recovery_context("micropython_scenario_creation"):
             return self._build_micropython_commits()
 
     def _build_micropython_commits(self) -> Dict[str, str]:

@@ -554,7 +554,7 @@ class TestPatchGenerationEdgeCases:
         assert diff_result.returncode == 0, "Should handle Unicode diff"
 
         # Verify Unicode characters are preserved
-        diff_content = diff_result.stdout
+        diff_content = diff_result.stdout or ""
         assert "café" in diff_content or "unicode" in diff_content, (
             "Should preserve Unicode content"
         )
