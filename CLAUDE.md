@@ -118,9 +118,7 @@ This is the recommended and supported method for capturing screenshots of the gi
 ### Do NOT Use:
 
 - **termshot**: Has known cursor positioning issues that break with complex TUI apps like Textual
-- **pexpect** (tests/pexpect_screenshot_capture.py): Legacy approach, replaced by Textual native
-- **pyte** (tests/pyte_screenshot_capture.py): Legacy approach with timing issues
-- **capture_readme_screenshots.py**: Legacy wrapper around pexpect, superseded by new script
+- **pexpect/pyte-based approaches**: Legacy methods with timing and reliability issues
 
 ### Usage Examples:
 
