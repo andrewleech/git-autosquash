@@ -10,28 +10,36 @@ graph TB
         A[main.py] --> B[Argument Parsing]
         B --> C[Repository Validation]
     end
-    
+
+    subgraph "Validation Layer"
+        C --> D[SourceNormalizer]
+        D --> E[ProcessingValidator]
+    end
+
     subgraph "Core Processing"
-        C --> D[GitOps]
-        D --> E[HunkParser] 
-        E --> F[BlameAnalyzer]
+        E --> F[GitOps]
+        F --> G[HunkParser]
+        G --> H[BlameAnalyzer]
     end
-    
+
     subgraph "User Interface"
-        F --> G[AutoSquashApp]
-        G --> H[ApprovalScreen]
-        H --> I[Widgets]
+        H --> I[AutoSquashApp]
+        I --> J[ApprovalScreen]
+        J --> K[Widgets]
     end
-    
+
     subgraph "Execution Layer"
-        I --> J[RebaseManager]
-        J --> K[Interactive Rebase]
-        K --> L[Conflict Resolution]
+        K --> L[RebaseManager]
+        L --> M[Interactive Rebase]
+        M --> N[Conflict Resolution]
+        N --> E
     end
-    
+
     style A fill:#e1f5fe
-    style G fill:#f3e5f5
-    style J fill:#e8f5e8
+    style D fill:#fff3e0
+    style E fill:#fff3e0
+    style I fill:#f3e5f5
+    style L fill:#e8f5e8
 ```
 
 ## Core Components
@@ -61,7 +69,52 @@ class GitOps:
     def run_git_command(self, args: list[str], env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]
 ```
 
-### 2. HunkParser (`hunk_parser.py`)
+### 2. SourceNormalizer (`source_normalizer.py`)
+
+**Purpose**: Normalizes all input sources (working-tree, index, HEAD, commits) to a single commit for consistent processing.
+
+**Key Responsibilities**:
+- Convert working-tree changes to temporary commits with `--no-verify`
+- Convert index changes to temporary commits with `--no-verify`
+- Pass through HEAD and commit references unchanged
+- Track parent SHA for safe cleanup
+- Handle edge cases: empty diffs, detached HEAD, concurrent modifications
+
+**Design Decisions**:
+- **Single Code Path**: All inputs normalized before hunk parsing eliminates branching logic
+- **Temporary Commits**: Working-tree and index changes committed with `--no-verify` to skip hooks
+- **Explicit Cleanup**: Parent SHA tracked for safe removal of temporary commits
+- **Safety First**: Validation ensures no data loss during normalization
+
+```python
+class SourceNormalizer:
+    def normalize_source(self, source: str) -> NormalizedSource
+    def cleanup_temp_commit(self, normalized: NormalizedSource) -> None
+```
+
+### 3. ProcessingValidator (`validation.py`)
+
+**Purpose**: Provides pre-flight and post-flight validation to guarantee data integrity throughout hunk processing.
+
+**Key Responsibilities**:
+- Pre-flight validation: Verify hunk count matches expectations
+- Post-flight validation: Use `git diff` to detect any data corruption
+- Provide detailed error messages with recovery instructions
+- Work correctly in all repository states (detached HEAD, etc.)
+
+**Validation Strategy**:
+- **Pre-flight**: `validate_hunk_count()` checks that parsed hunks match expected count
+- **Post-flight**: `validate_processing()` runs `git diff <start> <end>` to verify no changes lost or added
+- **Error Detection**: Non-empty diff indicates corruption with detailed error reporting
+- **Recovery Guidance**: Clear instructions for manual recovery if validation fails
+
+```python
+class ProcessingValidator:
+    def validate_hunk_count(self, hunks: list[DiffHunk], from_commit: str) -> None
+    def validate_processing(self, start_commit: str, end_commit: str) -> None
+```
+
+### 4. HunkParser (`hunk_parser.py`)
 
 **Purpose**: Parses Git diff output into structured hunk objects for analysis and processing.
 
@@ -89,7 +142,7 @@ class DiffHunk:
     context_after: list[str]
 ```
 
-### 3. BlameAnalyzer (`blame_analyzer.py`)
+### 5. BlameAnalyzer (`blame_analyzer.py`)
 
 **Purpose**: Analyzes Git blame information to determine target commits for each hunk with confidence scoring.
 
@@ -113,7 +166,7 @@ class BlameAnalyzer:
     def _get_commit_timestamp(self, commit_hash: str) -> int  # Cached
 ```
 
-### 4. TUI System (`tui/`)
+### 6. TUI System (`tui/`)
 
 **Purpose**: Rich terminal interface using Textual framework for user interaction and approval workflow.
 
@@ -138,7 +191,7 @@ graph TD
 - **Keyboard Navigation**: Full keyboard control for efficient workflows
 - **Graceful Fallback**: Text-based fallback when TUI unavailable
 
-### 5. RebaseManager (`rebase_manager.py`)
+### 7. RebaseManager (`rebase_manager.py`)
 
 **Purpose**: Orchestrates interactive rebase operations to apply approved hunks to historical commits.
 
@@ -167,19 +220,28 @@ graph TD
 
 ## Data Flow
 
-### 1. Input Processing
+### 1. Input Processing with Validation
 
 ```mermaid
 sequenceDiagram
     participant CLI as main.py
+    participant Normalizer as SourceNormalizer
+    participant Validator as ProcessingValidator
     participant Git as GitOps
     participant Parser as HunkParser
-    
+
     CLI->>Git: Validate repository
     Git->>CLI: Repository status
-    CLI->>Git: Get working tree changes
+    CLI->>Normalizer: normalize_source(source)
+    Normalizer->>Git: Create temp commit if needed
+    Git->>Normalizer: Commit SHA
+    Normalizer->>CLI: NormalizedSource (commit + parent)
+    CLI->>Parser: get_diff_hunks(from_commit)
+    Parser->>Git: git diff <commit>
     Git->>Parser: Raw diff output
     Parser->>CLI: Structured DiffHunk objects
+    CLI->>Validator: validate_hunk_count(hunks, commit)
+    Validator->>CLI: Validation pass/fail
 ```
 
 ### 2. Analysis Phase
@@ -217,14 +279,16 @@ sequenceDiagram
     App->>CLI: User decisions
 ```
 
-### 4. Execution Phase  
+### 4. Execution Phase with Post-Flight Validation
 
 ```mermaid
 sequenceDiagram
     participant CLI as main.py
+    participant Validator as ProcessingValidator
     participant Rebase as RebaseManager
     participant Git as GitOps
-    
+    participant Normalizer as SourceNormalizer
+
     CLI->>Rebase: execute_squash(mappings)
     Rebase->>Rebase: Group hunks by commit
     Rebase->>Rebase: Order commits chronologically
@@ -235,6 +299,13 @@ sequenceDiagram
         Rebase->>Git: Continue rebase
     end
     Rebase->>CLI: Success/failure result
+    CLI->>Validator: validate_processing(start, end)
+    Validator->>Git: git diff <start> <end>
+    Git->>Validator: Diff output (should be empty)
+    Validator->>CLI: Validation pass/fail
+    CLI->>Normalizer: cleanup_temp_commit(normalized)
+    Normalizer->>Git: Reset to parent if temp commit
+    Normalizer->>CLI: Cleanup complete
 ```
 
 ## Design Patterns and Principles

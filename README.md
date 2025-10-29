@@ -95,6 +95,18 @@ This smart handling ensures you can run git-autosquash at any time without losin
 - **Conflict Resolution**: Clear guidance when merge conflicts occur
 - **Multiple Modes**: Interactive, auto-accept, and dry-run options
 
+### Data Integrity Validation
+
+git-autosquash includes built-in validation to ensure data integrity throughout the process:
+
+- **Pre-flight validation**: Verifies all changes are captured before processing
+- **Post-flight validation**: Uses `git diff` to guarantee no data was lost, added, or corrupted
+- **Automatic verification**: Validation runs automatically on every operation
+
+When validation passes, you'll see: `[+] Validation passed - no corruption detected`
+
+If validation fails, git-autosquash will halt and provide clear error messages with recovery instructions. This ensures you never lose work due to unexpected issues during the squash process.
+
 ## Documentation
 
 **Complete documentation**: https://andrewleech.github.io/git-autosquash/

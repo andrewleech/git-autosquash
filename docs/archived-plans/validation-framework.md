@@ -1,10 +1,13 @@
 # Implementation Plan: Validation Framework
 
+> **✅ COMPLETED PLAN**: This implementation plan is now complete and has been fully integrated into the codebase. This document is preserved for historical reference. For current implementation details, see `docs/validation-framework-integration-analysis.md` and the source code in `src/git_autosquash/source_normalizer.py` and `src/git_autosquash/validation.py`.
+
 **Status:** ✅ COMPLETE (Implemented in Phase 3)
 **Complexity:** Medium
 **Actual Time:** ~8 hours (matched estimate)
 **Dependencies:** None (implemented independently)
 **Commits:** 97288df, 346a802, 9074397
+**Merged:** 2025-10-23 (commit 3efa98c)
 
 ## Executive Summary
 
