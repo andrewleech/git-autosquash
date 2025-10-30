@@ -568,23 +568,28 @@ def process_hunks_and_mappings(
     starting_commit = normalizer.normalize_to_commit(source)
     logging.debug(f"Processing from commit: {starting_commit[:8]}")
 
-    # Phase 2: Split source commit into per-hunk commits (if using --source)
-    # This enables reliable 3-way merge during cherry-pick
+    # Phase 2: Split source commit into per-hunk commits (ALWAYS for reliability)
+    # This enables reliable 3-way merge during cherry-pick, which handles complex
+    # cases like removing lines from the commit that added them.
     splitter: Optional[HunkCommitSplitter] = None
     split_commits: List[str] = []
-    if context.source_commit:
-        logging.debug(
-            "Splitting source commit into per-hunk commits for reliable 3-way merge"
+
+    # Always use split-commit approach for reliable 3-way merge
+    logging.debug(
+        "Splitting source commit into per-hunk commits for reliable 3-way merge"
+    )
+    splitter = HunkCommitSplitter(git_ops)
+    try:
+        split_commits, hunks = splitter.split_commit_into_hunks(starting_commit)
+        logging.debug(f"Created {len(split_commits)} split commits")
+    except Exception as e:
+        logging.debug(f"Failed to split commit: {e}")
+        logging.warning(
+            "Falling back to patch-based approach (may fail for complex cases like removing lines from the commit that added them)"
         )
-        splitter = HunkCommitSplitter(git_ops)
-        try:
-            split_commits, hunks = splitter.split_commit_into_hunks(starting_commit)
-            logging.debug(f"Created {len(split_commits)} split commits")
-        except Exception as e:
-            logging.debug(f"Failed to split commit: {e}")
-            # Fall back to normal patch-based approach
-            splitter = None
-            split_commits = []
+        # Fall back to normal patch-based approach
+        splitter = None
+        split_commits = []
 
     # Phase 3: Parse hunks (use hunks from splitter if available)
     if not split_commits:
