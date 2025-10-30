@@ -24,7 +24,7 @@ class TestSourceCommitCLIParsing:
             "git-autosquash",
             "--source",
             "abc123def456789012345678901234567890abcd",
-            "--auto-accept",
+            # Auto-accept is now the default, no flag needed
         ]
 
         with patch("sys.argv", test_args):
@@ -87,7 +87,11 @@ class TestSourceCommitCLIParsing:
 
     def test_source_commit_short_sha_accepted(self):
         """Test that --source accepts short commit SHA."""
-        test_args = ["git-autosquash", "--source", "abc123", "--auto-accept"]
+        test_args = [
+            "git-autosquash",
+            "--source",
+            "abc123",
+        ]  # Auto-accept is now default
 
         with patch("sys.argv", test_args):
             with patch("git_autosquash.main.GitOps") as mock_git_ops_class:

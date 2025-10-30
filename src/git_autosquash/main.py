@@ -487,14 +487,14 @@ def get_merge_base(
 
 
 def check_repository_state(
-    git_ops: GitOps, merge_base: str, auto_accept: bool = False
+    git_ops: GitOps, merge_base: str, interactive_mode: bool = False
 ) -> None:
     """Check repository state and handle uncommitted changes.
 
     Args:
         git_ops: GitOps instance
         merge_base: Merge base commit hash
-        auto_accept: If True, automatically continue without user prompt
+        interactive_mode: If True, prompt user for confirmation; if False, auto-continue
 
     Raises:
         SystemExit: If repository state is invalid
@@ -516,7 +516,7 @@ def check_repository_state(
         print(
             "⚠️  Working tree has both staged and unstaged changes. Unstaged changes will be temporarily stashed while processing staged changes."
         )
-        if auto_accept:
+        if not interactive_mode:
             print(
                 "✓ Auto-accepting mixed changes (unstaged will be temporarily stashed)"
             )
@@ -630,13 +630,13 @@ def process_hunks_and_mappings(
 
 
 def handle_automatic_mappings(
-    automatic_mappings: List[HunkTargetMapping], auto_accept: bool, git_ops: GitOps
+    automatic_mappings: List[HunkTargetMapping], interactive_mode: bool, git_ops: GitOps
 ) -> tuple[List[HunkTargetMapping], List[HunkTargetMapping]]:
     """Handle automatic mappings and return approved/ignored lists.
 
     Args:
         automatic_mappings: List of automatic mappings
-        auto_accept: Whether to auto-accept all mappings
+        interactive_mode: If True, show mappings for user review; if False, auto-accept
 
     Returns:
         Tuple of (approved_mappings, ignored_mappings)
@@ -644,7 +644,8 @@ def handle_automatic_mappings(
     if not automatic_mappings:
         return [], []
 
-    if auto_accept:
+    if not interactive_mode:
+        # Auto-accept mode (default): accept all automatic mappings
         # Count unique files
         files = set(m.hunk.file_path for m in automatic_mappings)
         print(
@@ -660,10 +661,9 @@ def handle_automatic_mappings(
             logging.debug(f"  → {mapping.hunk.file_path}: {commit_summary}")
         return automatic_mappings, []
     else:
-        # Show automatic mappings and ask for confirmation
+        # Interactive mode: show automatic mappings for user confirmation
         _display_automatic_mappings(automatic_mappings)
-        # In non-auto-accept mode, return mappings for normal rebase processing
-        # instead of incorrectly applying them to working tree
+        # Return mappings for TUI review instead of auto-accepting
         return automatic_mappings, []
 
 
@@ -805,7 +805,7 @@ def _show_dry_run_output(
 
     if automatic_mappings:
         print("\nTo actually perform these changes, run:")
-        print("git autosquash --auto-accept")
+        print("git autosquash")
 
 
 @app.callback(invoke_without_command=True)
@@ -818,18 +818,20 @@ def run(
             help="Use line-by-line hunk splitting instead of default git hunks",
         ),
     ] = False,
-    auto_accept: Annotated[
+    interactive: Annotated[
         bool,
         typer.Option(
-            "--auto-accept",
-            help="Automatically accept all hunks with blame-identified targets, bypass TUI",
+            "--interactive",
+            "-i",
+            help="Launch interactive TUI for manual hunk review and approval",
         ),
     ] = False,
     dry_run: Annotated[
         bool,
         typer.Option(
             "--dry-run",
-            help="Show what would be done without making changes (requires --auto-accept)",
+            "-n",
+            help="Show what would be done without making changes",
         ),
     ] = False,
     source: Annotated[
@@ -868,15 +870,15 @@ def run(
 
     try:
         # Validate argument combinations
-        if dry_run and not auto_accept:
-            typer.echo("Error: --dry-run requires --auto-accept", err=True)
+        if dry_run and interactive:
+            typer.echo("Error: --dry-run cannot be used with --interactive", err=True)
             raise typer.Exit(code=1)
 
         # Phase 2: Initialize git operations and validate environment
         git_ops = GitOps()
         current_branch = validate_git_environment(git_ops)
         merge_base = get_merge_base(git_ops, current_branch, base)
-        check_repository_state(git_ops, merge_base, auto_accept)
+        check_repository_state(git_ops, merge_base, interactive_mode=interactive)
 
         # Save original HEAD for validation (before any processing)
         original_head_result = git_ops.run_git_command(["rev-parse", "HEAD"])
@@ -924,38 +926,12 @@ def run(
             # Phase 4: Handle user interaction
             success = False
 
-            if auto_accept:
-                if dry_run:
-                    # Dry run mode: show what would be done without making changes
-                    _show_dry_run_output(automatic_mappings, fallback_mappings, git_ops)
-                    success = True
-                else:
-                    # Auto-accept mode: process only automatic mappings
-                    approved_mappings, ignored_mappings = handle_automatic_mappings(
-                        automatic_mappings, auto_accept=True, git_ops=git_ops
-                    )
-
-                    # Add fallback mappings to ignored list (they can't be auto-accepted)
-                    # These will be preserved in the source commit if using --source
-                    ignored_mappings.extend(fallback_mappings)
-
-                    if approved_mappings or ignored_mappings:
-                        success = _execute_rebase(
-                            approved_mappings,
-                            ignored_mappings,
-                            git_ops,
-                            merge_base,
-                            HunkTargetResolver(
-                                git_ops, merge_base, context, blame_ref=blame_ref
-                            ),
-                            context,
-                            blame_ref=blame_ref,
-                        )
-                    else:
-                        success = True  # No rebase needed
-
-            else:
-                # Interactive mode: combine all mappings for user review
+            if dry_run:
+                # Dry run mode: show what would be done without making changes
+                _show_dry_run_output(automatic_mappings, fallback_mappings, git_ops)
+                success = True
+            elif interactive:
+                # Interactive mode: combine all mappings for user review in TUI
                 all_mappings = automatic_mappings + fallback_mappings
 
                 if all_mappings:
@@ -969,6 +945,30 @@ def run(
                 else:
                     print("No hunks found to process.")
                     success = True
+            else:
+                # Auto-accept mode (DEFAULT): process only automatic mappings without TUI
+                approved_mappings, ignored_mappings = handle_automatic_mappings(
+                    automatic_mappings, interactive_mode=False, git_ops=git_ops
+                )
+
+                # Add fallback mappings to ignored list (they can't be auto-accepted)
+                # These will be preserved in the source commit if using --source
+                ignored_mappings.extend(fallback_mappings)
+
+                if approved_mappings or ignored_mappings:
+                    success = _execute_rebase(
+                        approved_mappings,
+                        ignored_mappings,
+                        git_ops,
+                        merge_base,
+                        HunkTargetResolver(
+                            git_ops, merge_base, context, blame_ref=blame_ref
+                        ),
+                        context,
+                        blame_ref=blame_ref,
+                    )
+                else:
+                    success = True  # No rebase needed
 
             # Phase 5: Post-flight validation
             if success and not dry_run:

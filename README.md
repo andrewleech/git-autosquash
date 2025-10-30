@@ -56,14 +56,19 @@ pip install git-autosquash
 ## Usage
 
 ```bash
-# Interactive mode (default): Review and approve changes in TUI
+# Auto-accept mode (default): Automatically apply hunks with high-confidence blame targets
 git-autosquash
 
-# Auto-accept mode: Skip TUI for high-confidence targets
-git-autosquash --auto-accept
+# Interactive mode: Review and approve changes in TUI
+git-autosquash --interactive
+git-autosquash -i
 
 # Dry-run mode: Preview what would be done without making changes
-git-autosquash --auto-accept --dry-run
+git-autosquash --dry-run
+git-autosquash -n
+
+# Interactive dry-run: Preview in TUI without applying
+git-autosquash -i -n
 
 # Line-by-line precision mode
 git-autosquash --line-by-line
