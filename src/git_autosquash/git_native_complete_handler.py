@@ -1,4 +1,16 @@
-"""Complete git-native handler with multiple strategies and fallback capabilities."""
+"""Complete git-native handler with multiple strategies and fallback capabilities.
+
+⚠️ DEPRECATED: This module is not used in production code. The main.py entry point
+uses RebaseManager directly for all hunk squashing operations. This code exists only
+for test compatibility and may be removed in future versions.
+
+Actual production code uses the split-commit approach via:
+- main.py → RebaseManager.execute_squash()
+- HunkCommitSplitter for creating per-hunk commits
+- Cherry-pick with 3-way merge for applying hunks
+
+This handler system was designed but never integrated into the main execution flow.
+"""
 
 import logging
 import os

@@ -4,13 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Core Architecture
 
-### Component Hierarchy
-The application follows a simplified architecture with index-based execution:
+### Execution Strategy
+The application uses a single split-commit approach for all hunk squashing operations:
 
-1. **GitNativeHandler** (src/git_autosquash/git_native_handler.py) - Simple in-place git operations
-2. **GitNativeCompleteHandler** (src/git_autosquash/git_native_complete_handler.py) - Full rebase completion with reflog safety
+1. **HunkCommitSplitter** (src/git_autosquash/hunk_commit_splitter.py) - Splits source commit into per-hunk temporary commits
+2. **RebaseManager** (src/git_autosquash/rebase_manager.py) - Orchestrates cherry-pick and rebase operations
+3. **Cherry-pick with 3-way merge** - Applies hunks reliably, handling complex cases like removing lines from the commit that added them
 
-The architecture has been simplified from the previous three-strategy approach. The worktree strategy has been removed as it provided no meaningful benefits over the index strategy while adding significant complexity.
+**Note:** The git_native_handler.py and git_native_complete_handler.py files are deprecated and not used in production code.
 
 ### Key Component Interactions
 
@@ -20,6 +21,7 @@ main.py (entry point)
   ├── Validation Framework (Integrated - Phase 3 Complete)
   │   ├── SourceNormalizer (normalize inputs to commits)
   │   └── ProcessingValidator (end-to-end validation)
+  ├── HunkCommitSplitter (split commits into per-hunk commits)
   ├── HunkParser (diff parsing)
   ├── HunkTargetResolver (blame + fallback analysis)
   │   ├── BlameAnalysisEngine
@@ -30,9 +32,9 @@ main.py (entry point)
   │   ├── ModernApprovalScreen (main UI screen)
   │   ├── UIStateController (state management)
   │   └── UI Controllers (widget management)
-  └── Strategy Execution (rebase management)
-      ├── GitNativeCompleteHandler (orchestrator)
-      └── GitNativeIgnoreHandler (index strategy)
+  └── RebaseManager (split-commit execution)
+      ├── Cherry-pick split commits (primary)
+      └── Patch-based fallback (if split fails)
 ```
 
 ### Validation Framework (Phase 3 Complete - Fully Integrated)
@@ -216,47 +218,61 @@ When blame analysis fails to find valid targets, the system provides fallback me
 - Check return codes and handle failures gracefully
 - Use batch operations when processing multiple items
 
-## Strategy Management Commands
+## Split-Commit Execution Strategy
 
-git-autosquash includes hidden subcommands for managing execution strategies. These are not shown in the main help output to avoid confusing regular users, but are available for debugging and advanced configuration:
+git-autosquash uses a single, consistent execution strategy for all operations:
 
-### `git-autosquash strategy-info`
-**Purpose**: Display current strategy information and system capabilities
-**Output**: Shows active strategy, available strategies, execution order, and environment overrides
-**Use case**: Debugging strategy selection issues
+### How It Works
 
-### `git-autosquash strategy-test [--strategy STRATEGY]`
-**Purpose**: Test strategy compatibility and functionality
-**Options**:
-- `--strategy index|legacy` - Test specific strategy (default: test all)
-**Use case**: Troubleshooting git-autosquash failures, verifying system compatibility
+1. **Source Normalization** (SourceNormalizer)
+   - Converts all inputs (working-tree, index, HEAD, commits) to a single commit
+   - Creates temporary commits with --no-verify for working-tree/index sources
 
-### `git-autosquash strategy-set {index|legacy|auto}`
-**Purpose**: Configure preferred execution strategy
-**Strategies**:
-- `index` - Index manipulation with stash backup (recommended, requires git 2.0+)
-- `legacy` - Manual patch application (fallback for older git versions)
-- `auto` - Remove override, use auto-detection (default)
-**Effect**: Shows environment variable command to set strategy preference
-**Use case**: Forcing specific strategy when auto-detection fails
+2. **Commit Splitting** (HunkCommitSplitter)
+   - Splits the source commit into separate temporary commits, one per hunk
+   - Each split commit contains exactly one change
+   - Creates temporary branch `git-autosquash-split-<hash>`
 
-### Implementation Notes
-- These subcommands are implemented in `src/git_autosquash/cli_strategy.py`
-- They are hidden from main help via `add_help=False` on the subparser
-- The commands are fully functional but not advertised to end users
-- Strategy selection happens automatically in `GitNativeCompleteHandler` based on git version and capabilities
-- Most users should never need these commands - they're for advanced troubleshooting
-- The worktree strategy has been removed due to architectural simplification
+3. **Cherry-Pick Application** (RebaseManager)
+   - For each approved hunk, cherry-picks its split commit using `git cherry-pick --no-commit`
+   - Git's 3-way merge handles complex cases:
+     - Removing lines from the commit that originally added them
+     - Modifying lines across intervening commits
+     - Automatic conflict resolution when safe
+   - Falls back to patch-based approach only if split-commit fails
+
+4. **Interactive Rebase** (RebaseManager)
+   - Rebases through target commits chronologically
+   - Amends each target commit with its hunks
+   - Continues through all commits in single rebase operation
+
+5. **Validation** (ProcessingValidator)
+   - Post-flight `git diff` validation ensures no data corruption
+
+6. **Cleanup**
+   - Removes temporary split commits and branches
+   - Removes temporary commits created by SourceNormalizer
+
+### Why 3-Way Merge Works
+
+Git's 3-way merge algorithm uses:
+- **Base:** Common ancestor of source and target commits
+- **Ours:** Target commit state (being amended)
+- **Theirs:** Changes from split commit (hunk to apply)
+
+This allows git to understand the full history context, not just text diffs, enabling
+reliable application even when line numbers have changed or lines are being removed
+from the commit that added them.
 
 ## Common Development Tasks
 
-### Adding a New Execution Strategy
-1. Extend the `GitNativeCompleteHandler` class
-2. Implement strategy-specific logic in new handler classes
-3. Add to strategy selection in `GitNativeCompleteHandler`
-4. Create corresponding tests in `tests/`
+### Modifying the Split-Commit Approach
+The split-commit approach is implemented in:
+- `HunkCommitSplitter` (src/git_autosquash/hunk_commit_splitter.py) - Commit splitting logic
+- `RebaseManager._apply_hunks_to_commit()` (src/git_autosquash/rebase_manager.py:632-732) - Cherry-pick execution
+- `main.py process_hunks_and_mappings()` (src/git_autosquash/main.py:566-620) - Orchestration
 
-Note: The architecture now uses a simplified index-based approach. Consider whether additional complexity is truly necessary before adding new strategies.
+Note: The split-commit approach is the only production code path. GitNativeCompleteHandler and GitNativeIgnoreHandler are deprecated and not used.
 
 ### Modifying TUI Components
 1. Enhanced UI components are in `tui/enhanced_*` files for fallback scenarios

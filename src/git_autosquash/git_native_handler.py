@@ -1,4 +1,16 @@
-"""Git-native handler for ignore functionality using hybrid stash approach."""
+"""Git-native handler for ignore functionality using hybrid stash approach.
+
+⚠️ DEPRECATED: This module is not used in production code. The main.py entry point
+uses RebaseManager directly for all hunk operations. This code exists only for test
+compatibility and may be removed in future versions.
+
+Actual production code uses the split-commit approach via:
+- main.py → RebaseManager.execute_squash()
+- HunkCommitSplitter for creating per-hunk commits
+- Cherry-pick with 3-way merge for applying hunks
+
+This "index strategy" handler was designed but never integrated into main execution flow.
+"""
 
 from pathlib import Path
 from typing import List, Optional

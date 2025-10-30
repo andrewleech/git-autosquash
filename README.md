@@ -71,7 +71,30 @@ git-autosquash --line-by-line
 
 ## How It Works
 
-git-autosquash uses git blame analysis to trace each modified line back to its originating commit, then presents an interactive interface for reviewing and approving the proposed squash targets.
+git-autosquash uses a split-commit approach with git's 3-way merge for reliable hunk squashing:
+
+### 1. Blame Analysis
+Traces each modified line back to the commit that last modified it using `git blame`.
+
+### 2. Source Normalization
+Converts all input sources (working tree, staged changes, HEAD commit) to a single commit for consistent processing.
+
+### 3. Commit Splitting
+Creates temporary commits, one per hunk, enabling git's 3-way merge to work reliably.
+
+### 4. Cherry-Pick with 3-Way Merge
+Applies each hunk by cherry-picking its split commit:
+- Uses `git cherry-pick --no-commit` for reliable 3-way merge
+- Handles complex cases like removing lines from the commit that added them
+- Git understands full history context, not just text diffs
+
+### 5. Interactive Rebase
+Rebases through target commits chronologically, amending each with its hunks in a single pass.
+
+### 6. Validation
+Post-flight validation via `git diff` ensures no data was lost or corrupted during processing.
+
+This approach is more reliable than patch-based methods because git's 3-way merge can handle historical context changes that would cause simple text patches to fail.
 
 For complete documentation, architecture details, and advanced usage patterns, see: **https://andrewleech.github.io/git-autosquash/**
 

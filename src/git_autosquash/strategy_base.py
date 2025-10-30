@@ -1,4 +1,14 @@
-"""Abstract base class for CLI execution strategies."""
+"""Abstract base class for CLI execution strategies.
+
+⚠️ DEPRECATED: This module is not used in production code. The main execution flow
+uses RebaseManager directly without strategy abstraction. This code exists only for
+test compatibility and may be removed in future versions.
+
+Actual production code uses:
+- main.py → RebaseManager.execute_squash()
+- No strategy pattern or abstraction
+- Direct split-commit + cherry-pick implementation
+"""
 
 from abc import ABC, abstractmethod
 from typing import List, Optional

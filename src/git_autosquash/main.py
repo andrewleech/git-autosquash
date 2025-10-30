@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, List, Optional
 import typer
 from typing_extensions import Annotated
 
-from git_autosquash.cli_strategy import strategy_app
 from git_autosquash.exceptions import (
     ErrorReporter,
     GitAutoSquashError,
@@ -328,9 +327,6 @@ app = typer.Typer(
     add_completion=True,
     context_settings={"help_option_names": ["-h", "--help"]},
 )
-
-# Add strategy subcommands
-app.add_typer(strategy_app)
 
 
 def complete_git_branches(incomplete: str) -> List[str]:

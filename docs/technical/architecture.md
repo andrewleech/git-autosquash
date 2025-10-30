@@ -114,7 +114,34 @@ class ProcessingValidator:
     def validate_processing(self, start_commit: str, end_commit: str) -> None
 ```
 
-### 4. HunkParser (`hunk_parser.py`)
+### 4. HunkCommitSplitter (`hunk_commit_splitter.py`)
+
+**Purpose**: Splits source commits into separate temporary commits, one per hunk, enabling reliable 3-way merge during cherry-pick.
+
+**Key Responsibilities**:
+- Create temporary branch for split commits
+- Generate individual commits for each hunk from source commit
+- Preserve original commit metadata (author, date, message)
+- Provide cleanup mechanism for temporary commits and branch
+
+**Design Decisions**:
+- **Real Git Commits:** Creates actual commits instead of text patches for 3-way merge compatibility
+- **One Hunk Per Commit:** Each split commit contains exactly one change for granular application
+- **Temporary Branch:** Uses `git-autosquash-split-<hash>` naming pattern for isolation
+- **Automatic Cleanup:** Removes all temporary commits and branches after processing
+
+**Why This Enables Reliable Squashing:**
+- Git's 3-way merge can handle complex cases (removing lines from commit that added them)
+- Cherry-pick with --no-commit applies changes without creating new commits
+- Full git history context available during merge (not just text diffs)
+
+```python
+class HunkCommitSplitter:
+    def split_commit_into_hunks(self, source_commit: str) -> tuple[List[str], List[DiffHunk]]
+    def cleanup(self) -> None
+```
+
+### 5. HunkParser (`hunk_parser.py`)
 
 **Purpose**: Parses Git diff output into structured hunk objects for analysis and processing.
 
@@ -142,7 +169,7 @@ class DiffHunk:
     context_after: list[str]
 ```
 
-### 5. BlameAnalyzer (`blame_analyzer.py`)
+### 6. BlameAnalyzer (`blame_analyzer.py`)
 
 **Purpose**: Analyzes Git blame information to determine target commits for each hunk with confidence scoring.
 
@@ -166,7 +193,7 @@ class BlameAnalyzer:
     def _get_commit_timestamp(self, commit_hash: str) -> int  # Cached
 ```
 
-### 6. TUI System (`tui/`)
+### 7. TUI System (`tui/`)
 
 **Purpose**: Rich terminal interface using Textual framework for user interaction and approval workflow.
 
@@ -191,16 +218,23 @@ graph TD
 - **Keyboard Navigation**: Full keyboard control for efficient workflows
 - **Graceful Fallback**: Text-based fallback when TUI unavailable
 
-### 7. RebaseManager (`rebase_manager.py`)
+### 8. RebaseManager (`rebase_manager.py`)
 
-**Purpose**: Orchestrates interactive rebase operations to apply approved hunks to historical commits.
+**Purpose**: Orchestrates interactive rebase operations to apply approved hunks to historical commits using split-commit + cherry-pick approach.
 
 **Key Responsibilities**:
 - Group hunks by target commit for batch processing
+- Apply hunks via cherry-pick of split commits (primary method)
+- Fallback to patch-based approach if cherry-pick unavailable
 - Execute interactive rebase with chronological ordering
 - Handle stash/unstash operations for working tree management
 - Detect and report conflicts with resolution guidance
 - Provide automatic rollback on errors or interruption
+
+**Execution Strategy**:
+- **Primary:** Cherry-pick split commits with `--no-commit` flag (uses git's 3-way merge)
+- **Fallback:** Patch-based application if split commits unavailable
+- **Why 3-way works:** Git understands history context, can remove lines from commit that added them
 
 **Execution Flow**:
 1. **Preparation**: Stash uncommitted changes, validate branch state
@@ -208,10 +242,11 @@ graph TD
 3. **Ordering**: Sort commits chronologically (oldest first) for history integrity
 4. **Processing**: For each commit:
    - Start interactive rebase to edit the commit
-   - Apply hunk patches using `git apply`
+   - Cherry-pick split commits using `git cherry-pick --no-commit` (if available)
+   - Fallback to patch application using `git apply --3way` (if split commits unavailable)
    - Amend the commit with new changes
    - Continue rebase to next commit
-5. **Cleanup**: Restore stash, handle any remaining cleanup
+5. **Cleanup**: Restore stash, clean up split commits/branches, handle remaining cleanup
 
 **Error Handling Strategy**:
 - **Conflict Detection**: Identify merge conflicts and pause with guidance

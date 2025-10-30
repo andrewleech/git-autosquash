@@ -1,4 +1,17 @@
-"""CLI commands for git-native strategy management and configuration."""
+"""CLI commands for git-native strategy management and configuration.
+
+⚠️ DEPRECATED: These commands configure strategy handlers that are not used in
+production code. The main execution flow uses RebaseManager with split-commit
+approach exclusively. These commands exist for backwards compatibility only and
+may be removed in future versions.
+
+Actual production code path:
+- main.py → RebaseManager.execute_squash()
+- Uses split-commit + cherry-pick (NO strategy selection)
+- GitNativeCompleteHandler/GitNativeIgnoreHandler are orphaned code
+
+Environment variable GIT_AUTOSQUASH_STRATEGY has no effect on actual execution.
+"""
 
 import os
 from typing import Optional
