@@ -26,15 +26,23 @@ from git_autosquash.validation import ProcessingValidator
 if TYPE_CHECKING:
     from git_autosquash.hunk_commit_splitter import HunkCommitSplitter
 
+# Module logger for debug output
+logger = logging.getLogger("git_autosquash.main")
+
 
 def setup_logging(verbose: bool) -> None:
-    """Configure logging based on verbosity level."""
-    level = logging.DEBUG if verbose else logging.INFO
-    logging.basicConfig(
-        level=level,
-        format="%(levelname)s: %(message)s",
-        force=True,  # Override any existing configuration
-    )
+    """Configure logging for git-autosquash without affecting other loggers."""
+    # Use named logger to avoid interfering with user's logging configuration
+    logger = logging.getLogger("git_autosquash")
+
+    # Only configure if not already configured
+    if not logger.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+        logger.addHandler(handler)
+
+    logger.setLevel(logging.DEBUG if verbose else logging.INFO)
+    logger.propagate = False  # Don't propagate to root logger
 
 
 def _simple_approval_fallback(mappings, resolver, commit_analyzer=None):
@@ -197,7 +205,7 @@ def _execute_rebase(
         rebase_manager = RebaseManager(git_ops, merge_base)
 
         # Show what we're about to do
-        logging.debug(
+        logger.debug(
             f"Distributing {len(approved_mappings)} hunks to their target commits:"
         )
         commit_counts = {}
@@ -210,15 +218,15 @@ def _execute_rebase(
         for commit_hash, count in commit_counts.items():
             try:
                 commit_summary = resolver.get_commit_summary(commit_hash)
-                logging.debug(
+                logger.debug(
                     f"  {count} hunk{'s' if count > 1 else ''} → {commit_summary}"
                 )
             except Exception:
-                logging.debug(
+                logger.debug(
                     f"  {count} hunk{'s' if count > 1 else ''} → {commit_hash}"
                 )
 
-        logging.debug("Starting rebase operation...")
+        logger.debug("Starting rebase operation...")
 
         # Execute the squash operation
         success = rebase_manager.execute_squash(
@@ -240,10 +248,10 @@ def _execute_rebase(
         try:
             status_result = git_ops.run_git_command(["status", "--porcelain"])
             rebase_in_progress = rebase_manager.is_rebase_in_progress()
-            logging.debug(f"Rebase in progress: {rebase_in_progress}")
-            logging.debug(f"Working tree status: {status_result.stdout.strip()}")
+            logger.debug(f"Rebase in progress: {rebase_in_progress}")
+            logger.debug(f"Working tree status: {status_result.stdout.strip()}")
         except Exception as debug_e:
-            logging.debug(f"Failed to check rebase status: {debug_e}")
+            logger.debug(f"Failed to check rebase status: {debug_e}")
 
         if rebase_manager.is_rebase_in_progress():
             print("\nTo resolve conflicts:")
@@ -562,7 +570,7 @@ def process_hunks_and_mappings(
     # Phase 1: Normalize source to commit
     normalizer = SourceNormalizer(git_ops)
     starting_commit = normalizer.normalize_to_commit(source)
-    logging.debug(f"Processing from commit: {starting_commit[:8]}")
+    logger.debug(f"Processing from commit: {starting_commit[:8]}")
 
     # Phase 2: Split source commit into per-hunk commits (ALWAYS for reliability)
     # This enables reliable 3-way merge during cherry-pick, which handles complex
@@ -571,16 +579,16 @@ def process_hunks_and_mappings(
     split_commits: List[str] = []
 
     # Always use split-commit approach for reliable 3-way merge
-    logging.debug(
+    logger.debug(
         "Splitting source commit into per-hunk commits for reliable 3-way merge"
     )
     splitter = HunkCommitSplitter(git_ops)
     try:
         split_commits, hunks = splitter.split_commit_into_hunks(starting_commit)
-        logging.debug(f"Created {len(split_commits)} split commits")
+        logger.debug(f"Created {len(split_commits)} split commits")
     except Exception as e:
-        logging.debug(f"Failed to split commit: {e}")
-        logging.warning(
+        logger.debug(f"Failed to split commit: {e}")
+        logger.warning(
             "Falling back to patch-based approach (may fail for complex cases like removing lines from the commit that added them)"
         )
         # Fall back to normal patch-based approach
@@ -612,7 +620,7 @@ def process_hunks_and_mappings(
         for i, mapping in enumerate(mappings):
             if i < len(split_commits):
                 mapping.source_commit_sha = split_commits[i]
-                logging.debug(
+                logger.debug(
                     f"Mapped hunk {i + 1} to split commit {split_commits[i][:8]}"
                 )
 
@@ -651,14 +659,14 @@ def handle_automatic_mappings(
         print(
             f"\n✓ Auto-accepting {len(automatic_mappings)} hunks across {len(files)} files"
         )
-        logging.debug(
+        logger.debug(
             f"Auto-accepting {len(automatic_mappings)} hunks with blame-identified targets"
         )
         for mapping in automatic_mappings:
             commit_summary = (
                 mapping.target_commit[:8] if mapping.target_commit else "unknown"
             )
-            logging.debug(f"  → {mapping.hunk.file_path}: {commit_summary}")
+            logger.debug(f"  → {mapping.hunk.file_path}: {commit_summary}")
         return automatic_mappings, []
     else:
         # Interactive mode: show automatic mappings for user confirmation
@@ -869,10 +877,7 @@ def run(
         return
 
     try:
-        # Validate argument combinations
-        if dry_run and interactive:
-            typer.echo("Error: --dry-run cannot be used with --interactive", err=True)
-            raise typer.Exit(code=1)
+        # Allow interactive dry-run (useful for previewing changes without applying)
 
         # Phase 2: Initialize git operations and validate environment
         git_ops = GitOps()
@@ -917,9 +922,9 @@ def run(
         normalizer.temp_commit_created = temp_commit_created
 
         try:
-            logging.debug(f"Found target commits for {len(automatic_mappings)} hunks")
+            logger.debug(f"Found target commits for {len(automatic_mappings)} hunks")
             if fallback_mappings:
-                logging.debug(
+                logger.debug(
                     f"Found {len(fallback_mappings)} hunks requiring manual target selection"
                 )
 
