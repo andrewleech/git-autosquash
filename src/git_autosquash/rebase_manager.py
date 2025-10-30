@@ -93,45 +93,45 @@ class RebaseManager:
 
             # Execute rebase for each target commit
             target_commits = self._get_commit_order(set(commit_hunks.keys()))
-            print(
-                f"DEBUG: Processing {len(target_commits)} target commits in order: {[c[:8] for c in target_commits]}"
+            logger.debug(
+                f"Processing {len(target_commits)} target commits in order: {[c[:8] for c in target_commits]}"
             )
 
             for target_commit in target_commits:
                 hunks = commit_hunks[target_commit]
                 # Get source commit SHAs for these hunks
                 source_commits = [hunk_to_source_commit.get(id(hunk)) for hunk in hunks]
-                print(
-                    f"DEBUG: Processing target commit {target_commit[:8]} with {len(hunks)} hunks"
+                logger.debug(
+                    f"Processing target commit {target_commit[:8]} with {len(hunks)} hunks"
                 )
                 success = self._apply_hunks_to_commit(
                     target_commit, hunks, source_commits
                 )
                 if not success:
-                    print(f"DEBUG: Failed to apply hunks to commit {target_commit[:8]}")
+                    logger.debug(f"Failed to apply hunks to commit {target_commit[:8]}")
                     return False
-                print(
-                    f"DEBUG: Successfully applied hunks to commit {target_commit[:8]}"
+                logger.debug(
+                    f"Successfully applied hunks to commit {target_commit[:8]}"
                 )
-                print("=" * 80)
+                logger.debug("=" * 80)
 
             # Handle source commit if it has ignored hunks
             if hasattr(self, "_source_needs_edit") and self._ignored_mappings:
-                print(
-                    f"DEBUG: Processing source commit with {len(self._ignored_mappings)} ignored hunks"
+                logger.debug(
+                    f"Processing source commit with {len(self._ignored_mappings)} ignored hunks"
                 )
                 success = self._process_source_with_ignored_hunks(
                     self._source_needs_edit, commit_hunks
                 )
                 if not success:
-                    print(
-                        f"DEBUG: Failed to process source commit {self._source_needs_edit[:8]}"
+                    logger.debug(
+                        f"Failed to process source commit {self._source_needs_edit[:8]}"
                     )
                     return False
-                print(
-                    f"DEBUG: Successfully processed source commit {self._source_needs_edit[:8]}"
+                logger.debug(
+                    f"Successfully processed source commit {self._source_needs_edit[:8]}"
                 )
-                print("=" * 80)
+                logger.debug("=" * 80)
 
             # Restore stash if we created one (success path)
             if self._stash_ref:
@@ -644,41 +644,30 @@ class RebaseManager:
         Returns:
             True if successful, False if user aborted
         """
-        print(f"DEBUG: Applying {len(hunks)} hunks to commit {target_commit[:8]}")
+        logger.debug(f"Applying {len(hunks)} hunks to commit {target_commit[:8]}")
         for i, hunk in enumerate(hunks):
-            print(
-                f"DEBUG: Hunk {i + 1}: {hunk.file_path} @@ {hunk.lines[0] if hunk.lines else 'empty'}"
+            logger.debug(
+                f"Hunk {i + 1}: {hunk.file_path} @@ {hunk.lines[0] if hunk.lines else 'empty'}"
             )
 
         # Start interactive rebase to edit the target commit
-        print(f"DEBUG: Starting interactive rebase to edit {target_commit[:8]}")
+        logger.debug(f"Starting interactive rebase to edit {target_commit[:8]}")
         if not self._start_rebase_edit(target_commit):
-            print("DEBUG: Failed to start rebase edit")
+            logger.debug("Failed to start rebase edit")
             return False
 
-        print("DEBUG: Interactive rebase started successfully")
+        logger.debug("Interactive rebase started successfully")
 
         # Check what commit we're actually at
         result = self.git_ops.run_git_command(["rev-parse", "HEAD"])
         if result.returncode == 0:
             current_head = result.stdout.strip()
-            print(f"DEBUG: Current HEAD during rebase: {current_head[:8]}")
-            print(f"DEBUG: Target commit: {target_commit[:8]}")
+            logger.debug(f"Current HEAD during rebase: {current_head[:8]}")
+            logger.debug(f"Target commit: {target_commit[:8]}")
             if current_head != target_commit:
-                print(
-                    f"DEBUG: WARNING - HEAD mismatch! We're at {current_head[:8]} but expected {target_commit[:8]}"
+                logger.debug(
+                    f"WARNING - HEAD mismatch! We're at {current_head[:8]} but expected {target_commit[:8]}"
                 )
-
-        # Check the actual file content at lines 87 and 111
-        try:
-            with open("shared/runtime/pyexec.c", "r") as f:
-                lines = f.readlines()
-                if len(lines) >= 87:
-                    print(f"DEBUG: Line 87 content: '{lines[86].strip()}'")
-                if len(lines) >= 111:
-                    print(f"DEBUG: Line 111 content: '{lines[110].strip()}'")
-        except Exception as e:
-            print(f"DEBUG: Failed to read file content: {e}")
 
         try:
             # Check if we have split commit SHAs (for cherry-pick)
@@ -686,16 +675,16 @@ class RebaseManager:
 
             if split_commits:
                 # Use cherry-pick with 3-way merge (reliable)
-                print(f"DEBUG: Cherry-picking {len(split_commits)} split commits")
+                logger.debug(f"Cherry-picking {len(split_commits)} split commits")
                 for i, commit_sha in enumerate(split_commits, 1):
-                    print(
-                        f"DEBUG: Cherry-picking {i}/{len(split_commits)}: {commit_sha[:8]}"
+                    logger.debug(
+                        f"Cherry-picking {i}/{len(split_commits)}: {commit_sha[:8]}"
                     )
                     result = self.git_ops.run_git_command(
                         ["cherry-pick", "--no-commit", commit_sha]
                     )
                     if result.returncode != 0:
-                        print(f"DEBUG: Cherry-pick failed: {result.stderr}")
+                        logger.debug(f"Cherry-pick failed: {result.stderr}")
                         # Check for conflicts
                         conflicted_files = self._get_conflicted_files()
                         if conflicted_files:
@@ -707,28 +696,28 @@ class RebaseManager:
                             raise subprocess.SubprocessError(
                                 f"Cherry-pick failed: {result.stderr}"
                             )
-                    print(f"DEBUG: Cherry-pick {i} successful")
-                print("DEBUG: All cherry-picks successful")
+                    logger.debug(f"Cherry-pick {i} successful")
+                logger.debug("All cherry-picks successful")
             else:
                 # Fall back to patch-based approach
-                print("DEBUG: Creating patch from original hunk text")
+                logger.debug("Creating patch from original hunk text")
                 patch_content = self._create_patch_from_original_hunks(hunks)
-                print(f"DEBUG: Created patch content ({len(patch_content)} chars):")
-                print("=" * 50)
-                print(patch_content)
-                print("=" * 50)
+                logger.debug(f"Created patch content ({len(patch_content)} chars):")
+                logger.debug("=" * 50)
+                logger.debug(patch_content)
+                logger.debug("=" * 50)
                 self._apply_patch_with_3way(patch_content)
-                print("DEBUG: Patch applied successfully")
+                logger.debug("Patch applied successfully")
 
             # Amend the commit
-            print("DEBUG: Amending commit with changes")
+            logger.debug("Amending commit with changes")
             self._amend_commit()
-            print("DEBUG: Commit amended successfully")
+            logger.debug("Commit amended successfully")
 
             # Continue the rebase
-            print("DEBUG: Continuing rebase")
+            logger.debug("Continuing rebase")
             self._continue_rebase()
-            print("DEBUG: Rebase continued successfully")
+            logger.debug("Rebase continued successfully")
 
             return True
 
@@ -737,8 +726,8 @@ class RebaseManager:
             raise
         except Exception as e:
             # Abort rebase on unexpected errors
-            print(f"DEBUG: Exception occurred during rebase: {e}")
-            print(f"DEBUG: Exception type: {type(e)}")
+            logger.debug(f"Exception occurred during rebase: {e}")
+            logger.debug(f"Exception type: {type(e)}")
             self._abort_rebase()
             raise subprocess.SubprocessError(f"Failed to apply changes: {e}")
 
@@ -831,8 +820,8 @@ class RebaseManager:
         if change.get("is_addition", False):
             context_before = change.get("context_before", [])
             if not context_before:
-                print(
-                    "DEBUG: Pure addition without context, cannot determine insertion point"
+                logger.debug(
+                    "Pure addition without context, cannot determine insertion point"
                 )
                 return None
 
@@ -850,17 +839,17 @@ class RebaseManager:
                     # Insert after the context
                     insertion_line = i + len(context_before) + 1  # 1-based
                     if insertion_line not in used_lines:
-                        print(
-                            f"DEBUG: Found insertion point for addition at line {insertion_line}"
+                        logger.debug(
+                            f"Found insertion point for addition at line {insertion_line}"
                         )
                         return insertion_line
 
-            print("DEBUG: Could not find context match for addition")
+            logger.debug("Could not find context match for addition")
             return None
 
         # Handle modifications (existing logic)
         if "old_line" not in change:
-            print("DEBUG: Change has neither old_line nor is_addition flag")
+            logger.debug("Change has neither old_line nor is_addition flag")
             return None
 
         old_line = change["old_line"].strip()
@@ -875,20 +864,20 @@ class RebaseManager:
                 candidates.append(line_num)
 
         if not candidates:
-            print(f"DEBUG: No unused matches found for line: '{old_line}'")
+            logger.debug(f"No unused matches found for line: '{old_line}'")
             return None
 
         if len(candidates) == 1:
-            print(f"DEBUG: Found unique match at line {candidates[0]}")
+            logger.debug(f"Found unique match at line {candidates[0]}")
             return candidates[0]
 
         # Multiple candidates
-        print(f"DEBUG: Multiple candidates for '{old_line}': {candidates}")
-        print(f"DEBUG: Used lines: {sorted(used_lines)}")
+        logger.debug(f"Multiple candidates for '{old_line}': {candidates}")
+        logger.debug(f"Used lines: {sorted(used_lines)}")
 
         # Use the first unused candidate
         selected = candidates[0]
-        print(f"DEBUG: Selected first unused candidate: {selected}")
+        logger.debug(f"Selected first unused candidate: {selected}")
         return selected
 
     def _create_corrected_patch_for_hunks(
@@ -904,10 +893,6 @@ class RebaseManager:
         Returns:
             Patch content with corrected line numbers
         """
-        print(
-            f"DEBUG: Creating corrected patch for {len(hunks)} hunks targeting {target_commit[:8]}"
-        )
-
         # Group hunks by file
         files_to_hunks: Dict[str, List[DiffHunk]] = self._consolidate_hunks_by_file(
             hunks
@@ -916,7 +901,7 @@ class RebaseManager:
         patch_lines = []
 
         for file_path, file_hunks in files_to_hunks.items():
-            print(f"DEBUG: Processing {len(file_hunks)} hunks for file {file_path}")
+            logger.debug(f"Processing {len(file_hunks)} hunks for file {file_path}")
 
             # Add file header
             patch_lines.extend([f"--- a/{file_path}", f"+++ b/{file_path}"])
@@ -924,37 +909,31 @@ class RebaseManager:
             # Read the file content from target commit to find correct line numbers
             try:
                 # Get file content at target commit
+                logger.debug(f"Reading file content from commit {target_commit[:8]}")
                 result = self.git_ops.run_git_command(
                     ["show", f"{target_commit}:{file_path}"]
                 )
                 if result.returncode != 0:
-                    print(
-                        f"DEBUG: Failed to get {file_path} from {target_commit}: {result.stderr}"
-                    )
                     continue
 
                 file_lines = result.stdout.splitlines(keepends=True)
-                print(
-                    f"DEBUG: Read {len(file_lines)} lines from {file_path} at {target_commit[:8]}"
-                )
-            except Exception as e:
-                print(f"DEBUG: Failed to read {file_path} from {target_commit}: {e}")
+            except Exception:
                 continue
 
             # Extract all changes from all hunks for this file
             all_changes = []
             for hunk in file_hunks:
                 changes = self._extract_hunk_changes(hunk)
+                logger.debug(f"Extracted {len(changes)} changes from hunk")
                 for change in changes:
                     change["original_hunk"] = hunk
                     all_changes.append(change)
-
-            print(f"DEBUG: Extracted {len(all_changes)} total changes for {file_path}")
 
             # Find target lines for all changes first
             changes_with_targets = []
             used_lines: Set[int] = set()
 
+            logger.debug(f"Mapping {len(all_changes)} changes to target lines")
             for change in all_changes:
                 target_line_num = self._find_target_with_context(
                     change, file_lines, used_lines
@@ -962,20 +941,14 @@ class RebaseManager:
                 if target_line_num is not None:
                     used_lines.add(target_line_num)
                     changes_with_targets.append((change, target_line_num))
-                    print(f"DEBUG: Mapped change to line {target_line_num}")
-                else:
-                    # Handle both additions (with new_line) and modifications/deletions (with old_line)
-                    change_preview = change.get("old_line", change.get("new_line", ""))[
-                        :50
-                    ]
-                    print(
-                        f"DEBUG: Could not find target for change: {change_preview}..."
-                    )
 
             # Sort changes by line number
             changes_with_targets.sort(key=lambda x: x[1])
 
             # Group overlapping changes to avoid hunk conflicts
+            logger.debug(
+                f"Consolidating {len(changes_with_targets)} changes into hunks"
+            )
             consolidated_hunks = self._consolidate_overlapping_changes(
                 changes_with_targets, file_lines
             )
@@ -1020,9 +993,6 @@ class RebaseManager:
                 # If contexts overlap, add to current group
                 if change_start <= group_end and change_end >= group_start:
                     current_group.append((change, line_num))
-                    print(
-                        f"DEBUG: Consolidating change at line {line_num} with existing group"
-                    )
                 else:
                     # No overlap, create hunk for current group and start new group
                     hunk_lines = self._create_consolidated_hunk(
@@ -1038,9 +1008,6 @@ class RebaseManager:
             if hunk_lines:
                 consolidated_hunks.append(hunk_lines)
 
-        print(
-            f"DEBUG: Created {len(consolidated_hunks)} consolidated hunks from {len(changes_with_targets)} changes"
-        )
         return consolidated_hunks
 
     def _create_consolidated_hunk(
@@ -1065,10 +1032,6 @@ class RebaseManager:
         # Expand context to ensure good patch application (6 lines each side)
         context_start = max(1, min_line - 6)
         context_end = min(len(file_lines), max_line + 6)
-
-        print(
-            f"DEBUG: Creating consolidated hunk for lines {min_line}-{max_line}, context {context_start}-{context_end}"
-        )
 
         # Create change mapping for quick lookup
         changes_by_line = {line_num: change for change, line_num in changes_group}
@@ -1143,10 +1106,6 @@ class RebaseManager:
         # Create context around the target line (6 lines before and after for better resilience)
         context_start = max(1, target_line_num - 6)
         context_end = min(len(file_lines), target_line_num + 6)
-
-        print(
-            f"DEBUG: Creating hunk for change at line {target_line_num}, context {context_start}-{context_end}"
-        )
 
         # Build the hunk header
         old_count = context_end - context_start + 1
@@ -1244,19 +1203,9 @@ class RebaseManager:
                     )
 
                     if has_ignored_hunks:
-                        print(
-                            f"DEBUG: Source commit {source_sha[:8]} has {len(self._ignored_mappings)} ignored hunks"
-                        )
-                        print("DEBUG: Preserving source commit to keep ignored changes")
                         # Mark source for special edit handling
                         self._source_needs_edit = source_sha
                     else:
-                        print(
-                            f"DEBUG: Detected --source commit {source_sha[:8]} in rebase sequence"
-                        )
-                        print(
-                            "DEBUG: Excluding source commit from rebase (all hunks processed)"
-                        )
                         # Remove source commit from the list - all its changes were squashed elsewhere
                         commit_list = [c for c in commit_list if c != source_sha]
 
@@ -1265,9 +1214,6 @@ class RebaseManager:
                             return f"edit {target_commit}\n"
 
         # Use comprehensive rebase approach
-        print(
-            f"DEBUG: Using comprehensive rebase approach for {target_commit[:8]} with {len(commit_list)} commits"
-        )
         todo_lines = []
         for commit_hash in commit_list:
             if commit_hash == target_commit:
@@ -1328,9 +1274,6 @@ class RebaseManager:
         file_overlap = commit_files.intersection(target_files)
 
         if file_overlap:
-            print(
-                f"DEBUG: Potential conflict detected: commit {commit_hash[:8]} and target {target_commit[:8]} both modify: {', '.join(file_overlap)}"
-            )
             return True
 
         return False
@@ -1376,9 +1319,6 @@ class RebaseManager:
                 if self._commit_might_conflict_with_target(
                     commit_hash, target_commit, target_files
                 ):
-                    print(
-                        "DEBUG: Using simple rebase due to potential conflicts with subsequent commits"
-                    )
                     return True
 
         return False
@@ -1407,30 +1347,20 @@ class RebaseManager:
                 new_line = line[1:].rstrip("\n")  # Remove '+' and trailing newline
 
         if not old_line or not new_line:
-            print("DEBUG: Could not extract old/new lines from hunk")
             return []
-
-        print(f"DEBUG: Looking for line: '{old_line.strip()}'")
-
         # Find the line number in the current file
         target_line_num = None
         for i, file_line in enumerate(file_lines):
             if file_line.rstrip("\n").strip() == old_line.strip():
                 target_line_num = i + 1  # Convert to 1-based line numbering
-                print(f"DEBUG: Found target line at line {target_line_num}")
                 break
 
         if target_line_num is None:
-            print("DEBUG: Could not find target line in current file")
             return []
 
         # Create context around the target line (6 lines before and after for better resilience)
         context_start = max(1, target_line_num - 6)
         context_end = min(len(file_lines), target_line_num + 6)
-
-        print(
-            f"DEBUG: Creating hunk for lines {context_start}-{context_end}, changing line {target_line_num}"
-        )
 
         # Build the hunk
         hunk_lines = []
@@ -1465,31 +1395,20 @@ class RebaseManager:
         Returns:
             Patch content as string
         """
-        print(f"DEBUG: Creating patch for {len(hunks)} hunks")
         patch_lines = []
         current_file = None
 
         for hunk in hunks:
-            print(f"DEBUG: Processing hunk for file {hunk.file_path}")
-            print(f"DEBUG: Hunk has {len(hunk.lines)} lines")
             if hunk.lines:
-                print(f"DEBUG: First line: {hunk.lines[0]}")
-                print(f"DEBUG: Last line: {hunk.lines[-1]}")
-
-            # Add file header if this is a new file
-            if hunk.file_path != current_file:
-                current_file = hunk.file_path
-                patch_lines.extend(
-                    [f"--- a/{hunk.file_path}", f"+++ b/{hunk.file_path}"]
-                )
-                print(f"DEBUG: Added file header for {hunk.file_path}")
-
-            # Add hunk content
-            patch_lines.extend(hunk.lines)
-            print(f"DEBUG: Added {len(hunk.lines)} lines from hunk")
-
+                # Add file header if this is a new file
+                if hunk.file_path != current_file:
+                    current_file = hunk.file_path
+                    patch_lines.extend(
+                        [f"--- a/{hunk.file_path}", f"+++ b/{hunk.file_path}"]
+                    )
+                # Add hunk content
+                patch_lines.extend(hunk.lines)
         patch_content = "\n".join(patch_lines) + "\n"
-        print(f"DEBUG: Final patch content ({len(patch_content)} chars):")
         return patch_content
 
     def _start_rebase_edit(self, target_commit: str) -> bool:
@@ -1503,21 +1422,15 @@ class RebaseManager:
         """
         # Check if rebase is already in progress
         if self.is_rebase_in_progress():
-            print(
-                "DEBUG: Rebase already in progress - completing it before starting new one"
-            )
             # Complete the existing rebase by continuing through all edit points
             try:
                 self._complete_remaining_rebase()
-            except Exception as e:
-                print(f"DEBUG: Failed to complete existing rebase: {e}")
+            except Exception:
                 # Clean up the failed rebase state
                 self._cleanup_rebase_state()
 
         # Create rebase todo that marks target commit for editing and picks all others
         todo_content = self._generate_rebase_todo(target_commit)
-        print(f"DEBUG: Generated todo content for {target_commit[:8]}:")
-        print(todo_content)
 
         # Write todo to temporary file
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
@@ -1530,17 +1443,9 @@ class RebaseManager:
             env["GIT_SEQUENCE_EDITOR"] = f"cp {todo_file}"
 
             # Start interactive rebase from target commit to include commits after it
-            print(f"DEBUG: Starting rebase with: git rebase -i {target_commit}^")
             result = self.git_ops.run_git_command(
                 ["rebase", "-i", f"{target_commit}^"], env=env
             )
-
-            print(f"DEBUG: Rebase command returned: {result.returncode}")
-            if result.stdout:
-                print(f"DEBUG: Rebase stdout: {result.stdout}")
-            if result.stderr:
-                print(f"DEBUG: Rebase stderr: {result.stderr}")
-
             if result.returncode != 0:
                 # Rebase failed to start
                 return False
@@ -1565,15 +1470,12 @@ class RebaseManager:
 
         while self.is_rebase_in_progress() and iteration < max_iterations:
             iteration += 1
-            print(f"DEBUG: Completing rebase iteration {iteration}")
-
             # Just continue without making any changes
             result = self.git_ops.run_git_command(["rebase", "--continue"])
 
             if result.returncode != 0:
                 # Check if it's an empty commit
                 if "nothing to commit" in result.stderr:
-                    print("DEBUG: Skipping empty commit")
                     self.git_ops.run_git_command(["rebase", "--skip"])
                 else:
                     # Some other error - re-raise
@@ -1586,8 +1488,6 @@ class RebaseManager:
                 "Failed to complete rebase after maximum iterations"
             )
 
-        print("DEBUG: Completed remaining rebase successfully")
-
     def _cleanup_rebase_state(self) -> None:
         """Clean up any existing rebase state that might interfere."""
         # Check if there's an ongoing rebase
@@ -1595,10 +1495,8 @@ class RebaseManager:
         rebase_apply_dir = os.path.join(self.git_ops.repo_path, ".git", "rebase-apply")
 
         if os.path.exists(rebase_merge_dir) or os.path.exists(rebase_apply_dir):
-            print("DEBUG: Found existing rebase state, cleaning up...")
             # Try to abort any existing rebase
             self.git_ops.run_git_command(["rebase", "--abort"])
-            print("DEBUG: Cleaned up existing rebase state")
 
     def _create_patch_from_original_hunks(self, hunks: List[DiffHunk]) -> str:
         """Create a patch using the ORIGINAL hunk text from git (not reconstructed).
@@ -1648,11 +1546,10 @@ class RebaseManager:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".patch", delete=False) as f:
             f.write(patch_content)
             patch_file = f.name
-            print(f"DEBUG: Wrote patch to temporary file: {patch_file}")
-
+            logger.debug(f"Wrote patch to temporary file: {patch_file}")
         try:
             # Apply patch with 3-way merge and automatic line number recalculation
-            print(f"DEBUG: Running git apply --3way --recount {patch_file}")
+            logger.debug(f"Running git apply --3way --recount {patch_file}")
             result = self.git_ops.run_git_command(
                 [
                     "apply",
@@ -1661,19 +1558,17 @@ class RebaseManager:
                     patch_file,
                 ]
             )
-            print(f"DEBUG: git apply returned code: {result.returncode}")
-            if result.stdout:
-                print(f"DEBUG: git apply stdout: {result.stdout}")
+            logger.debug(f"git apply returned code: {result.returncode}")
+            logger.debug(f"git apply stdout: {result.stdout}")
+            logger.debug(f"git apply stderr: {result.stderr}")
+
             # Only show stderr if there was an error (returncode != 0)
             # Success can still have warnings about 3-way fallback which are noise
-            if result.returncode != 0 and result.stderr:
-                print(f"DEBUG: git apply stderr: {result.stderr}")
-
             if result.returncode != 0:
+                logger.debug("Patch application failed, checking for conflicts")
                 # Check if there are conflicts
-                print("DEBUG: Patch application failed, checking for conflicts")
                 conflicted_files = self._get_conflicted_files()
-                print(f"DEBUG: Conflicted files: {conflicted_files}")
+                logger.debug(f"Conflicted files: {conflicted_files}")
                 if conflicted_files:
                     raise RebaseConflictError(
                         f"Patch application failed with conflicts: {result.stderr}",
@@ -1701,12 +1596,11 @@ class RebaseManager:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".patch", delete=False) as f:
             f.write(patch_content)
             patch_file = f.name
-            print(f"DEBUG: Wrote patch to temporary file: {patch_file}")
-
+            logger.debug(f"Wrote patch to temporary file: {patch_file}")
         try:
             # Apply patch using git apply with fuzzy matching for better context handling
-            print(
-                f"DEBUG: Running git apply --ignore-whitespace --whitespace=nowarn {patch_file}"
+            logger.debug(
+                f"Running git apply --ignore-whitespace --whitespace=nowarn {patch_file}"
             )
             result = self.git_ops.run_git_command(
                 [
@@ -1716,15 +1610,15 @@ class RebaseManager:
                     patch_file,
                 ]
             )
-            print(f"DEBUG: git apply returned code: {result.returncode}")
-            print(f"DEBUG: git apply stdout: {result.stdout}")
-            print(f"DEBUG: git apply stderr: {result.stderr}")
+            logger.debug(f"git apply returned code: {result.returncode}")
+            logger.debug(f"git apply stdout: {result.stdout}")
+            logger.debug(f"git apply stderr: {result.stderr}")
 
             if result.returncode != 0:
+                logger.debug("Patch application failed, checking for conflicts")
                 # Check if there are conflicts
-                print("DEBUG: Patch application failed, checking for conflicts")
                 conflicted_files = self._get_conflicted_files()
-                print(f"DEBUG: Conflicted files: {conflicted_files}")
+                logger.debug(f"Conflicted files: {conflicted_files}")
                 if conflicted_files:
                     raise RebaseConflictError(
                         f"Patch application failed with conflicts: {result.stderr}",
@@ -1756,7 +1650,7 @@ class RebaseManager:
         if result.returncode != 0:
             # Check if the failure was due to empty commit
             if "would make" in result.stderr and "empty" in result.stderr:
-                print("DEBUG: Amend would create empty commit, using --allow-empty")
+                logger.debug("Amend would create empty commit, using --allow-empty")
                 # Allow empty commit - this happens when changes cancel out the original
                 retry_result = self.git_ops.run_git_command(
                     ["commit", "--amend", "--no-edit", "--allow-empty"]
@@ -1765,11 +1659,11 @@ class RebaseManager:
                     raise subprocess.SubprocessError(
                         f"Failed to amend empty commit: {retry_result.stderr}"
                     )
-                print("DEBUG: Successfully amended with --allow-empty")
+                logger.debug("Successfully amended with --allow-empty")
             # Check if the failure was due to pre-commit hook modifications
             elif "files were modified by this hook" in result.stderr:
-                print(
-                    "DEBUG: Pre-commit hook modified files, re-staging and retrying commit"
+                logger.debug(
+                    "Pre-commit hook modified files, re-staging and retrying commit"
                 )
                 # Re-stage all changes after hook modifications
                 stage_result = self.git_ops.run_git_command(["add", "."])
@@ -1785,8 +1679,8 @@ class RebaseManager:
                     raise subprocess.SubprocessError(
                         f"Failed to amend commit after hook modifications: {retry_result.stderr}"
                     )
-                print(
-                    "DEBUG: Successfully amended commit with pre-commit hook modifications"
+                logger.debug(
+                    "Successfully amended commit with pre-commit hook modifications"
                 )
             else:
                 raise subprocess.SubprocessError(
@@ -1800,20 +1694,20 @@ class RebaseManager:
 
         while retry_count < max_retries:
             result = self.git_ops.run_git_command(["rebase", "--continue"])
-            print(f"DEBUG: git rebase --continue returned: {result.returncode}")
-            print(f"DEBUG: git rebase --continue stdout: {result.stdout}")
-            print(f"DEBUG: git rebase --continue stderr: {result.stderr}")
+            logger.debug(f"git rebase --continue returned: {result.returncode}")
+            logger.debug(f"git rebase --continue stdout: {result.stdout}")
+            logger.debug(f"git rebase --continue stderr: {result.stderr}")
 
             if result.returncode == 0:
                 # Check if rebase is actually complete or just stopped at next edit point
                 if not self.is_rebase_in_progress():
                     # Rebase completed successfully
-                    print("DEBUG: Rebase completed successfully")
+                    logger.debug("Rebase completed successfully")
                     return
                 else:
                     # Rebase stopped at next edit point - need to continue through remaining edits
-                    print(
-                        "DEBUG: Rebase stopped at next edit point, continuing through remaining edits"
+                    logger.debug(
+                        "Rebase stopped at next edit point, continuing through remaining edits"
                     )
                     # Continue through any remaining edit points automatically
                     retry_count += 1
@@ -1824,7 +1718,7 @@ class RebaseManager:
                 "The previous cherry-pick is now empty" in result.stderr
                 or "nothing to commit, working tree clean" in result.stderr
             ):
-                print("DEBUG: Skipping empty commit during rebase")
+                logger.debug("Skipping empty commit during rebase")
                 skip_result = self.git_ops.run_git_command(["rebase", "--skip"])
                 if skip_result.returncode == 0:
                     # Check if rebase is complete
@@ -1985,7 +1879,7 @@ class RebaseManager:
         Returns:
             True if successful, False otherwise
         """
-        print(f"DEBUG: Processing source commit {source_commit[:8]} with ignored hunks")
+        logger.debug(f"Processing source commit {source_commit[:8]} with ignored hunks")
 
         # Get split commit SHAs for ignored hunks from the ignored mappings
         ignored_split_commits = []
@@ -1993,31 +1887,31 @@ class RebaseManager:
             for mapping in self._ignored_mappings:
                 if mapping.source_commit_sha:
                     ignored_split_commits.append(mapping.source_commit_sha)
-                    print(
-                        f"DEBUG: Found ignored split commit: {mapping.source_commit_sha[:8]}"
+                    logger.debug(
+                        f"Found ignored split commit: {mapping.source_commit_sha[:8]}"
                     )
 
         if not ignored_split_commits:
-            print(
-                "DEBUG: No ignored split commits found, source commit will be removed"
+            logger.debug(
+                "No ignored split commits found, source commit will be removed"
             )
             # Remove the source commit entirely (all hunks were squashed)
             result = self.git_ops.run_git_command(["rebase", "--skip"])
             if result.returncode != 0:
-                print(f"DEBUG: Failed to skip source commit: {result.stderr}")
+                logger.debug(f"Failed to skip source commit: {result.stderr}")
                 return False
             return True
 
-        print(
-            f"DEBUG: Keeping {len(ignored_split_commits)} ignored hunks in source commit"
+        logger.debug(
+            f"Keeping {len(ignored_split_commits)} ignored hunks in source commit"
         )
-        print("DEBUG: Ignored hunks are available in split commits:")
+        logger.debug("Ignored hunks are available in split commits:")
         for i, commit_sha in enumerate(ignored_split_commits, 1):
-            print(f"DEBUG:   {i}. {commit_sha[:8]}")
+            logger.debug(f"  {i}. {commit_sha[:8]}")
 
-        print(f"DEBUG: Source commit {source_commit[:8]} left unchanged")
-        print(
-            "DEBUG: To apply ignored hunks manually, cherry-pick the split commits above"
+        logger.debug(f"Source commit {source_commit[:8]} left unchanged")
+        logger.debug(
+            "To apply ignored hunks manually, cherry-pick the split commits above"
         )
 
         # Ignored hunks remain in split commits for manual review

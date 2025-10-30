@@ -1,5 +1,6 @@
 """CLI entry point for git-autosquash."""
 
+import logging
 import subprocess
 import sys
 from typing import TYPE_CHECKING, List, Optional
@@ -25,6 +26,16 @@ from git_autosquash.validation import ProcessingValidator
 
 if TYPE_CHECKING:
     from git_autosquash.hunk_commit_splitter import HunkCommitSplitter
+
+
+def setup_logging(verbose: bool) -> None:
+    """Configure logging based on verbosity level."""
+    level = logging.DEBUG if verbose else logging.INFO
+    logging.basicConfig(
+        level=level,
+        format="%(levelname)s: %(message)s",
+        force=True,  # Override any existing configuration
+    )
 
 
 def _simple_approval_fallback(mappings, resolver, commit_analyzer=None):
@@ -187,7 +198,9 @@ def _execute_rebase(
         rebase_manager = RebaseManager(git_ops, merge_base)
 
         # Show what we're about to do
-        print(f"Distributing {len(approved_mappings)} hunks to their target commits:")
+        logging.debug(
+            f"Distributing {len(approved_mappings)} hunks to their target commits:"
+        )
         commit_counts = {}
         for mapping in approved_mappings:
             if mapping.target_commit:
@@ -198,11 +211,15 @@ def _execute_rebase(
         for commit_hash, count in commit_counts.items():
             try:
                 commit_summary = resolver.get_commit_summary(commit_hash)
-                print(f"  {count} hunk{'s' if count > 1 else ''} → {commit_summary}")
+                logging.debug(
+                    f"  {count} hunk{'s' if count > 1 else ''} → {commit_summary}"
+                )
             except Exception:
-                print(f"  {count} hunk{'s' if count > 1 else ''} → {commit_hash}")
+                logging.debug(
+                    f"  {count} hunk{'s' if count > 1 else ''} → {commit_hash}"
+                )
 
-        print("\nStarting rebase operation...")
+        logging.debug("Starting rebase operation...")
 
         # Execute the squash operation
         success = rebase_manager.execute_squash(
@@ -224,10 +241,10 @@ def _execute_rebase(
         try:
             status_result = git_ops.run_git_command(["status", "--porcelain"])
             rebase_in_progress = rebase_manager.is_rebase_in_progress()
-            print(f"DEBUG: Rebase in progress: {rebase_in_progress}")
-            print(f"DEBUG: Working tree status: {status_result.stdout.strip()}")
+            logging.debug(f"Rebase in progress: {rebase_in_progress}")
+            logging.debug(f"Working tree status: {status_result.stdout.strip()}")
         except Exception as debug_e:
-            print(f"DEBUG: Failed to check rebase status: {debug_e}")
+            logging.debug(f"Failed to check rebase status: {debug_e}")
 
         if rebase_manager.is_rebase_in_progress():
             print("\nTo resolve conflicts:")
@@ -549,22 +566,22 @@ def process_hunks_and_mappings(
     # Phase 1: Normalize source to commit
     normalizer = SourceNormalizer(git_ops)
     starting_commit = normalizer.normalize_to_commit(source)
-    print(f"Processing from commit: {starting_commit[:8]}")
+    logging.debug(f"Processing from commit: {starting_commit[:8]}")
 
     # Phase 2: Split source commit into per-hunk commits (if using --source)
     # This enables reliable 3-way merge during cherry-pick
     splitter: Optional[HunkCommitSplitter] = None
     split_commits: List[str] = []
     if context.source_commit:
-        print(
-            "DEBUG: Splitting source commit into per-hunk commits for reliable 3-way merge"
+        logging.debug(
+            "Splitting source commit into per-hunk commits for reliable 3-way merge"
         )
         splitter = HunkCommitSplitter(git_ops)
         try:
             split_commits, hunks = splitter.split_commit_into_hunks(starting_commit)
-            print(f"DEBUG: Created {len(split_commits)} split commits")
+            logging.debug(f"Created {len(split_commits)} split commits")
         except Exception as e:
-            print(f"DEBUG: Failed to split commit: {e}")
+            logging.debug(f"Failed to split commit: {e}")
             # Fall back to normal patch-based approach
             splitter = None
             split_commits = []
@@ -594,8 +611,8 @@ def process_hunks_and_mappings(
         for i, mapping in enumerate(mappings):
             if i < len(split_commits):
                 mapping.source_commit_sha = split_commits[i]
-                print(
-                    f"DEBUG: Mapped hunk {i + 1} to split commit {split_commits[i][:8]}"
+                logging.debug(
+                    f"Mapped hunk {i + 1} to split commit {split_commits[i][:8]}"
                 )
 
     # Separate automatic mappings from those requiring user input
@@ -627,15 +644,19 @@ def handle_automatic_mappings(
         return [], []
 
     if auto_accept:
+        # Count unique files
+        files = set(m.hunk.file_path for m in automatic_mappings)
         print(
-            f"\n✓ Auto-accepting {len(automatic_mappings)} hunks with blame-identified targets"
+            f"\n✓ Auto-accepting {len(automatic_mappings)} hunks across {len(files)} files"
+        )
+        logging.debug(
+            f"Auto-accepting {len(automatic_mappings)} hunks with blame-identified targets"
         )
         for mapping in automatic_mappings:
             commit_summary = (
                 mapping.target_commit[:8] if mapping.target_commit else "unknown"
             )
-            print(f"  → {mapping.hunk.file_path}: {commit_summary}")
-        print()
+            logging.debug(f"  → {mapping.hunk.file_path}: {commit_summary}")
         return automatic_mappings, []
     else:
         # Show automatic mappings and ask for confirmation
@@ -828,8 +849,18 @@ def run(
             autocompletion=complete_git_branches,
         ),
     ] = None,
+    verbose: Annotated[
+        bool,
+        typer.Option(
+            "--verbose",
+            "-v",
+            help="Enable verbose debug output for troubleshooting",
+        ),
+    ] = False,
 ) -> None:
     """Automatically squash changes back into historical commits."""
+    # Configure logging based on verbose flag
+    setup_logging(verbose)
     # If a subcommand is being invoked, skip the main logic
     if ctx.invoked_subcommand is not None:
         return
@@ -883,9 +914,9 @@ def run(
         normalizer.temp_commit_created = temp_commit_created
 
         try:
-            print(f"Found target commits for {len(automatic_mappings)} hunks")
+            logging.debug(f"Found target commits for {len(automatic_mappings)} hunks")
             if fallback_mappings:
-                print(
+                logging.debug(
                     f"Found {len(fallback_mappings)} hunks requiring manual target selection"
                 )
 
