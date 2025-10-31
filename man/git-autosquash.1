@@ -1,0 +1,257 @@
+.\" Man page for git-autosquash
+.\" Generated for git-autosquash
+.TH "GIT\-AUTOSQUASH" "1" "2025-10-31" "git-autosquash" "Git Manual"
+.\" Disable hyphenation
+.nh
+.\" Disable justification (left margin only)
+.ad l
+.
+.SH "NAME"
+git-autosquash \- Automatically squash git changes back into historical commits
+.
+.SH "SYNOPSIS"
+.nf
+\fIgit autosquash\fR [\-\-line\-by\-line] [\-i | \-\-interactive] [\-n | \-\-dry\-run]
+                 [\-\-source <source>] [\-\-base <base>] [\-v | \-\-verbose]
+.fi
+.
+.SH "DESCRIPTION"
+.PP
+\fBgit autosquash\fR squashes uncommitted changes (from working directory or index) back into their logical source commits\&. It analyzes each hunk using git blame to determine which historical commit originally added the modified lines\&.
+.PP
+The tool operates in two modes:
+.RS 4
+.PP
+\fBInteractive mode\fR (\-i/\-\-interactive): Launches a TUI (Text User Interface) for manual review and approval of each hunk before squashing\&.
+.PP
+\fBAutomatic mode\fR (default): Automatically squashes all hunks without user interaction\&.
+.RE
+.PP
+git-autosquash uses a split-commit approach combined with git's 3-way merge algorithm for reliable hunk application\&. This handles complex cases like removing lines from the commit that originally added them, which patch-based approaches cannot handle\&.
+.PP
+Validation mechanisms prevent data corruption:
+.RS 4
+.PP
+\fBSourceNormalizer\fR: Converts all input sources (working-tree, index, HEAD, commits) to a single commit before processing\&.
+.PP
+\fBProcessingValidator\fR: Performs pre-flight and post-flight validation using \fIgit diff\fR to ensure no data loss\&.
+.RE
+.
+.SH "OPTIONS"
+.PP
+\fB\-\-line\-by\-line\fR
+.RS 4
+Use line-by-line hunk splitting instead of default git hunks\&. This creates one hunk per changed line, allowing more granular control over which changes are squashed where\&.
+.RE
+.PP
+\fB\-i\fR, \fB\-\-interactive\fR
+.RS 4
+Launch interactive TUI for manual hunk review and approval\&. The TUI displays each hunk with its target commit and allows you to approve, ignore, or modify the target for each change\&.
+.RE
+.PP
+\fB\-n\fR, \fB\-\-dry\-run\fR
+.RS 4
+Show what would be done without making any changes to the repository\&.
+.RE
+.PP
+\fB\-\-source\fR <source>
+.RS 4
+Specify what to process\&. Options:
+.RS 4
+.PP
+\fBauto\fR (default): Automatically detect based on repository status (working-tree, index, or HEAD)
+.PP
+\fBworking\-tree\fR: Process unstaged changes in the working directory
+.PP
+\fBindex\fR: Process staged changes in the index
+.PP
+\fBhead\fR: Process the HEAD commit
+.PP
+\fB<commit-sha>\fR: Process a specific commit by SHA
+.RE
+.PP
+When \fBhead\fR or a commit SHA is specified, git blame analysis starts on <commit>~1 (the parent commit)\&.
+.RE
+.PP
+\fB\-\-base\fR <base>
+.RS 4
+Specify the base commit or branch for merge-base calculation\&. Use this when working on feature branches that are not based on main/master\&. Examples: \-\-base andrewleech/usbd_net or \-\-base origin/develop\&.
+.RE
+.PP
+\fB\-v\fR, \fB\-\-verbose\fR
+.RS 4
+Enable verbose debug output for troubleshooting\&. Shows detailed information about hunk processing, blame analysis, and rebase operations\&.
+.RE
+.PP
+\fB\-\-install\-completion\fR
+.RS 4
+Install shell completion for the current shell\&.
+.RE
+.PP
+\fB\-\-show\-completion\fR
+.RS 4
+Show completion script for the current shell, allowing manual installation or customization\&.
+.RE
+.PP
+\fB\-h\fR, \fB\-\-help\fR
+.RS 4
+Show help message and exit\&.
+.RE
+.
+.SH "EXAMPLES"
+.PP
+Review and squash all uncommitted changes interactively:
+.RS 4
+.nf
+$ git autosquash \-i
+.fi
+.RE
+.PP
+Automatically squash all changes without review (default):
+.RS 4
+.nf
+$ git autosquash
+.fi
+.RE
+.PP
+Preview what would be squashed without making changes:
+.RS 4
+.nf
+$ git autosquash \-n
+.fi
+.RE
+.PP
+Interactively review in dry-run mode:
+.RS 4
+.nf
+$ git autosquash \-i \-n
+.fi
+.RE
+.PP
+Squash a specific commit back into its sources:
+.RS 4
+.nf
+$ git autosquash \-\-source abc123
+.fi
+.RE
+.PP
+Use line-by-line splitting for granular control:
+.RS 4
+.nf
+$ git autosquash \-i \-\-line\-by\-line
+.fi
+.RE
+.PP
+Work on a feature branch with custom base:
+.RS 4
+.nf
+$ git autosquash \-i \-\-base origin/develop
+.fi
+.RE
+.PP
+Debug with verbose output:
+.RS 4
+.nf
+$ git autosquash \-v \-i
+.fi
+.RE
+.
+.SH "HOW IT WORKS"
+.PP
+git-autosquash follows a 6-step process:
+.PP
+.B 1. Source Normalization
+.RS 4
+All input sources (working-tree, index, HEAD, commits) are normalized to a single commit using SourceNormalizer\&. Temporary commits are created with \-\-no\-verify for working-tree and index sources\&.
+.RE
+.PP
+.B 2. Commit Splitting
+.RS 4
+HunkCommitSplitter splits the source commit into separate temporary commits, one per hunk\&. Each split commit contains exactly one change and is stored on a temporary branch\&.
+.RE
+.PP
+.B 3. Blame Analysis
+.RS 4
+For each hunk, git blame determines which historical commit originally added the lines being modified\&. The BlameAnalysisEngine handles complex cases and provides fallback options when blame fails\&.
+.RE
+.PP
+.B 4. Interactive Review (if \-i flag used)
+.RS 4
+The TUI displays each hunk with its target commit, allowing approval, ignore, or target modification\&. FileConsistencyTracker ensures hunks from the same file use consistent targets\&.
+.RE
+.PP
+.B 5. Cherry-Pick Application
+.RS 4
+For each approved hunk, RebaseManager cherry-picks its split commit using \fIgit cherry\-pick \-\-no\-commit\fR\&. Git's 3-way merge handles complex cases automatically\&. Falls back to patch-based approach only if split-commit fails\&.
+.RE
+.PP
+.B 6. Validation
+.RS 4
+ProcessingValidator performs post-flight validation using \fIgit diff <start> <end>\fR to ensure no data corruption occurred during the squashing process\&.
+.RE
+.
+.SH "VALIDATION AND SAFETY"
+.PP
+Safety mechanisms:
+.PP
+\fBPre-flight validation\fR: Validates hunk counts match expectations before processing\&.
+.PP
+\fBPost-flight validation\fR: Uses \fIgit diff\fR to compare the starting and ending repository states, ensuring no data loss or corruption\&.
+.PP
+\fBReflog tracking\fR: All rebase operations are tracked in git reflog with descriptive messages\&.
+.PP
+\fBConflict handling\fR: If conflicts occur during squashing, the tool pauses and provides instructions for resolution or abort\&.
+.PP
+\fBTemporary commit cleanup\fR: All temporary commits and branches created during processing are automatically removed upon completion\&.
+.
+.SH "EXIT STATUS"
+.PP
+.B 0
+.RS 4
+Successful completion\&. All hunks were squashed (or would be squashed in dry-run mode) without errors\&.
+.RE
+.PP
+.B 1
+.RS 4
+Error occurred\&. This could be due to validation failures, git operation errors, or user abort\&.
+.RE
+.
+.SH "ENVIRONMENT"
+.PP
+\fBGIT_DIR\fR
+.RS 4
+Path to the .git directory\&. Used by git operations\&.
+.RE
+.PP
+\fBGIT_WORK_TREE\fR
+.RS 4
+Path to the working tree\&. Used by git operations\&.
+.RE
+.
+.SH "FILES"
+.PP
+\fB.git/rebase-merge/\fR
+.RS 4
+Temporary directory used during interactive rebase operations\&. Contains state for paused/continuing rebases\&.
+.RE
+.PP
+\fB.git/ORIG_HEAD\fR
+.RS 4
+Backup of HEAD before rebase operations\&. Used for recovery if needed\&.
+.RE
+.
+.SH "SEE ALSO"
+.PP
+\fBgit-rebase\fR(1), \fBgit-commit\fR(1), \fBgit-add\fR(1), \fBgit-blame\fR(1), \fBgit-cherry-pick\fR(1)
+.
+.SH "BUGS"
+.PP
+Report bugs at: https://github.com/andrewleech/git-autosquash/issues
+.
+.SH "AUTHOR"
+.PP
+Andrew Leech <andrew.leech@planetinnovation.com.au>
+.
+.SH "GIT"
+.PP
+Part of the \fBgit\fR(1) suite

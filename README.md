@@ -53,6 +53,37 @@ pipx install git-autosquash
 pip install git-autosquash
 ```
 
+### Man Page
+
+When installed via pipx (v1.4.0+), the man page is automatically installed:
+
+```bash
+man git-autosquash
+```
+
+pipx installs man pages to `~/.local/share/man/man1/`.
+
+#### Manual Installation
+
+If installed via pip, uv, or from source, install the man page manually:
+
+```bash
+# User-local installation (no root required)
+mkdir -p ~/.local/share/man/man1
+cp man/git-autosquash.1 ~/.local/share/man/man1/
+mandb -u ~/.local/share/man
+
+# Verify MANPATH includes ~/.local/share/man
+manpath | grep -q "$HOME/.local/share/man" || \
+  echo "Add to shell profile: export MANPATH=\"\$HOME/.local/share/man:\$MANPATH\""
+
+# System-wide installation (requires root)
+sudo cp man/git-autosquash.1 /usr/share/man/man1/
+sudo mandb
+```
+
+**Note:** uv does not yet support automatic man page installation (tracked in [uv#4731](https://github.com/astral-sh/uv/issues/4731)).
+
 ## Usage
 
 ```bash

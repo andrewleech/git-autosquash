@@ -23,6 +23,9 @@ build-backend = "hatchling.build"
 [tool.hatch.version]
 source = "vcs"
 
+[tool.hatch.build.targets.wheel.shared-data]
+"man/git-autosquash.1" = "share/man/man1/git-autosquash.1"
+
 [dependency-groups]
 dev = [
     "mypy>=1.17.1",

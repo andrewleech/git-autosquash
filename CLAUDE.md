@@ -98,6 +98,11 @@ uv run twine check dist/*              # Validate package
 uv run mkdocs serve                     # Local docs server
 uv run mkdocs build                     # Build docs
 
+# Man page testing
+man -l man/git-autosquash.1             # Preview man page
+groff -man -Tascii man/git-autosquash.1 # Validate troff syntax
+unzip -l dist/*.whl | grep share/man    # Verify man page in wheel
+
 # Screenshot generation
 python scripts/generate_screenshots.py  # Generate all screenshots
 python scripts/generate_screenshots.py --hero-only  # Hero only
@@ -217,6 +222,24 @@ When blame analysis fails to find valid targets, the system provides fallback me
 - Capture both stdout and stderr for proper error handling
 - Check return codes and handle failures gracefully
 - Use batch operations when processing multiple items
+
+### Man Page Maintenance
+
+Man page source: `man/git-autosquash.1` (troff format)
+
+When updating CLI flags or behavior:
+1. Update man page OPTIONS section to match `--help` output
+2. Update EXAMPLES section if workflow changes
+3. Update DESCRIPTION or HOW IT WORKS if algorithm changes
+4. Test rendering: `man -l man/git-autosquash.1`
+5. Validate syntax: `groff -man -Tascii man/git-autosquash.1`
+6. Verify wheel includes it: `unzip -l dist/*.whl | grep share/man`
+
+The man page is automatically installed by pipx via hatchling's shared-data configuration in `pyproject.toml`:
+```toml
+[tool.hatchling.build.targets.wheel.shared-data]
+"man/git-autosquash.1" = "share/man/man1/git-autosquash.1"
+```
 
 ## Split-Commit Execution Strategy
 
