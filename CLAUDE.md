@@ -63,6 +63,25 @@ The validation framework provides strong safety guarantees against data corrupti
 - **Better debugging**: Always have starting commit for comparison
 - **Safer operations**: Validation catches data loss before completion
 
+### File Deletion Support
+
+git-autosquash supports file deletions (including empty files) as first-class operations:
+
+**Implementation:**
+- **HunkParser**: Detects `deleted file mode` markers and creates synthetic DiffHunk objects for empty file deletions
+- **BlameAnalyzer**: Uses `git log --follow --diff-filter=A` to find the commit that added the file
+- **RebaseManager**: Applies deletions using `git rm` during rebase operations
+- **TUI**: Displays `[DELETED]` marker and shows deleted file content in preview
+- **Validation**: Counts file deletions in pre-flight validation
+
+**DiffHunk Fields:**
+- `is_file_deletion`: Boolean flag indicating file deletion
+- `deleted_file_mode`: File mode (e.g., "100644")
+- `deleted_file_content`: Content from parent commit for TUI preview
+
+**Target Resolution:**
+File deletions are automatically targeted to the commit that added the file, with high confidence. This enables automatic squashing of file cleanup operations to their original addition commits.
+
 ### Performance & Security Infrastructure
 
 - **BatchGitOperations** (batch_git_ops.py): Eliminates O(n) subprocess calls through batch loading

@@ -248,8 +248,11 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
         changes_list = self.query_one("#changes-list", ListView)
         for mapping in self.mappings:
             hunk = mapping.hunk
-            # Format: "file.py:lines"
-            change_text = f"{hunk.file_path}:{hunk.new_start}-{hunk.new_start + hunk.new_count - 1}"
+            # Format: "file.py:lines" or "[DELETED] file.py" for deletions
+            if hunk.is_file_deletion:
+                change_text = f"[DELETED] {hunk.file_path}"
+            else:
+                change_text = f"{hunk.file_path}:{hunk.new_start}-{hunk.new_start + hunk.new_count - 1}"
             item = ChangeListItem(change_text, mapping)
             await changes_list.append(item)
 
@@ -445,24 +448,47 @@ class ModernApprovalScreen(Screen[Dict[str, Any]]):
         hunk = self.selected_mapping.hunk
         diff_lines = []
 
-        # Add file header
-        diff_lines.append(f"--- {hunk.file_path}")
-        diff_lines.append(f"+++ {hunk.file_path}")
-        diff_lines.append(
-            f"@@ -{hunk.old_start},{hunk.old_count} +{hunk.new_start},{hunk.new_count} @@"
-        )
+        # Handle file deletions specially
+        if hunk.is_file_deletion:
+            diff_lines.append("[FILE DELETION]")
+            diff_lines.append(f"--- {hunk.file_path}")
+            diff_lines.append("+++ /dev/null")
+            if hunk.deleted_file_mode:
+                diff_lines.append(f"deleted file mode {hunk.deleted_file_mode}")
+            diff_lines.append("")
 
-        # Add context before if available
-        for line in hunk.context_before:
-            diff_lines.append(f" {line}")
+            # Show deleted file content if available
+            if hunk.deleted_file_content:
+                diff_lines.append("Deleted content:")
+                diff_lines.append("")
+                for line in hunk.deleted_file_content.split("\n"):
+                    diff_lines.append(f"-{line}")
+            elif hunk.lines:
+                # File deletion with content hunks
+                for line in hunk.lines:
+                    diff_lines.append(line)
+            else:
+                diff_lines.append("(empty file)")
+        else:
+            # Regular hunk display
+            # Add file header
+            diff_lines.append(f"--- {hunk.file_path}")
+            diff_lines.append(f"+++ {hunk.file_path}")
+            diff_lines.append(
+                f"@@ -{hunk.old_start},{hunk.old_count} +{hunk.new_start},{hunk.new_count} @@"
+            )
 
-        # Add hunk lines
-        for line in hunk.lines:
-            diff_lines.append(line)
+            # Add context before if available
+            for line in hunk.context_before:
+                diff_lines.append(f" {line}")
 
-        # Add context after if available
-        for line in hunk.context_after:
-            diff_lines.append(f" {line}")
+            # Add hunk lines
+            for line in hunk.lines:
+                diff_lines.append(line)
+
+            # Add context after if available
+            for line in hunk.context_after:
+                diff_lines.append(f" {line}")
 
         diff_text = "\n".join(diff_lines)
 

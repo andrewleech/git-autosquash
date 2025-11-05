@@ -2,7 +2,11 @@
 
 from typing import TYPE_CHECKING, List
 import logging
+import re
 from git_autosquash.git_ops import GitOps
+
+# Compile regex once for validation parsing
+_DIFF_FILE_PATH_REGEX = re.compile(r"diff --git a/(.*) b/(.*)")
 
 if TYPE_CHECKING:
     from git_autosquash.hunk_parser import DiffHunk
@@ -165,11 +169,33 @@ class ProcessingValidator:
             )
 
         # Count hunks in original commit by counting hunk header lines
+        # and file deletions without content hunks
         # Hunk headers start with @@ (not just contain @@ )
+        # File deletions are tracked by "deleted file mode" lines
         # This avoids coupling to HunkParser's internal implementation
-        original_count = sum(
-            1 for line in result.stdout.split("\n") if line.startswith("@@")
-        )
+        lines = result.stdout.split("\n")
+        hunk_count = sum(1 for line in lines if line.startswith("@@"))
+
+        # Also count file deletions without content hunks (empty files)
+        # Track which files have been seen in hunks vs deletions
+        deleted_files = set()
+        files_with_hunks = set()
+        current_file = None
+
+        for line in lines:
+            if line.startswith("diff --git"):
+                # Extract file path from "diff --git a/path b/path"
+                match = _DIFF_FILE_PATH_REGEX.match(line)
+                if match:
+                    current_file = match.group(2)
+            elif line.startswith("deleted file mode") and current_file:
+                deleted_files.add(current_file)
+            elif line.startswith("@@") and current_file:
+                files_with_hunks.add(current_file)
+
+        # Count file deletions that have no content hunks (empty files)
+        empty_file_deletions = len(deleted_files - files_with_hunks)
+        original_count = hunk_count + empty_file_deletions
 
         # Get count of hunks to be processed
         processed_count = len(processed_hunks)

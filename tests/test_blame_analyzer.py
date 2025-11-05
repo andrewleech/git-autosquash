@@ -481,3 +481,93 @@ def789012 (Jane Smith 2023-01-16 14:45:00 +0000 43) another good line"""
 
         result = analyzer.get_commit_summary("abc123456")
         assert result == "abc12345"  # First 8 chars as fallback
+
+    def test_file_deletion_targets_addition_commit(self) -> None:
+        """Test that file deletions are targeted to the commit that added the file."""
+        git_ops = Mock(spec=GitOps)
+        git_ops._run_git_command.return_value = (True, "commit2\n")
+
+        analyzer = BlameAnalyzer(git_ops, "merge_base", "HEAD")
+        # Pre-populate branch commits cache
+        analyzer._branch_commits_cache = {"commit1", "commit2", "commit3"}
+
+        hunk = DiffHunk(
+            file_path="deleted.txt",
+            old_start=0,
+            old_count=0,
+            new_start=0,
+            new_count=0,
+            lines=[],
+            context_before=[],
+            context_after=[],
+            is_file_deletion=True,
+            deleted_file_mode="100644",
+        )
+
+        mapping = analyzer._analyze_single_hunk(hunk)
+
+        assert mapping.target_commit == "commit2"
+        assert mapping.targeting_method.value == "file_deletion"
+        assert mapping.confidence == "high"
+        assert mapping.needs_user_selection is False
+
+    def test_find_file_addition_commit_with_follow(self) -> None:
+        """Test _find_file_addition_commit uses --follow for renamed files."""
+        git_ops = Mock(spec=GitOps)
+        git_ops._run_git_command.return_value = (True, "commit1\ncommit2\n")
+        analyzer = BlameAnalyzer(git_ops, "base", "HEAD")
+
+        result = analyzer._find_file_addition_commit("file.txt")
+
+        assert result == "commit2"  # Oldest (last) commit
+        # Verify --follow flag was used
+        call_args = git_ops._run_git_command.call_args[0]
+        assert "log" in call_args
+        assert "--follow" in call_args
+        assert "--diff-filter=A" in call_args
+
+    def test_find_file_addition_commit_not_found(self) -> None:
+        """Test _find_file_addition_commit returns None when file not found."""
+        git_ops = Mock(spec=GitOps)
+        git_ops._run_git_command.return_value = (True, "")
+        analyzer = BlameAnalyzer(git_ops, "base", "HEAD")
+
+        result = analyzer._find_file_addition_commit("nonexistent.txt")
+
+        assert result is None
+
+    def test_find_file_addition_commit_git_failure(self) -> None:
+        """Test _find_file_addition_commit handles git command failure."""
+        git_ops = Mock(spec=GitOps)
+        git_ops._run_git_command.return_value = (False, "")
+        analyzer = BlameAnalyzer(git_ops, "base", "HEAD")
+
+        result = analyzer._find_file_addition_commit("file.txt")
+
+        assert result is None
+
+    def test_file_deletion_falls_back_when_addition_not_found(self) -> None:
+        """Test fallback when file addition commit cannot be found."""
+        git_ops = Mock(spec=GitOps)
+        git_ops._run_git_command.return_value = (True, "")  # Empty result = not found
+        analyzer = BlameAnalyzer(git_ops, "base", "HEAD")
+        # Pre-populate branch commits cache
+        analyzer._branch_commits_cache = {"commit1"}
+
+        hunk = DiffHunk(
+            file_path="deleted.txt",
+            old_start=0,
+            old_count=0,
+            new_start=0,
+            new_count=0,
+            lines=[],
+            context_before=[],
+            context_after=[],
+            is_file_deletion=True,
+            deleted_file_mode="100644",
+        )
+
+        mapping = analyzer._analyze_single_hunk(hunk)
+
+        assert mapping.targeting_method.value == "fallback_existing_file"
+        assert mapping.needs_user_selection is True

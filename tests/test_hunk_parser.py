@@ -99,6 +99,59 @@ class TestDiffHunk:
         assert hunk.has_additions is False
         assert hunk.has_deletions is False
 
+    def test_file_deletion_flag_defaults_false(self) -> None:
+        """Test is_file_deletion defaults to False for regular hunks."""
+        hunk = DiffHunk(
+            file_path="test.py",
+            old_start=1,
+            old_count=1,
+            new_start=1,
+            new_count=1,
+            lines=["@@ -1,1 +1,1 @@", "-old", "+new"],
+            context_before=[],
+            context_after=[],
+        )
+        assert hunk.is_file_deletion is False
+        assert hunk.deleted_file_mode is None
+        assert hunk.deleted_file_content is None
+
+    def test_file_deletion_flag_true(self) -> None:
+        """Test is_file_deletion=True with metadata."""
+        hunk = DiffHunk(
+            file_path="empty.txt",
+            old_start=0,
+            old_count=0,
+            new_start=0,
+            new_count=0,
+            lines=[],
+            context_before=[],
+            context_after=[],
+            is_file_deletion=True,
+            deleted_file_mode="100644",
+            deleted_file_content="",
+        )
+        assert hunk.is_file_deletion is True
+        assert hunk.deleted_file_mode == "100644"
+        assert hunk.deleted_file_content == ""
+
+    def test_file_deletion_has_deletions_property(self) -> None:
+        """Test has_deletions works correctly for file deletions with content."""
+        hunk = DiffHunk(
+            file_path="file.txt",
+            old_start=1,
+            old_count=3,
+            new_start=0,
+            new_count=0,
+            lines=["@@ -1,3 +0,0 @@", "-line1", "-line2", "-line3"],
+            context_before=[],
+            context_after=[],
+            is_file_deletion=True,
+            deleted_file_mode="100644",
+        )
+        assert hunk.is_file_deletion is True
+        assert hunk.has_deletions is True
+        assert hunk.has_additions is False
+
 
 class TestHunkParser:
     """Test cases for HunkParser class."""
@@ -125,7 +178,7 @@ class TestHunkParser:
         result = parser.get_diff_hunks()
 
         git_ops._run_git_command.assert_called_once_with("show", "--format=", "HEAD")
-        mock_parse.assert_called_once_with("diff output")
+        mock_parse.assert_called_once_with("diff output", parent_ref="HEAD")
         assert result == []
 
     @patch.object(HunkParser, "_parse_diff_output")
@@ -144,7 +197,7 @@ class TestHunkParser:
         parser.get_diff_hunks()
 
         git_ops._run_git_command.assert_called_once_with("diff", "--cached")
-        mock_parse.assert_called_once_with("diff output")
+        mock_parse.assert_called_once_with("diff output", parent_ref="HEAD")
 
     @patch.object(HunkParser, "_parse_diff_output")
     def test_get_diff_hunks_unstaged_only(self, mock_parse: Mock) -> None:
@@ -162,7 +215,7 @@ class TestHunkParser:
         parser.get_diff_hunks()
 
         git_ops._run_git_command.assert_called_once_with("diff")
-        mock_parse.assert_called_once_with("diff output")
+        mock_parse.assert_called_once_with("diff output", parent_ref="HEAD")
 
     @patch.object(HunkParser, "_parse_diff_output")
     def test_get_diff_hunks_mixed_changes(self, mock_parse: Mock) -> None:
@@ -185,7 +238,7 @@ class TestHunkParser:
 
         # Should process staged changes (--cached) when both staged and unstaged exist
         git_ops._run_git_command.assert_called_once_with("diff", "--cached")
-        mock_parse.assert_called_once_with("diff output")
+        mock_parse.assert_called_once_with("diff output", parent_ref="HEAD")
 
     def test_get_diff_hunks_command_failure(self) -> None:
         """Test get_diff_hunks handles git command failure."""
@@ -225,7 +278,7 @@ class TestHunkParser:
         parser = HunkParser(git_ops)
         result = parser.get_diff_hunks(line_by_line=True)
 
-        mock_parse.assert_called_once_with("diff output")
+        mock_parse.assert_called_once_with("diff output", parent_ref="HEAD")
         mock_split.assert_called_once_with(original_hunks)
         assert result == split_hunks
 
@@ -432,7 +485,9 @@ index 7890abc..defghij 100644
         result = parser.get_diff_hunks(from_commit="abc123")
 
         git_ops._run_git_command.assert_called_once_with("show", "--format=", "abc123")
-        mock_parse.assert_called_once_with("diff output from commit")
+        mock_parse.assert_called_once_with(
+            "diff output from commit", parent_ref="abc123~1"
+        )
         assert result == []
 
     @patch.object(HunkParser, "_parse_diff_output")
@@ -469,7 +524,7 @@ index 7890abc..defghij 100644
         result = parser.get_diff_hunks(from_commit="abc123", line_by_line=True)
 
         git_ops._run_git_command.assert_called_once_with("show", "--format=", "abc123")
-        mock_parse.assert_called_once_with("diff output")
+        mock_parse.assert_called_once_with("diff output", parent_ref="abc123~1")
         mock_split.assert_called_once_with(original_hunks)
         assert result == split_hunks
 
@@ -487,3 +542,170 @@ index 7890abc..defghij 100644
         # from_commit should be used, source should be ignored
         git_ops._run_git_command.assert_called_once_with("show", "--format=", "abc123")
         mock_get_source.assert_not_called()
+
+    def test_parse_empty_file_deletion(self) -> None:
+        """Test parsing diff with empty file deletion."""
+        diff_output = """diff --git a/empty.txt b/empty.txt
+deleted file mode 100644
+index e69de29..0000000
+"""
+        git_ops = Mock(spec=GitOps)
+        # First call: get diff, Second call: get deleted content (will fail gracefully)
+        git_ops._run_git_command.side_effect = [(True, diff_output), (False, "")]
+
+        parser = HunkParser(git_ops)
+        hunks = parser.get_diff_hunks(from_commit="abc123")
+
+        assert len(hunks) == 1
+        assert hunks[0].is_file_deletion is True
+        assert hunks[0].file_path == "empty.txt"
+        assert hunks[0].deleted_file_mode == "100644"
+        assert len(hunks[0].lines) == 0
+        assert hunks[0].old_count == 0
+        assert hunks[0].new_count == 0
+
+    def test_parse_nonempty_file_deletion(self) -> None:
+        """Test parsing diff with non-empty file deletion."""
+        diff_output = """diff --git a/file.txt b/file.txt
+deleted file mode 100644
+index 9daeafb..0000000
+--- a/file.txt
++++ /dev/null
+@@ -1,3 +0,0 @@
+-line 1
+-line 2
+-line 3
+"""
+        git_ops = Mock(spec=GitOps)
+        git_ops._run_git_command.return_value = (True, diff_output)
+
+        parser = HunkParser(git_ops)
+        hunks = parser.get_diff_hunks(from_commit="abc123")
+
+        assert len(hunks) == 1
+        assert hunks[0].is_file_deletion is True
+        assert hunks[0].file_path == "file.txt"
+        assert hunks[0].deleted_file_mode == "100644"
+        assert len(hunks[0].lines) == 5  # Header + 3 deletion lines + trailing empty
+        assert hunks[0].old_count == 3
+        assert hunks[0].new_count == 0
+
+    def test_parse_mixed_deletions_and_modifications(self) -> None:
+        """Test parsing diff with both file deletions and regular hunks."""
+        diff_output = """diff --git a/deleted.txt b/deleted.txt
+deleted file mode 100644
+index e69de29..0000000
+diff --git a/modified.py b/modified.py
+index abc123..def456 100644
+--- a/modified.py
++++ b/modified.py
+@@ -10,3 +10,3 @@
+ context
+-old line
++new line
+ context
+"""
+        git_ops = Mock(spec=GitOps)
+        # First call: get diff, Second call: get deleted content for empty file
+        git_ops._run_git_command.side_effect = [(True, diff_output), (False, "")]
+
+        parser = HunkParser(git_ops)
+        hunks = parser.get_diff_hunks(from_commit="abc123")
+
+        assert len(hunks) == 2
+        # First hunk: file deletion
+        assert hunks[0].is_file_deletion is True
+        assert hunks[0].file_path == "deleted.txt"
+        # Second hunk: regular modification
+        assert hunks[1].is_file_deletion is False
+        assert hunks[1].file_path == "modified.py"
+
+    def test_parse_multiple_file_deletions(self) -> None:
+        """Test parsing diff with multiple file deletions."""
+        diff_output = """diff --git a/empty1.txt b/empty1.txt
+deleted file mode 100644
+index e69de29..0000000
+diff --git a/empty2.txt b/empty2.txt
+deleted file mode 100644
+index e69de29..0000000
+"""
+        git_ops = Mock(spec=GitOps)
+        # First call: get diff, Then 2 calls for deleted content (will fail gracefully)
+        git_ops._run_git_command.side_effect = [
+            (True, diff_output),
+            (False, ""),  # Content for empty1.txt
+            (False, ""),  # Content for empty2.txt
+        ]
+
+        parser = HunkParser(git_ops)
+        hunks = parser.get_diff_hunks(from_commit="abc123")
+
+        assert len(hunks) == 2
+        assert all(h.is_file_deletion for h in hunks)
+        assert hunks[0].file_path == "empty1.txt"
+        assert hunks[1].file_path == "empty2.txt"
+
+    def test_deleted_file_content_retrieval(self) -> None:
+        """Test that deleted file content is retrieved for preview."""
+        # First call: diff output
+        # Second call: show parent:file for content
+        diff_output = """diff --git a/file.txt b/file.txt
+deleted file mode 100644
+index e69de29..0000000
+"""
+        git_ops = Mock(spec=GitOps)
+        git_ops._run_git_command.side_effect = [
+            (True, diff_output),
+            (True, "deleted content\nline 2\n"),  # Content retrieval
+        ]
+
+        parser = HunkParser(git_ops)
+        hunks = parser.get_diff_hunks(from_commit="abc123")
+
+        assert len(hunks) == 1
+        assert hunks[0].deleted_file_content == "deleted content\nline 2\n"
+        # Verify second call was made with correct args
+        assert git_ops._run_git_command.call_count == 2
+        assert "abc123~1:file.txt" in git_ops._run_git_command.call_args_list[1][0]
+
+    def test_deleted_file_content_truncation_large_file(self) -> None:
+        """Test that large deleted files are truncated to prevent memory issues."""
+        diff_output = """diff --git a/large.txt b/large.txt
+deleted file mode 100644
+index e69de29..0000000
+"""
+        # Create 200KB of content (should be truncated to 100KB)
+        large_content = "x" * (200 * 1024)
+
+        git_ops = Mock(spec=GitOps)
+        git_ops._run_git_command.side_effect = [
+            (True, diff_output),
+            (True, large_content),
+        ]
+
+        parser = HunkParser(git_ops)
+        hunks = parser.get_diff_hunks(from_commit="abc123")
+
+        assert len(hunks) == 1
+        content = hunks[0].deleted_file_content
+        assert content is not None
+        assert len(content) < len(large_content)
+        assert "[Content truncated" in content
+
+    def test_deleted_file_content_retrieval_failure(self) -> None:
+        """Test graceful handling when deleted file content cannot be retrieved."""
+        diff_output = """diff --git a/file.txt b/file.txt
+deleted file mode 100644
+index e69de29..0000000
+"""
+        git_ops = Mock(spec=GitOps)
+        git_ops._run_git_command.side_effect = [
+            (True, diff_output),
+            (False, ""),
+        ]  # Content retrieval fails
+
+        parser = HunkParser(git_ops)
+        hunks = parser.get_diff_hunks(from_commit="abc123")
+
+        assert len(hunks) == 1
+        assert hunks[0].deleted_file_content is None  # Fails gracefully

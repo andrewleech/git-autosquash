@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, Mock, mock_open, patch
 
 import pytest
 
+from git_autosquash.git_ops import GitOps
 from git_autosquash.hunk_target_resolver import HunkTargetMapping
 from git_autosquash.hunk_parser import DiffHunk
 from git_autosquash.rebase_manager import RebaseConflictError, RebaseManager
@@ -701,6 +702,159 @@ class TestRebaseManager:
 
         with pytest.raises(ValueError, match="Cannot determine current branch"):
             self.rebase_manager.execute_squash([mapping], [], context=mock_context)
+
+    def test_apply_hunks_with_file_deletion(self) -> None:
+        """Test _apply_hunks_to_commit handles file deletions with git rm."""
+        git_ops = Mock(spec=GitOps)
+        # Mock git rm --ignore-unmatch to succeed
+        rm_result = Mock(returncode=0, stdout="", stderr="")
+        git_ops.run_git_command.return_value = rm_result
+
+        manager = RebaseManager(git_ops, "merge_base")
+
+        hunk = DiffHunk(
+            file_path="deleted.txt",
+            old_start=0,
+            old_count=0,
+            new_start=0,
+            new_count=0,
+            lines=[],
+            context_before=[],
+            context_after=[],
+            is_file_deletion=True,
+            deleted_file_mode="100644",
+        )
+
+        # Mock the rebase setup
+        with patch.object(manager, "_start_rebase_edit", return_value=True):
+            with patch.object(manager, "_amend_commit"):
+                with patch.object(manager, "_continue_rebase"):
+                    result = manager._apply_hunks_to_commit(
+                        "target_commit", [hunk], ["split_commit"]
+                    )
+
+        assert result is True
+        # Verify git rm --ignore-unmatch was called
+        rm_call = [c for c in git_ops.run_git_command.call_args_list if "rm" in c[0][0]]
+        assert len(rm_call) == 1
+        assert "deleted.txt" in rm_call[0][0][0]
+        assert "--ignore-unmatch" in rm_call[0][0][0]
+
+    def test_apply_hunks_file_already_deleted(self) -> None:
+        """Test idempotent handling when file already deleted."""
+        git_ops = Mock(spec=GitOps)
+        # Mock git rm --ignore-unmatch to succeed (idempotent even if file gone)
+        rm_result = Mock(returncode=0, stdout="", stderr="")
+        git_ops.run_git_command.return_value = rm_result
+
+        manager = RebaseManager(git_ops, "merge_base")
+
+        hunk = DiffHunk(
+            file_path="deleted.txt",
+            old_start=0,
+            old_count=0,
+            new_start=0,
+            new_count=0,
+            lines=[],
+            context_before=[],
+            context_after=[],
+            is_file_deletion=True,
+            deleted_file_mode="100644",
+        )
+
+        with patch.object(manager, "_start_rebase_edit", return_value=True):
+            with patch.object(manager, "_amend_commit"):
+                with patch.object(manager, "_continue_rebase"):
+                    result = manager._apply_hunks_to_commit(
+                        "target_commit", [hunk], ["split_commit"]
+                    )
+
+        assert result is True
+        # Verify git rm --ignore-unmatch was called
+        rm_calls = [
+            c
+            for c in git_ops.run_git_command.call_args_list
+            if len(c[0]) > 0 and "rm" in c[0][0]
+        ]
+        assert len(rm_calls) == 1
+        assert "--ignore-unmatch" in rm_calls[0][0][0]
+
+    def test_apply_hunks_misaligned_lists(self) -> None:
+        """Test assertion catches misalignment between split_commits and hunks."""
+        git_ops = Mock(spec=GitOps)
+        manager = RebaseManager(git_ops, "merge_base")
+
+        # Create mock hunks with required attributes for logging
+        hunk1 = Mock(spec=DiffHunk)
+        hunk1.file_path = "file1.txt"
+        hunk1.lines = ["@@ -1,1 +1,1 @@"]
+        hunk2 = Mock(spec=DiffHunk)
+        hunk2.file_path = "file2.txt"
+        hunk2.lines = ["@@ -1,1 +1,1 @@"]
+
+        hunks = [hunk1, hunk2]
+        split_commits = ["commit1"]  # Mismatched length
+
+        with patch.object(manager, "_start_rebase_edit", return_value=True):
+            with pytest.raises(subprocess.SubprocessError) as exc_info:
+                manager._apply_hunks_to_commit("target", hunks, split_commits)  # type: ignore[arg-type]
+
+        assert "mismatch" in str(exc_info.value).lower()
+
+    def test_apply_mixed_deletions_and_modifications(self) -> None:
+        """Test applying both file deletions and regular hunks in same commit."""
+        git_ops = Mock(spec=GitOps)
+
+        # Mock rev-parse HEAD call at start of _apply_hunks_to_commit
+        rev_parse_result = Mock(returncode=0)
+        rev_parse_result.stdout = Mock()
+        rev_parse_result.stdout.strip.return_value = "target123abc"
+
+        rm_result = Mock(returncode=0, stdout="", stderr="")
+        cherry_result = Mock(returncode=0, stdout="", stderr="")
+        git_ops.run_git_command.side_effect = [
+            rev_parse_result,  # rev-parse HEAD
+            rm_result,  # File deletion
+            cherry_result,  # Regular hunk
+        ]
+
+        manager = RebaseManager(git_ops, "merge_base")
+
+        deletion_hunk = DiffHunk(
+            file_path="deleted.txt",
+            old_start=0,
+            old_count=0,
+            new_start=0,
+            new_count=0,
+            lines=[],
+            context_before=[],
+            context_after=[],
+            is_file_deletion=True,
+            deleted_file_mode="100644",
+        )
+
+        regular_hunk = DiffHunk(
+            file_path="modified.py",
+            old_start=10,
+            old_count=1,
+            new_start=10,
+            new_count=1,
+            lines=["@@ -10,1 +10,1 @@", "-old", "+new"],
+            context_before=[],
+            context_after=[],
+            is_file_deletion=False,
+        )
+
+        with patch.object(manager, "_start_rebase_edit", return_value=True):
+            with patch.object(manager, "_amend_commit"):
+                with patch.object(manager, "_continue_rebase"):
+                    result = manager._apply_hunks_to_commit(
+                        "target", [deletion_hunk, regular_hunk], ["split1", "split2"]
+                    )
+
+        assert result is True
+        # Verify both git rm and cherry-pick were called
+        assert git_ops.run_git_command.call_count >= 3
 
 
 class TestRebaseConflictError:

@@ -1,5 +1,6 @@
 """Git blame analysis and target commit resolution."""
 
+import logging
 import re
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set
@@ -8,6 +9,8 @@ from enum import Enum
 from git_autosquash.git_ops import GitOps
 from git_autosquash.hunk_parser import DiffHunk
 from git_autosquash.batch_git_ops import BatchGitOperations, BlameInfo as BatchBlameInfo
+
+logger = logging.getLogger(__name__)
 
 # Configuration constants for contextual blame scanning
 CONTEXTUAL_BLAME_LINES = 1  # Default ±1 line search for context
@@ -19,6 +22,7 @@ class TargetingMethod(Enum):
 
     BLAME_MATCH = "blame_match"
     CONTEXTUAL_BLAME_MATCH = "contextual_blame_match"  # Found via context lines
+    FILE_DELETION = "file_deletion"  # File deletion targeting the addition commit
     FALLBACK_NEW_FILE = "fallback_new_file"
     FALLBACK_EXISTING_FILE = "fallback_existing_file"
     FALLBACK_CONSISTENCY = (
@@ -94,6 +98,23 @@ class BlameAnalyzer:
         Returns:
             HunkTargetMapping with target commit information
         """
+        # Handle file deletions specially - target the commit that added the file
+        if hunk.is_file_deletion:
+            addition_commit = self._find_file_addition_commit(hunk.file_path)
+            if addition_commit:
+                return HunkTargetMapping(
+                    hunk=hunk,
+                    target_commit=addition_commit,
+                    confidence="high",
+                    blame_info=[],
+                    targeting_method=TargetingMethod.FILE_DELETION,
+                    needs_user_selection=False,
+                )
+            # If we can't find addition commit, fall back to user selection
+            return self._create_fallback_mapping(
+                hunk, TargetingMethod.FALLBACK_EXISTING_FILE
+            )
+
         # Check if this is a new file
         if self._is_new_file(hunk.file_path):
             return self._create_fallback_mapping(
@@ -684,6 +705,54 @@ class BlameAnalyzer:
             self._new_files_cache = self.batch_ops.get_new_files()
 
         return file_path in self._new_files_cache
+
+    def _find_file_addition_commit(self, file_path: str) -> Optional[str]:
+        """Find the commit that added a file.
+
+        Uses git log --follow --diff-filter=A to find when the file was first added.
+        Only returns commits within the branch scope (between merge_base and blame_ref).
+
+        Args:
+            file_path: Path to the file
+
+        Returns:
+            Commit hash that added the file, or None if not found
+        """
+        logger.debug(f"Finding addition commit for {file_path}")
+
+        # Use --follow to track renames, --diff-filter=A to find additions only
+        # Limit search to commits between merge_base and blame_ref
+        success, output = self.git_ops._run_git_command(
+            "log",
+            "--follow",
+            "--diff-filter=A",
+            "--format=%H",
+            f"{self.merge_base}..{self.blame_ref}",
+            "--",
+            file_path,
+        )
+
+        if not success:
+            logger.debug(f"git log failed for {file_path}")
+            return None
+
+        if not output:
+            logger.debug(
+                f"No addition commit found for {file_path} in range "
+                f"{self.merge_base[:8]}..{self.blame_ref[:8] if isinstance(self.blame_ref, str) else self.blame_ref}"
+            )
+            return None
+
+        # git log returns commits in reverse chronological order
+        # The last line is the oldest commit = the one that added the file
+        commits = output.strip().split("\n")
+        if commits and commits[-1]:
+            addition_commit = commits[-1]
+            logger.debug(f"Found addition commit {addition_commit[:8]} for {file_path}")
+            return addition_commit
+
+        logger.debug(f"No valid commits in output for {file_path}")
+        return None
 
     def _create_fallback_mapping(
         self,

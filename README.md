@@ -148,6 +148,7 @@ This smart handling ensures you can run git-autosquash at any time without losin
 ### Key Features
 
 - **Smart Targeting**: git blame analysis identifies logical target commits
+- **File Deletion Support**: Handles file deletions (including empty files) as first-class operations
 - **Interactive TUI**: Rich terminal interface with diff previews
 - **Safety First**: All changes require explicit approval
 - **Automatic Rollback**: Full git reflog integration for recovery

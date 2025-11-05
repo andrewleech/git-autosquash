@@ -146,9 +146,26 @@ class HunkCommitSplitter:
         """
         lines = [
             f"diff --git a/{hunk.file_path} b/{hunk.file_path}",
-            f"--- a/{hunk.file_path}",
-            f"+++ b/{hunk.file_path}",
         ]
+
+        # For file deletions, use proper deletion format
+        if hunk.is_file_deletion:
+            if hunk.deleted_file_mode:
+                lines.append(f"deleted file mode {hunk.deleted_file_mode}")
+            lines.extend(
+                [
+                    f"--- a/{hunk.file_path}",
+                    "+++ /dev/null",
+                ]
+            )
+        else:
+            lines.extend(
+                [
+                    f"--- a/{hunk.file_path}",
+                    f"+++ b/{hunk.file_path}",
+                ]
+            )
+
         lines.extend(hunk.lines)
         return "\n".join(lines) + "\n"
 

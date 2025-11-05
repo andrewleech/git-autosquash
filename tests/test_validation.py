@@ -4,6 +4,7 @@ import pytest
 from unittest.mock import Mock, MagicMock
 from git_autosquash.validation import ProcessingValidator, ValidationError
 from git_autosquash.git_ops import GitOps
+from git_autosquash.hunk_parser import DiffHunk
 
 
 class TestProcessingValidator:
@@ -398,3 +399,104 @@ class TestProcessingValidator:
 
         # Whitespace changes are still corruption
         assert "Data corruption detected" in str(exc_info.value)
+
+    def test_validate_hunk_count_with_empty_file_deletion(
+        self, validator, mock_git_ops
+    ):
+        """Test hunk count validation includes empty file deletions."""
+        diff_output = """diff --git a/empty.txt b/empty.txt
+deleted file mode 100644
+index e69de29..0000000
+"""
+
+        result = Mock(returncode=0, stdout=diff_output, stderr="")
+        mock_git_ops.run_git_command.return_value = result
+
+        # One empty file deletion = 1 hunk
+        hunks = [
+            DiffHunk(
+                file_path="empty.txt",
+                old_start=0,
+                old_count=0,
+                new_start=0,
+                new_count=0,
+                lines=[],
+                context_before=[],
+                context_after=[],
+                is_file_deletion=True,
+                deleted_file_mode="100644",
+            )
+        ]
+
+        # Should not raise
+        validator.validate_hunk_count("abc123", hunks)
+
+    def test_validate_hunk_count_with_mixed_deletions(self, validator, mock_git_ops):
+        """Test hunk count with both empty file deletions and content hunks."""
+        diff_output = """diff --git a/empty.txt b/empty.txt
+deleted file mode 100644
+index e69de29..0000000
+diff --git a/file.txt b/file.txt
+deleted file mode 100644
+index abc..def 100644
+--- a/file.txt
++++ /dev/null
+@@ -1,3 +0,0 @@
+-line1
+-line2
+-line3
+"""
+
+        result = Mock(returncode=0, stdout=diff_output, stderr="")
+        mock_git_ops.run_git_command.return_value = result
+
+        # 1 empty file deletion + 1 content hunk = 2 hunks
+        hunks = [
+            DiffHunk(
+                file_path="empty.txt",
+                old_start=0,
+                old_count=0,
+                new_start=0,
+                new_count=0,
+                lines=[],
+                context_before=[],
+                context_after=[],
+                is_file_deletion=True,
+                deleted_file_mode="100644",
+            ),
+            DiffHunk(
+                file_path="file.txt",
+                old_start=1,
+                old_count=3,
+                new_start=0,
+                new_count=0,
+                lines=["@@ -1,3 +0,0 @@", "-line1", "-line2", "-line3"],
+                context_before=[],
+                context_after=[],
+                is_file_deletion=True,
+                deleted_file_mode="100644",
+            ),
+        ]
+
+        # Should not raise
+        validator.validate_hunk_count("abc123", hunks)
+
+    def test_validate_hunk_count_detects_missing_file_deletion(
+        self, validator, mock_git_ops
+    ):
+        """Test validation fails when file deletion is missing from hunks."""
+        diff_output = """diff --git a/empty.txt b/empty.txt
+deleted file mode 100644
+index e69de29..0000000
+"""
+
+        result = Mock(returncode=0, stdout=diff_output, stderr="")
+        mock_git_ops.run_git_command.return_value = result
+
+        # Empty list - should detect mismatch
+        hunks = []
+
+        with pytest.raises(ValidationError) as exc_info:
+            validator.validate_hunk_count("abc123", hunks)
+
+        assert "mismatch" in str(exc_info.value).lower()

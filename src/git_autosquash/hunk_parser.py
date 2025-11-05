@@ -12,7 +12,12 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class DiffHunk:
-    """Represents a single diff hunk with metadata."""
+    """Represents a single diff hunk with metadata.
+
+    Can represent either a content hunk (line changes) or a file-level operation
+    like file deletion. For file deletions, is_file_deletion will be True and
+    the line number fields (old_start, etc.) will be placeholders (0).
+    """
 
     file_path: str
     old_start: int
@@ -22,6 +27,10 @@ class DiffHunk:
     lines: List[str]
     context_before: List[str]
     context_after: List[str]
+    # File deletion support
+    is_file_deletion: bool = False
+    deleted_file_mode: Optional[str] = None
+    deleted_file_content: Optional[str] = None
 
     @property
     def affected_lines(self) -> range:
@@ -91,7 +100,9 @@ class HunkParser:
                     f"Failed to get diff from commit {from_commit}: git command failed"
                 )
                 return []
-            hunks = self._parse_diff_output(diff_output)
+            # Pass parent ref for getting deleted file content
+            parent_ref = f"{from_commit}~1"
+            hunks = self._parse_diff_output(diff_output, parent_ref=parent_ref)
         else:
             # Legacy path: maintain backward compatibility
             # Note: Always emit warning since source parameter is deprecated
@@ -154,16 +165,23 @@ class HunkParser:
         if not success:
             return []
 
-        return self._parse_diff_output(diff_output)
+        return self._parse_diff_output(diff_output, parent_ref="HEAD")
 
-    def _parse_diff_output(self, diff_output: str) -> List[DiffHunk]:
+    def _parse_diff_output(
+        self, diff_output: str, parent_ref: str = "HEAD"
+    ) -> List[DiffHunk]:
         """Parse git diff output into DiffHunk objects.
+
+        Handles both content hunks (line changes) and file-level operations
+        (deletions). For file deletions, creates a synthetic DiffHunk with
+        is_file_deletion=True.
 
         Args:
             diff_output: Raw git diff output
+            parent_ref: Git ref to use when retrieving deleted file content
 
         Returns:
-            List of parsed DiffHunk objects
+            List of parsed DiffHunk objects (content hunks and file deletions)
         """
         if not diff_output.strip():
             return []
@@ -171,6 +189,8 @@ class HunkParser:
         hunks = []
         lines = diff_output.split("\n")
         current_file = None
+        current_file_deleted = False
+        current_file_mode = None
         i = 0
 
         while i < len(lines):
@@ -178,10 +198,40 @@ class HunkParser:
 
             # Track current file being processed
             if line.startswith("diff --git"):
+                # Before processing new file, check if previous file was deleted with no hunks
+                if (
+                    current_file
+                    and current_file_deleted
+                    and not self._has_hunks_for_file(hunks, current_file)
+                ):
+                    # Create synthetic hunk for file deletion
+                    deletion_hunk = self._create_file_deletion_hunk(
+                        current_file, current_file_mode, parent_ref
+                    )
+                    hunks.append(deletion_hunk)
+
                 # Extract file path from "diff --git a/path b/path"
                 match = re.match(r"diff --git a/(.*) b/(.*)", line)
                 if match:
                     current_file = match.group(2)  # Use the new file path
+                    current_file_deleted = False
+                    current_file_mode = None
+
+            # Detect file deletion
+            elif line.startswith("deleted file mode"):
+                match = re.match(r"deleted file mode (\d+)", line)
+                if match:
+                    current_file_deleted = True
+                    current_file_mode = match.group(1)
+                    logger.debug(
+                        f"Detected file deletion: {current_file} (mode {current_file_mode})"
+                    )
+
+            # Handle binary file deletion (no content hunks)
+            elif line.startswith("Binary files") and "and /dev/null differ" in line:
+                # Binary file deletion - already tracked via deleted file mode
+                # No content hunks will follow, so synthetic hunk will be created
+                logger.debug(f"Binary file deletion detected: {current_file}")
 
             elif line.startswith("@@") and current_file:
                 # Parse hunk header: @@ -old_start,old_count +new_start,new_count @@
@@ -218,6 +268,11 @@ class HunkParser:
                         lines=hunk_lines,
                         context_before=[],
                         context_after=[],
+                        # Mark as file deletion if the file was deleted
+                        is_file_deletion=current_file_deleted,
+                        deleted_file_mode=current_file_mode
+                        if current_file_deleted
+                        else None,
                     )
 
                     hunks.append(hunk)
@@ -225,7 +280,105 @@ class HunkParser:
 
             i += 1
 
+        # Handle last file if it was deleted with no hunks
+        if (
+            current_file
+            and current_file_deleted
+            and not self._has_hunks_for_file(hunks, current_file)
+        ):
+            deletion_hunk = self._create_file_deletion_hunk(
+                current_file, current_file_mode, parent_ref
+            )
+            hunks.append(deletion_hunk)
+
         return hunks
+
+    def _has_hunks_for_file(self, hunks: List[DiffHunk], file_path: str) -> bool:
+        """Check if hunks list already contains hunks for the given file.
+
+        Args:
+            hunks: List of hunks to search
+            file_path: File path to check
+
+        Returns:
+            True if hunks contains at least one hunk for file_path
+        """
+        return any(hunk.file_path == file_path for hunk in hunks)
+
+    def _create_file_deletion_hunk(
+        self, file_path: str, file_mode: Optional[str], parent_ref: str
+    ) -> DiffHunk:
+        """Create a synthetic hunk for a file deletion.
+
+        This is used when a file is deleted but has no content hunks
+        (e.g., empty file deletion).
+
+        Args:
+            file_path: Path of deleted file
+            file_mode: File mode (e.g., "100644")
+            parent_ref: Git ref to use for getting file content
+
+        Returns:
+            DiffHunk representing the file deletion
+        """
+        # Get file content for TUI preview (from parent commit)
+        deleted_content = self._get_deleted_file_content(file_path, parent_ref)
+
+        return DiffHunk(
+            file_path=file_path,
+            old_start=0,
+            old_count=0,
+            new_start=0,
+            new_count=0,
+            lines=[],  # No hunk lines for pure file deletion
+            context_before=[],
+            context_after=[],
+            is_file_deletion=True,
+            deleted_file_mode=file_mode,
+            deleted_file_content=deleted_content,
+        )
+
+    def _get_deleted_file_content(
+        self, file_path: str, parent_ref: str
+    ) -> Optional[str]:
+        """Get the last content of a deleted file for preview.
+
+        Limits content to first 1000 lines or 100KB to prevent memory exhaustion
+        from large file deletions.
+
+        Args:
+            file_path: Path of deleted file
+            parent_ref: Git ref to retrieve content from (typically parent commit)
+
+        Returns:
+            File content as string (truncated if large), or None if cannot retrieve
+        """
+        try:
+            success, content = self.git_ops._run_git_command(
+                "show", f"{parent_ref}:{file_path}"
+            )
+            if success:
+                # Limit to 100KB to prevent memory exhaustion
+                # MUST truncate BEFORE any string operations to handle single-line large files
+                MAX_CONTENT_SIZE = 100 * 1024  # 100KB
+                if len(content) > MAX_CONTENT_SIZE:
+                    # Truncate first, then find clean line boundary
+                    truncated = content[:MAX_CONTENT_SIZE]
+                    # Find last newline for clean cut
+                    last_newline = truncated.rfind("\n")
+                    if last_newline > 0:
+                        truncated = truncated[:last_newline]
+                    return (
+                        truncated
+                        + "\n\n[Content truncated - file too large for preview]"
+                    )
+                return content
+        except Exception as e:
+            logger.debug(
+                f"Could not retrieve deleted file content for {file_path}: {e}"
+            )
+
+        return None
 
     def _split_hunks_line_by_line(self, hunks: List[DiffHunk]) -> List[DiffHunk]:
         """Split hunks into line-by-line changes for finer granularity.

@@ -674,30 +674,54 @@ class RebaseManager:
             split_commits = [sc for sc in (source_commits or []) if sc is not None]
 
             if split_commits:
+                # Verify alignment between split_commits and hunks
+                if len(split_commits) != len(hunks):
+                    raise subprocess.SubprocessError(
+                        f"Split commits ({len(split_commits)}) and hunks ({len(hunks)}) count mismatch. "
+                        f"This indicates a bug in the split-commit approach."
+                    )
                 # Use cherry-pick with 3-way merge (reliable)
                 logger.debug(f"Cherry-picking {len(split_commits)} split commits")
-                for i, commit_sha in enumerate(split_commits, 1):
-                    logger.debug(
-                        f"Cherry-picking {i}/{len(split_commits)}: {commit_sha[:8]}"
-                    )
-                    result = self.git_ops.run_git_command(
-                        ["cherry-pick", "--no-commit", commit_sha]
-                    )
-                    if result.returncode != 0:
-                        logger.debug(f"Cherry-pick failed: {result.stderr}")
-                        # Check for conflicts
-                        conflicted_files = self._get_conflicted_files()
-                        if conflicted_files:
-                            raise RebaseConflictError(
-                                f"Cherry-pick failed with conflicts: {result.stderr}",
-                                conflicted_files,
-                            )
-                        else:
+                for i, (commit_sha, hunk) in enumerate(zip(split_commits, hunks), 1):
+                    # Handle file deletions specially
+                    if hunk.is_file_deletion:
+                        logger.debug(
+                            f"Applying file deletion {i}/{len(split_commits)}: {hunk.file_path}"
+                        )
+                        # Use --ignore-unmatch for idempotent deletion (no TOCTOU race)
+                        # This succeeds even if file already deleted
+                        result = self.git_ops.run_git_command(
+                            ["rm", "--ignore-unmatch", hunk.file_path]
+                        )
+                        if result.returncode != 0:
+                            logger.debug(f"git rm failed: {result.stderr}")
                             raise subprocess.SubprocessError(
-                                f"Cherry-pick failed: {result.stderr}"
+                                f"Failed to delete file {hunk.file_path}: {result.stderr}"
                             )
-                    logger.debug(f"Cherry-pick {i} successful")
-                logger.debug("All cherry-picks successful")
+                        logger.debug(f"File deletion {i} successful")
+                    else:
+                        # Regular hunk: cherry-pick the split commit
+                        logger.debug(
+                            f"Cherry-picking {i}/{len(split_commits)}: {commit_sha[:8]}"
+                        )
+                        result = self.git_ops.run_git_command(
+                            ["cherry-pick", "--no-commit", commit_sha]
+                        )
+                        if result.returncode != 0:
+                            logger.debug(f"Cherry-pick failed: {result.stderr}")
+                            # Check for conflicts
+                            conflicted_files = self._get_conflicted_files()
+                            if conflicted_files:
+                                raise RebaseConflictError(
+                                    f"Cherry-pick failed with conflicts: {result.stderr}",
+                                    conflicted_files,
+                                )
+                            else:
+                                raise subprocess.SubprocessError(
+                                    f"Cherry-pick failed: {result.stderr}"
+                                )
+                        logger.debug(f"Cherry-pick {i} successful")
+                logger.debug("All operations successful")
             else:
                 # Fall back to patch-based approach
                 logger.debug("Creating patch from original hunk text")
@@ -1518,9 +1542,20 @@ class RebaseManager:
             # Add file header if this is a new file
             if hunk.file_path != current_file:
                 current_file = hunk.file_path
-                patch_lines.extend(
-                    [f"--- a/{hunk.file_path}", f"+++ b/{hunk.file_path}"]
-                )
+
+                # For file deletions, include the deletion metadata
+                if hunk.is_file_deletion and hunk.deleted_file_mode:
+                    patch_lines.extend(
+                        [
+                            f"--- a/{hunk.file_path}",
+                            "+++ /dev/null",
+                            f"deleted file mode {hunk.deleted_file_mode}",
+                        ]
+                    )
+                else:
+                    patch_lines.extend(
+                        [f"--- a/{hunk.file_path}", f"+++ b/{hunk.file_path}"]
+                    )
 
             # Add ORIGINAL hunk lines from git (not reconstructed)
             patch_lines.extend(hunk.lines)
