@@ -612,7 +612,15 @@ def process_hunks_and_mappings(
     validator.validate_hunk_count(starting_commit, hunks)
 
     # Phase 5: Resolve target commits for hunks with SquashContext
-    resolver = HunkTargetResolver(git_ops, merge_base, context, blame_ref=blame_ref)
+    # Exclude starting_commit from being a target - it's the commit we're squashing,
+    # not a valid target. This prevents temp commits from targeting themselves.
+    resolver = HunkTargetResolver(
+        git_ops,
+        merge_base,
+        context,
+        blame_ref=blame_ref,
+        excluded_commits=[starting_commit],
+    )
     mappings = resolver.resolve_targets(hunks)
 
     # Attach split commit SHAs to mappings (for cherry-pick)
@@ -978,9 +986,16 @@ def run(
             # Phase 5: Post-flight validation
             if success and not dry_run:
                 validator = ProcessingValidator(git_ops)
-                # Use original HEAD for validation if available, otherwise use starting_commit
-                # This handles cases where --source points to a historical commit (not HEAD)
-                validation_base = original_head if original_head else starting_commit
+                # For temp commits (staged/working-tree changes), use starting_commit as baseline
+                # because that's the commit containing all the changes we're squashing.
+                # For non-temp sources (--source HEAD or commit ref), use original_head
+                # because the changes were already in history.
+                if temp_commit_created:
+                    validation_base = starting_commit
+                else:
+                    validation_base = (
+                        original_head if original_head else starting_commit
+                    )
                 validator.validate_processing(
                     validation_base, description="squash operation"
                 )
@@ -997,8 +1012,11 @@ def run(
                 raise typer.Exit(code=1)
 
         finally:
-            # Always cleanup temp commit and split commits
-            normalizer.cleanup_temp_commit()
+            # Only cleanup temp commit on failure or dry_run
+            # On success, the temp commit is orphaned (not in rebased history)
+            # and will be garbage collected. Resetting HEAD would undo the rebase.
+            if not success or dry_run:
+                normalizer.cleanup_temp_commit()
             if splitter:
                 splitter.cleanup()
 

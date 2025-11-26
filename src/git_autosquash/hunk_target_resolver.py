@@ -450,6 +450,7 @@ class HunkTargetResolver:
         merge_base: str,
         context: SquashContext,
         blame_ref: str = "HEAD",
+        excluded_commits: Optional[List[str]] = None,
     ):
         """Initialize hunk target resolver.
 
@@ -458,11 +459,14 @@ class HunkTargetResolver:
             merge_base: Merge base commit hash to limit scope
             context: SquashContext for centralized blame/HEAD exclusion logic
             blame_ref: Git ref to use for blame operations (default: HEAD)
+            excluded_commits: List of commit SHAs to exclude from being targets.
+                             Used to prevent temp commits from being targeted.
         """
         self.git_ops = git_ops
         self.merge_base = merge_base
         self.blame_ref = blame_ref
         self.context = context
+        self.excluded_commits = set(excluded_commits) if excluded_commits else set()
         self.batch_ops = BatchGitOperations(git_ops, merge_base, blame_ref=blame_ref)
         self.blame_engine = BlameAnalysisEngine(
             git_ops, merge_base, blame_ref=blame_ref
@@ -534,6 +538,15 @@ class HunkTargetResolver:
                     )
             except Exception as e:
                 print(f"WARNING: Error getting current HEAD for blame filtering: {e}")
+
+        # Exclude explicitly specified commits (e.g., temp commits from staged changes)
+        # This prevents targeting the source commit we're trying to squash
+        for excluded in self.excluded_commits:
+            if excluded in branch_commits:
+                branch_commits.discard(excluded)
+                print(
+                    f"DEBUG: Excluded source commit {excluded[:8]} from blame analysis"
+                )
 
         relevant_blame = [
             info for info in blame_info if info.commit_hash in branch_commits
