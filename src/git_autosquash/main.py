@@ -938,6 +938,7 @@ def run(
 
             # Phase 4: Handle user interaction
             success = False
+            rebase_performed = False  # Track if we actually did a rebase
 
             if dry_run:
                 # Dry run mode: show what would be done without making changes
@@ -980,6 +981,9 @@ def run(
                         context,
                         blame_ref=blame_ref,
                     )
+                    # Only mark rebase as performed if we actually approved hunks
+                    # If only ignored_mappings, no commits were changed
+                    rebase_performed = success and len(approved_mappings) > 0
                 else:
                     success = True  # No rebase needed
 
@@ -1012,10 +1016,12 @@ def run(
                 raise typer.Exit(code=1)
 
         finally:
-            # Only cleanup temp commit on failure or dry_run
-            # On success, the temp commit is orphaned (not in rebased history)
-            # and will be garbage collected. Resetting HEAD would undo the rebase.
-            if not success or dry_run:
+            # Cleanup temp commit logic:
+            # - On failure: cleanup to restore original state
+            # - On dry_run: cleanup to restore original state
+            # - On success with rebase: don't cleanup (temp commit is orphaned, resetting would undo rebase)
+            # - On success without rebase: cleanup (temp commit is HEAD, no work was done)
+            if not success or dry_run or not rebase_performed:
                 normalizer.cleanup_temp_commit()
             if splitter:
                 splitter.cleanup()
