@@ -177,7 +177,9 @@ class TestHunkParser:
         parser = HunkParser(git_ops)
         result = parser.get_diff_hunks()
 
-        git_ops._run_git_command.assert_called_once_with("show", "--format=", "HEAD")
+        git_ops._run_git_command.assert_called_once_with(
+            "show", "--format=", "HEAD", preserve_line_endings=True
+        )
         mock_parse.assert_called_once_with("diff output", parent_ref="HEAD")
         assert result == []
 
@@ -196,7 +198,9 @@ class TestHunkParser:
         parser = HunkParser(git_ops)
         parser.get_diff_hunks()
 
-        git_ops._run_git_command.assert_called_once_with("diff", "--cached")
+        git_ops._run_git_command.assert_called_once_with(
+            "diff", "--cached", preserve_line_endings=True
+        )
         mock_parse.assert_called_once_with("diff output", parent_ref="HEAD")
 
     @patch.object(HunkParser, "_parse_diff_output")
@@ -214,7 +218,9 @@ class TestHunkParser:
         parser = HunkParser(git_ops)
         parser.get_diff_hunks()
 
-        git_ops._run_git_command.assert_called_once_with("diff")
+        git_ops._run_git_command.assert_called_once_with(
+            "diff", preserve_line_endings=True
+        )
         mock_parse.assert_called_once_with("diff output", parent_ref="HEAD")
 
     @patch.object(HunkParser, "_parse_diff_output")
@@ -237,7 +243,9 @@ class TestHunkParser:
         parser.get_diff_hunks()
 
         # Should process staged changes (--cached) when both staged and unstaged exist
-        git_ops._run_git_command.assert_called_once_with("diff", "--cached")
+        git_ops._run_git_command.assert_called_once_with(
+            "diff", "--cached", preserve_line_endings=True
+        )
         mock_parse.assert_called_once_with("diff output", parent_ref="HEAD")
 
     def test_get_diff_hunks_command_failure(self) -> None:
@@ -484,7 +492,9 @@ index 7890abc..defghij 100644
         parser = HunkParser(git_ops)
         result = parser.get_diff_hunks(from_commit="abc123")
 
-        git_ops._run_git_command.assert_called_once_with("show", "--format=", "abc123")
+        git_ops._run_git_command.assert_called_once_with(
+            "show", "--format=", "abc123", preserve_line_endings=True
+        )
         mock_parse.assert_called_once_with(
             "diff output from commit", parent_ref="abc123~1"
         )
@@ -500,7 +510,7 @@ index 7890abc..defghij 100644
         result = parser.get_diff_hunks(from_commit="badcommit")
 
         git_ops._run_git_command.assert_called_once_with(
-            "show", "--format=", "badcommit"
+            "show", "--format=", "badcommit", preserve_line_endings=True
         )
         mock_parse.assert_not_called()
         assert result == []
@@ -523,7 +533,9 @@ index 7890abc..defghij 100644
         parser = HunkParser(git_ops)
         result = parser.get_diff_hunks(from_commit="abc123", line_by_line=True)
 
-        git_ops._run_git_command.assert_called_once_with("show", "--format=", "abc123")
+        git_ops._run_git_command.assert_called_once_with(
+            "show", "--format=", "abc123", preserve_line_endings=True
+        )
         mock_parse.assert_called_once_with("diff output", parent_ref="abc123~1")
         mock_split.assert_called_once_with(original_hunks)
         assert result == split_hunks
@@ -540,7 +552,9 @@ index 7890abc..defghij 100644
         parser.get_diff_hunks(from_commit="abc123", source="working-tree")
 
         # from_commit should be used, source should be ignored
-        git_ops._run_git_command.assert_called_once_with("show", "--format=", "abc123")
+        git_ops._run_git_command.assert_called_once_with(
+            "show", "--format=", "abc123", preserve_line_endings=True
+        )
         mock_get_source.assert_not_called()
 
     def test_parse_empty_file_deletion(self) -> None:

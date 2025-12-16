@@ -71,7 +71,7 @@ class TestSourceCommitCLIParsing:
                     return result
 
                 # Mock the old tuple-returning API used internally
-                def mock_run_git_command_tuple(*args):
+                def mock_run_git_command_tuple(*args, **kwargs):
                     # Return tuple format (success, output) for internal APIs
                     return (True, "")
 

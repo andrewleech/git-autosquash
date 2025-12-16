@@ -93,7 +93,7 @@ class HunkParser:
                 )
 
             success, diff_output = self.git_ops._run_git_command(
-                "show", "--format=", from_commit
+                "show", "--format=", from_commit, preserve_line_endings=True
             )
             if not success:
                 logger.warning(
@@ -133,33 +133,43 @@ class HunkParser:
             if status["is_clean"]:
                 # Working tree is clean, diff HEAD~1 to get previous commit changes
                 success, diff_output = self.git_ops._run_git_command(
-                    "show", "--format=", "HEAD"
+                    "show", "--format=", "HEAD", preserve_line_endings=True
                 )
             elif status["has_staged"] and not status["has_unstaged"]:
                 # Only staged changes, diff them
-                success, diff_output = self.git_ops._run_git_command("diff", "--cached")
+                success, diff_output = self.git_ops._run_git_command(
+                    "diff", "--cached", preserve_line_endings=True
+                )
             elif not status["has_staged"] and status["has_unstaged"]:
                 # Only unstaged changes, diff them
-                success, diff_output = self.git_ops._run_git_command("diff")
+                success, diff_output = self.git_ops._run_git_command(
+                    "diff", preserve_line_endings=True
+                )
             else:
                 # Both staged and unstaged changes - process only staged changes
                 # Unstaged changes will be temporarily stashed by the rebase manager
-                success, diff_output = self.git_ops._run_git_command("diff", "--cached")
+                success, diff_output = self.git_ops._run_git_command(
+                    "diff", "--cached", preserve_line_endings=True
+                )
         elif source == "working-tree":
             # Explicitly diff working tree (unstaged changes)
-            success, diff_output = self.git_ops._run_git_command("diff")
+            success, diff_output = self.git_ops._run_git_command(
+                "diff", preserve_line_endings=True
+            )
         elif source == "index":
             # Explicitly diff staged changes
-            success, diff_output = self.git_ops._run_git_command("diff", "--cached")
+            success, diff_output = self.git_ops._run_git_command(
+                "diff", "--cached", preserve_line_endings=True
+            )
         elif source == "head" or source == "HEAD":
             # Diff HEAD commit
             success, diff_output = self.git_ops._run_git_command(
-                "show", "--format=", "HEAD"
+                "show", "--format=", "HEAD", preserve_line_endings=True
             )
         else:
             # Assume it's a commit SHA
             success, diff_output = self.git_ops._run_git_command(
-                "show", "--format=", source
+                "show", "--format=", source, preserve_line_endings=True
             )
 
         if not success:

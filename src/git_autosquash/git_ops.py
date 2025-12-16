@@ -38,36 +38,59 @@ class GitOps:
         except (subprocess.SubprocessError, FileNotFoundError, OSError):
             return False
 
-    def _run_git_command(self, *args: str) -> tuple[bool, str]:
+    def _run_git_command(
+        self, *args: str, preserve_line_endings: bool = False
+    ) -> tuple[bool, str]:
         """Run a git command and return success status and output.
 
         Args:
             *args: Git command arguments
+            preserve_line_endings: If True, don't do universal newline conversion.
+                                  Use for diff/show output where CRLF must be preserved.
 
         Returns:
             Tuple of (success, output/error_message)
         """
         try:
-            result = subprocess.run(
-                ["git", *args],
-                cwd=self.repo_path,
-                capture_output=True,
-                text=True,
-                check=False,
-            )
+            stdout: str
+            stderr: str
+            returncode: int
+
+            if preserve_line_endings:
+                # Use binary mode and decode manually to preserve \r characters
+                bin_result = subprocess.run(
+                    ["git", *args],
+                    cwd=self.repo_path,
+                    capture_output=True,
+                    check=False,
+                )
+                stdout = bin_result.stdout.decode("utf-8", errors="replace")
+                stderr = bin_result.stderr.decode("utf-8", errors="replace")
+                returncode = bin_result.returncode
+            else:
+                text_result = subprocess.run(
+                    ["git", *args],
+                    cwd=self.repo_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                stdout = text_result.stdout
+                stderr = text_result.stderr
+                returncode = text_result.returncode
 
             # For status --porcelain and diff/show commands, preserve trailing whitespace
             # as it's significant (blank context lines in diffs are represented as a single space)
             if (
                 len(args) >= 2 and args[0] == "status" and args[1] == "--porcelain"
             ) or (len(args) >= 1 and args[0] in ("show", "diff")):
-                output = result.stdout.rstrip("\n")  # Only remove trailing newlines
+                output = stdout.rstrip("\n")  # Only remove trailing newlines
             else:
-                output = result.stdout.strip()  # Full strip for other commands
+                output = stdout.strip()  # Full strip for other commands
 
             return (
-                result.returncode == 0,
-                output or result.stderr.strip(),
+                returncode == 0,
+                output or stderr.strip(),
             )
         except (subprocess.SubprocessError, FileNotFoundError) as e:
             return False, f"Git command failed: {e}"
@@ -237,28 +260,50 @@ class GitOps:
         return True, "", resolved_hash
 
     def run_git_command(
-        self, args: list[str], env: dict[str, str] | None = None
+        self,
+        args: list[str],
+        env: dict[str, str] | None = None,
+        preserve_line_endings: bool = False,
     ) -> subprocess.CompletedProcess[str]:
         """Run a git command and return the complete result.
 
         Args:
             args: Git command arguments (without 'git')
             env: Optional environment variables
+            preserve_line_endings: If True, don't do universal newline conversion.
+                                  Use for diff/show output where CRLF must be preserved.
 
         Returns:
             CompletedProcess with stdout, stderr, and return code
         """
         cmd = ["git"] + args
         try:
-            result = subprocess.run(
-                cmd,
-                cwd=self.repo_path,
-                capture_output=True,
-                text=True,
-                env=env,
-                timeout=300,  # 5 minute timeout
-            )
-            return result
+            if preserve_line_endings:
+                # Use binary mode and decode manually to preserve \r characters
+                bin_result = subprocess.run(
+                    cmd,
+                    cwd=self.repo_path,
+                    capture_output=True,
+                    env=env,
+                    timeout=300,
+                )
+                # Decode without universal newline conversion
+                return subprocess.CompletedProcess(
+                    args=bin_result.args,
+                    returncode=bin_result.returncode,
+                    stdout=bin_result.stdout.decode("utf-8", errors="replace"),
+                    stderr=bin_result.stderr.decode("utf-8", errors="replace"),
+                )
+            else:
+                text_result = subprocess.run(
+                    cmd,
+                    cwd=self.repo_path,
+                    capture_output=True,
+                    text=True,
+                    env=env,
+                    timeout=300,  # 5 minute timeout
+                )
+                return text_result
         except subprocess.TimeoutExpired as e:
             return subprocess.CompletedProcess(
                 args=cmd,
