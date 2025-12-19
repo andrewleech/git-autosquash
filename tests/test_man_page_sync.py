@@ -18,7 +18,8 @@ def test_man_page_documents_all_cli_flags():
 
     # Extract flags from help output
     # Matches patterns like: --flag  or  --flag TEXT  or  -f, --flag
-    flag_pattern = r"(?:^|\s+)(-[a-z]|--[a-z][a-z-]+)(?:\s|,|\[|$)"
+    # Rich console output has box-drawing characters, so we need flexible start matching
+    flag_pattern = r"(?:^|[\s│]+)(-[a-z]|--[a-z][a-z-]+)(?:\s|,|\[|$)"
     cli_flags = set(re.findall(flag_pattern, help_text, re.MULTILINE))
 
     # Read man page
