@@ -1,5 +1,6 @@
 """Test that man page documentation stays in sync with CLI implementation."""
 
+import platform
 import re
 import subprocess
 from pathlib import Path
@@ -65,14 +66,15 @@ def test_man_page_exists_and_is_valid():
     man_page_path = Path(__file__).parent.parent / "man" / "git-autosquash.1"
     assert man_page_path.exists(), "man/git-autosquash.1 does not exist"
 
-    # Test man page can be rendered
-    result = subprocess.run(
-        ["man", "-l", str(man_page_path)],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert result.returncode == 0, f"man page rendering failed: {result.stderr}"
+    # Test man page can be rendered (Linux only - macOS and Windows don't have man -l)
+    if platform.system() == "Linux":
+        result = subprocess.run(
+            ["man", "-l", str(man_page_path)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 0, f"man page rendering failed: {result.stderr}"
 
     # Validate basic structure
     content = man_page_path.read_text()
