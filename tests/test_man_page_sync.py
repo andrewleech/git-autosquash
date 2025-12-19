@@ -1,27 +1,20 @@
 """Test that man page documentation stays in sync with CLI implementation."""
 
-import io
 import re
 import subprocess
-from contextlib import redirect_stdout
 from pathlib import Path
 
-import pytest
+from typer.testing import CliRunner
 
 
 def test_man_page_documents_all_cli_flags():
     """Verify man page OPTIONS section documents all flags from --help output."""
-    # Import the CLI app and capture its help output directly
-    # This avoids subprocess issues in different CI environments
+    # Use Typer's CliRunner to capture CLI help output reliably
     from git_autosquash.main import app
 
-    # Capture help output
-    help_output = io.StringIO()
-    with redirect_stdout(help_output):
-        with pytest.raises(SystemExit):
-            app(["--help"])
-
-    help_text = help_output.getvalue()
+    runner = CliRunner()
+    result = runner.invoke(app, ["--help"])
+    help_text = result.stdout
 
     # Extract flags from help output
     # Matches patterns like: --flag  or  --flag TEXT  or  -f, --flag
