@@ -2,14 +2,20 @@
 
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 
 def test_man_page_documents_all_cli_flags():
     """Verify man page OPTIONS section documents all flags from --help output."""
     # Get CLI flags from --help
+    # Use the entry point script from the same directory as the python interpreter
+    # This works in both venv and CI environments
+    script_dir = Path(sys.executable).parent
+    git_autosquash_script = script_dir / "git-autosquash"
+
     result = subprocess.run(
-        ["git-autosquash", "--help"],
+        [str(git_autosquash_script), "--help"],
         capture_output=True,
         text=True,
         check=False,
