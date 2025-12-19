@@ -17,6 +17,10 @@ def test_man_page_documents_all_cli_flags():
     result = runner.invoke(app, ["--help"], color=False)
     help_text = result.output
 
+    # Strip ANSI escape codes (Rich may still emit them even with color=False)
+    ansi_escape = re.compile(r"\x1b\[[0-9;]*m")
+    help_text = ansi_escape.sub("", help_text)
+
     # Extract flags from help output
     # Matches patterns like: --flag  or  --flag TEXT  or  -f, --flag
     # Rich console output may have box-drawing characters or just whitespace
