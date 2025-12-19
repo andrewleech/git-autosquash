@@ -12,21 +12,16 @@ def test_man_page_documents_all_cli_flags():
     # Use Typer's CliRunner to capture CLI help output reliably
     from git_autosquash.main import app
 
+    # Use color=False to avoid ANSI escape codes in output
     runner = CliRunner()
-    result = runner.invoke(app, ["--help"])
-    help_text = result.output  # Use .output instead of .stdout for combined output
-
-    # Debug: print first 500 chars to help diagnose CI issues
-    print(f"DEBUG help_text[:500]: {repr(help_text[:500])}")
+    result = runner.invoke(app, ["--help"], color=False)
+    help_text = result.output
 
     # Extract flags from help output
     # Matches patterns like: --flag  or  --flag TEXT  or  -f, --flag
     # Rich console output may have box-drawing characters or just whitespace
     flag_pattern = r"(?:^|[\s│]+)(-[a-z]|--[a-z][a-z-]+)(?:\s|,|\[|$)"
     cli_flags = set(re.findall(flag_pattern, help_text, re.MULTILINE))
-
-    # Debug: print extracted flags
-    print(f"DEBUG cli_flags: {sorted(cli_flags)}")
 
     # Read man page
     man_page_path = Path(__file__).parent.parent / "man" / "git-autosquash.1"
