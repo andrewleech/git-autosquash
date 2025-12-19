@@ -1,31 +1,32 @@
 """Test that man page documentation stays in sync with CLI implementation."""
 
+import io
 import re
 import subprocess
-import sys
+from contextlib import redirect_stdout
 from pathlib import Path
+
+import pytest
 
 
 def test_man_page_documents_all_cli_flags():
     """Verify man page OPTIONS section documents all flags from --help output."""
-    # Get CLI flags from --help
-    # Use the entry point script from the same directory as the python interpreter
-    # This works in both venv and CI environments
-    script_dir = Path(sys.executable).parent
-    git_autosquash_script = script_dir / "git-autosquash"
+    # Import the CLI app and capture its help output directly
+    # This avoids subprocess issues in different CI environments
+    from git_autosquash.main import app
 
-    result = subprocess.run(
-        [str(git_autosquash_script), "--help"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    help_output = result.stdout
+    # Capture help output
+    help_output = io.StringIO()
+    with redirect_stdout(help_output):
+        with pytest.raises(SystemExit):
+            app(["--help"])
+
+    help_text = help_output.getvalue()
 
     # Extract flags from help output
     # Matches patterns like: --flag  or  --flag TEXT  or  -f, --flag
     flag_pattern = r"(?:^|\s+)(-[a-z]|--[a-z][a-z-]+)(?:\s|,|\[|$)"
-    cli_flags = set(re.findall(flag_pattern, help_output, re.MULTILINE))
+    cli_flags = set(re.findall(flag_pattern, help_text, re.MULTILINE))
 
     # Read man page
     man_page_path = Path(__file__).parent.parent / "man" / "git-autosquash.1"
